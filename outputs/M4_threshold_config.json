@@ -1,10 +1,21 @@
 {
-  "anomaly_threshold": 1.361978,
-  "mean_error": 0.250823,
-  "std_error": 0.370385,
-  "p95_error": 0.505835,
-  "p99_error": 0.854181,
-  "method": "mean + 3sigma union p99",
+  "anomaly_threshold": 0.645347,
+  "mean_error": 0.049839,
+  "std_error": 0.198503,
+  "p95_error": 0.099678,
+  "p99_error": 0.518297,
+  "method": "pure_mae | mean + 3sigma union p99",
+  "loss_used_training": "physics_weighted 0.6xMAE + 0.4xMSE",
+  "channel_weights": [
+    1.5,
+    2.0,
+    0.800000011920929,
+    1.5,
+    2.0,
+    0.800000011920929,
+    1.0,
+    2.0
+  ],
   "window_size": 50,
   "n_features": 8,
   "norm_cols": [
