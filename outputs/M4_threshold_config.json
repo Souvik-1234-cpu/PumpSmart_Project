@@ -1,0 +1,21 @@
+{
+  "anomaly_threshold": 1.361978,
+  "mean_error": 0.250823,
+  "std_error": 0.370385,
+  "p95_error": 0.505835,
+  "p99_error": 0.854181,
+  "method": "mean + 3sigma union p99",
+  "window_size": 50,
+  "n_features": 8,
+  "norm_cols": [
+    "X_ACR_Mot.PV_norm",
+    "X_ACR_Mot.SV_norm",
+    "X_ACR_Mot.TV_norm",
+    "X_ACR_Pmp.PV_norm",
+    "X_ACR_Pmp.SV_norm",
+    "X_ACR_Pmp.TV_norm",
+    "X_Temp.SV_norm",
+    "X_Pres.SV_norm"
+  ],
+  "created": "2026-03-27"
+}

@@ -1,0 +1,27 @@
+{
+  "architecture": "LSTM-Autoencoder",
+  "n_features": 8,
+  "hidden_dim": 64,
+  "bottleneck_dim": 32,
+  "n_layers": 2,
+  "dropout": 0.2,
+  "window_size": 50,
+  "step_size": 10,
+  "norm_cols": [
+    "X_ACR_Mot.PV_norm",
+    "X_ACR_Mot.SV_norm",
+    "X_ACR_Mot.TV_norm",
+    "X_ACR_Pmp.PV_norm",
+    "X_ACR_Pmp.SV_norm",
+    "X_ACR_Pmp.TV_norm",
+    "X_Temp.SV_norm",
+    "X_Pres.SV_norm"
+  ],
+  "best_val_loss": 0.248584,
+  "best_epoch": 58,
+  "anomaly_threshold": 1.361978,
+  "training_rows": 9328,
+  "val_rows": 1645,
+  "total_windows": 10973,
+  "created": "2026-03-27"
+}
