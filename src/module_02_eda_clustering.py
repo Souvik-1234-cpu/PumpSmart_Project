@@ -279,13 +279,18 @@ log(centroids_df.round(4).to_string())
 # =============================================================
 log("STEP 8 — Assigning operating mode labels...")
 
-# Physics-based labeling logic:
-# - Temp columns (X_ACR_Mot.TV, X_ACR_Pmp.TV, X_Temp.SV) indicate load
-# - X_Pres.SV indicates pumping activity
-# - Low vibration + rising temp → startup
-# - Stable mid-range all sensors → steady_state
-# - High temp + high vibration → high_load
-# - Falling temp + low vibration → cooldown
+# Physics-based labeling logic (verified against M2_cluster_bounds.csv centroids):
+# - Cluster label assigned by combined rank of SV (vibration velocity) + TV (temperature)
+# - Low SV + near-zero Pressure + moderate TV              → cooldown (spinning down)
+# - Low SV + near-zero Pressure + HIGHEST TV               → startup  (thermal run-in:
+#                                                             motor heats before hydraulics
+#                                                             load in 7-stage multistage pump)
+# - High SV + high stable Pressure + mid TV                → high_load (vibration-dominated)
+# - Moderate SV + highest stable Pressure + high TV        → steady_state
+#
+# FIX-3 (2026-03-28): Original comment "High temp + high vibration → high_load" was WRONG.
+# Startup (C2) has higher mean TV (39.6°C) than high_load (C3, 35.1°C) — thermal lag effect.
+# Data labels are CORRECT. Only this comment was incorrect.
 
 temp_proxy   = centroids_df[['X_ACR_Mot.TV', 'X_ACR_Pmp.TV',
                               'X_Temp.SV']].mean(axis=1)

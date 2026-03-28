@@ -72,3 +72,16 @@
 - `outputs/plots/M1_segment_timeline.png`
 - `outputs/plots/M1_drop_percentage.png`
 - `outputs/plots/M1_segment_usability.png`
+
+## Audit Record (Added 2026-03-28)
+| Audit Item | Finding | Action Taken |
+|---|---|---|
+| Data column names | ✅ Correct — CIRA original names preserved | None |
+| Plot axis labels | ✅ Correct — duration in minutes, drop in % | None |
+| Report text | ✅ No incorrect unit claims | None |
+| median_interval column | ⚠️ Unit ambiguous (seconds, unlabelled) | Documented in M2_cluster_bounds_units.json |
+| Unit documentation | ⚠️ No unit registry existed | Created M2_cluster_bounds_units.json (FIX-1) |
+
+**Audit conclusion:** M1 data pipeline verified clean. No re-run required.
+All sensor values passed through unchanged in raw physical units.
+Authoritative unit reference: `outputs/M2_cluster_bounds_units.json`
