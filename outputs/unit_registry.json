@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "description": "Master sensor unit registry for PumpSmart Project",
+    "created_by": "fix_m1_m2_audit.py",
+    "audit_date": "2026-03-28",
+    "nameplate": {
+      "power_kW": 10,
+      "flow_m3h": 45,
+      "head_m": 450,
+      "pressure_bar": 40,
+      "impellers": 7,
+      "speed_rpm": 2980
+    }
+  },
+  "channels": {
+    "X_ACR_Mot.PV": {
+      "description": "Motor bearing — velocity (peak)",
+      "unit": "mm/s",
+      "sensor_type": "velocity",
+      "location": "motor",
+      "scada_encoding": "broadband_peak",
+      "physical_range_normal": [0.0005, 0.004],
+      "notes": "Very low mm/s values consistent with precision bearing mount"
+    },
+    "X_ACR_Mot.SV": {
+      "description": "Motor bearing — acceleration (broadband RMS envelope)",
+      "unit": "m/s2",
+      "sensor_type": "accelerometer",
+      "location": "motor",
+      "scada_encoding": "broadband_rms_envelope",
+      "physical_range_normal": [0.39, 21.5],
+      "notes": "ISO 10816: broadband SCADA envelope — use relative multipliers only, NOT single-tone acceleration. High-load cluster mean=36.26 m/s2 (fault-adjacent)"
+    },
+    "X_ACR_Mot.TV": {
+      "description": "Motor bearing — temperature",
+      "unit": "degC",
+      "sensor_type": "thermocouple",
+      "location": "motor_bearing",
+      "scada_encoding": "instantaneous",
+      "physical_range_normal": [18.0, 55.0],
+      "notes": "Corroborating sensor only. Startup cluster shows HIGHER mean temp (39.6 degC) vs high_load (35.1 degC) — K-Means thermal run-in paradox. Temperature alone cannot distinguish operating mode."
+    },
+    "X_ACR_Pmp.PV": {
+      "description": "Pump bearing — velocity (peak)",
+      "unit": "mm/s",
+      "sensor_type": "velocity",
+      "location": "pump",
+      "scada_encoding": "broadband_peak",
+      "physical_range_normal": [0.0003, 0.004],
+      "notes": "Very low mm/s values consistent with precision bearing mount"
+    },
+    "X_ACR_Pmp.SV": {
+      "description": "Pump bearing — acceleration (broadband RMS envelope)",
+      "unit": "m/s2",
+      "sensor_type": "accelerometer",
+      "location": "pump",
+      "scada_encoding": "broadband_rms_envelope",
+      "physical_range_normal": [0.38, 55.3],
+      "notes": "ISO 10816: broadband SCADA envelope. Steady-state p97.5=55.3 m/s2 — wide normal range due to pressure pulsation coupling"
+    },
+    "X_ACR_Pmp.TV": {
+      "description": "Pump bearing — temperature",
+      "unit": "degC",
+      "sensor_type": "thermocouple",
+      "location": "pump_bearing",
+      "scada_encoding": "instantaneous",
+      "physical_range_normal": [18.0, 45.0],
+      "notes": "Corroborating sensor only. Not primary fault indicator."
+    },
+    "X_Temp.SV": {
+      "description": "Process fluid temperature (suction/ambient zone)",
+      "unit": "degC",
+      "sensor_type": "thermocouple",
+      "location": "process_fluid",
+      "scada_encoding": "instantaneous",
+      "physical_range_normal": [18.0, 53.3],
+      "notes": "Used as T_ambient proxy in M3 normalisation: DeltaT* = (T_bearing - T_Temp.SV_row) / (T_cluster_max - T_Temp.SV_row). Per-row, not fixed 20.0 degC."
+    },
+    "X_Pres.SV": {
+      "description": "Discharge pressure",
+      "unit": "bar",
+      "sensor_type": "pressure_transducer",
+      "location": "pump_discharge",
+      "scada_encoding": "instantaneous",
+      "physical_range_normal": [0.43, 44.8],
+      "notes": "Primary operating mode discriminator. Startup: ~0.62 bar (near-zero). Steady-state: ~35.8 bar. High-load: ~42.0 bar."
+    },
+    "Barometer": {
+      "description": "Atmospheric barometric pressure",
+      "unit": "hPa",
+      "sensor_type": "barometer",
+      "location": "ambient",
+      "scada_encoding": "instantaneous",
+      "notes": "Environmental sensor. NOT used in K-Means clustering or M3 normalisation baselines."
+    },
+    "Temperature": {
+      "description": "Ambient air temperature",
+      "unit": "degC",
+      "sensor_type": "thermocouple",
+      "location": "ambient",
+      "scada_encoding": "instantaneous",
+      "notes": "Environmental sensor. NOT used in K-Means clustering. Used as T_ambient per-row in M3 temperature normalisation formula."
+    }
+  }
+}
