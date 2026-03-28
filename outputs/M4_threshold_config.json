@@ -1,24 +1,69 @@
 {
-  "anomaly_threshold": 0.645347,
-  "mean_error": 0.049839,
-  "std_error": 0.198503,
-  "p95_error": 0.099678,
-  "p99_error": 0.518297,
-  "method": "pure_mae | mean + 3sigma union p99",
-  "loss_used_training": "physics_weighted 0.6xMAE + 0.4xMSE",
-  "channel_weights": [
-    1.5,
-    2.0,
-    0.800000011920929,
-    1.5,
-    2.0,
-    0.800000011920929,
-    1.0,
-    2.0
-  ],
-  "window_size": 50,
-  "n_features": 8,
-  "norm_cols": [
+  "script": "module_04_lstm_ae_baseline",
+  "version": "v7",
+  "date": "2026-03-28",
+  "anomaly_threshold": 0.110058,
+  "mean_recon_error": 0.026765,
+  "std_recon_error": 0.025972,
+  "p95_error": 0.074673,
+  "p99_error": 0.102045,
+  "separation_ratio": 4.11,
+  "best_val_loss": 0.026862,
+  "best_epoch": 141,
+  "old_threshold_v3": 0.645347,
+  "threshold_delta_pct": -82.95,
+  "winsorization": {
+    "X_Pres.SV_norm": {
+      "mean": 1.0,
+      "std": 1.159397,
+      "upper": 5.637586,
+      "lower": 0.0,
+      "clipped": 62
+    },
+    "X_ACR_Mot.SV_norm": {
+      "mean": 1.000001,
+      "std": 1.413452,
+      "upper": 6.653808,
+      "lower": 0.0,
+      "clipped": 767
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "mean": 1.0,
+      "std": 1.958697,
+      "upper": 8.834788,
+      "lower": 0.0,
+      "clipped": 458
+    },
+    "X_ACR_Mot.PV_norm": {
+      "mean": 1.000022,
+      "std": 0.291122,
+      "upper": 2.16451,
+      "lower": 0.0,
+      "clipped": 323
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "mean": 1.000064,
+      "std": 0.398311,
+      "upper": 2.59331,
+      "lower": 0.0,
+      "clipped": 461
+    }
+  },
+  "spike_seeds_extracted": 1044,
+  "spike_rows_excluded": 12620,
+  "spike_seeds_file": "data/synthetic/M4_spike_seeds.npy",
+  "spike_meta_file": "data/synthetic/M4_spike_seeds_meta.csv",
+  "channel_weights": {
+    "X_ACR_Mot.PV_norm": 1.5,
+    "X_ACR_Mot.SV_norm": 2.0,
+    "X_ACR_Mot.TV_norm": 0.8,
+    "X_ACR_Pmp.PV_norm": 1.5,
+    "X_ACR_Pmp.SV_norm": 2.0,
+    "X_ACR_Pmp.TV_norm": 0.8,
+    "X_Temp.SV_norm": 1.0,
+    "X_Pres.SV_norm": 2.0
+  },
+  "channels": [
     "X_ACR_Mot.PV_norm",
     "X_ACR_Mot.SV_norm",
     "X_ACR_Mot.TV_norm",
@@ -28,5 +73,16 @@
     "X_Temp.SV_norm",
     "X_Pres.SV_norm"
   ],
-  "created": "2026-03-27"
+  "window_size": 50,
+  "gate_results": {
+    "GATE1_no_overfit": true,
+    "GATE2_mae_lt_006": true,
+    "GATE3_threshold_range": true,
+    "GATE4_separation_gt3": true,
+    "GATE5_false_alarms_lt1pct": true,
+    "GATE6_tv_channels_ok": true,
+    "GATE7_spike_seeds_saved": true,
+    "GATE8_val_loss_lt_005": true
+  },
+  "created": "2026-03-28"
 }

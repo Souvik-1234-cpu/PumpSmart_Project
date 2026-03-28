@@ -1,0 +1,64 @@
+{
+  "script": "module_04_lstm_ae_baseline",
+  "version": "v7",
+  "date": "2026-03-28",
+  "description": "Per-channel spike bounds \u2014 M6 fault seed reference",
+  "winsor_sigma": 4.0,
+  "spike_seed_sigma": 3.0,
+  "channels": [
+    "X_ACR_Mot.PV_norm",
+    "X_ACR_Mot.SV_norm",
+    "X_ACR_Mot.TV_norm",
+    "X_ACR_Pmp.PV_norm",
+    "X_ACR_Pmp.SV_norm",
+    "X_ACR_Pmp.TV_norm",
+    "X_Temp.SV_norm",
+    "X_Pres.SV_norm"
+  ],
+  "spike_thresholds": {
+    "X_Pres.SV_norm": {
+      "mean": 1.0,
+      "std": 1.159397,
+      "spike_threshold": 4.47819,
+      "winsor_upper": 5.637586
+    },
+    "X_ACR_Mot.SV_norm": {
+      "mean": 1.000001,
+      "std": 1.413452,
+      "spike_threshold": 5.240356,
+      "winsor_upper": 6.653808
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "mean": 1.0,
+      "std": 1.958697,
+      "spike_threshold": 6.876091,
+      "winsor_upper": 8.834788
+    },
+    "X_ACR_Mot.PV_norm": {
+      "mean": 1.000022,
+      "std": 0.291122,
+      "spike_threshold": 1.873388,
+      "winsor_upper": 2.16451
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "mean": 1.000064,
+      "std": 0.398311,
+      "spike_threshold": 2.194999,
+      "winsor_upper": 2.59331
+    }
+  },
+  "total_spike_windows": 1044,
+  "spike_rows_excluded": 12620,
+  "fault_hint_counts": {
+    "pressure_transient": 415,
+    "impeller_cavitation": 113,
+    "bearing_impact": 44,
+    "mechanical_transient": 472
+  },
+  "physics_notes": {
+    "pressure_transient": "Water hammer / startup valve surge. Pres.SV >3sigma.",
+    "impeller_cavitation": "Cavitation burst. Pmp.SV >3sigma. Accompanied by Pres.SV drop.",
+    "bearing_impact": "Bearing shock. Mot.SV >3sigma. May precede temperature rise.",
+    "mechanical_transient": "Multi-channel spike. Coupling / rotor imbalance event."
+  }
+}

@@ -1,28 +1,23 @@
 {
-  "architecture": "LSTM-Autoencoder-v3",
-  "n_features": 8,
-  "hidden_dim": 128,
-  "bottleneck_dim": 64,
-  "n_layers": 2,
-  "dropout": 0.3,
-  "window_size": 50,
-  "step_size": 10,
-  "loss_function": "physics_weighted_0.6MAE_0.4MSE",
-  "threshold_metric": "pure_MAE_normalised",
-  "channel_weights": [
-    1.5,
-    2.0,
-    0.800000011920929,
-    1.5,
-    2.0,
-    0.800000011920929,
-    1.0,
-    2.0
-  ],
-  "decoder_fix": "hidden_state_seeded_layernorm",
-  "scheduler": "CosineAnnealingWarmRestarts_T0=20",
-  "overfit_guard": "gap_max=0.15",
-  "norm_cols": [
+  "version": "v7",
+  "date": "2026-03-28",
+  "architecture": {
+    "hidden": 128,
+    "bottleneck": 64,
+    "layers": 2,
+    "dropout": 0.35,
+    "window": 50,
+    "step": 10
+  },
+  "training": {
+    "best_epoch": 141,
+    "best_val_loss": 0.026862,
+    "winsorization": "mean+4sigma per channel",
+    "spike_seeds": 1044,
+    "spike_rows_excl": 12620
+  },
+  "threshold": 0.110058,
+  "channels": [
     "X_ACR_Mot.PV_norm",
     "X_ACR_Mot.SV_norm",
     "X_ACR_Mot.TV_norm",
@@ -32,12 +27,14 @@
     "X_Temp.SV_norm",
     "X_Pres.SV_norm"
   ],
-  "best_val_loss": 0.251071,
-  "best_epoch": 297,
-  "anomaly_threshold": 0.645347,
-  "overfit_triggered": false,
-  "training_windows": 9328,
-  "val_windows": 1645,
-  "total_windows": 10973,
-  "created": "2026-03-27"
+  "channel_weights": {
+    "X_ACR_Mot.PV_norm": 1.5,
+    "X_ACR_Mot.SV_norm": 2.0,
+    "X_ACR_Mot.TV_norm": 0.8,
+    "X_ACR_Pmp.PV_norm": 1.5,
+    "X_ACR_Pmp.SV_norm": 2.0,
+    "X_ACR_Pmp.TV_norm": 0.8,
+    "X_Temp.SV_norm": 1.0,
+    "X_Pres.SV_norm": 2.0
+  }
 }
