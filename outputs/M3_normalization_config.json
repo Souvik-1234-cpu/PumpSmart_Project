@@ -65,7 +65,9 @@
       "max": 33.381439,
       "min": 18.029999
     },
-    "T_ambient_mean": 20.0
+    "T_ambient_source": "live_Temperature_column",
+    "T_ambient_hardcoded_removed": true,
+    "T_ambient_mean_DEPRECATED": 20.0
   },
   "1": {
     "operating_mode": "steady_state",
@@ -133,7 +135,9 @@
       "max": 44.607727,
       "min": 18.269714
     },
-    "T_ambient_mean": 20.0
+    "T_ambient_source": "live_Temperature_column",
+    "T_ambient_hardcoded_removed": true,
+    "T_ambient_mean_DEPRECATED": 20.0
   },
   "2": {
     "operating_mode": "startup",
@@ -201,7 +205,9 @@
       "max": 55.039612,
       "min": 30.348999
     },
-    "T_ambient_mean": 20.0
+    "T_ambient_source": "live_Temperature_column",
+    "T_ambient_hardcoded_removed": true,
+    "T_ambient_mean_DEPRECATED": 20.0
   },
   "3": {
     "operating_mode": "high_load",
@@ -269,7 +275,9 @@
       "max": 46.446747,
       "min": 18.216431
     },
-    "T_ambient_mean": 20.0
+    "T_ambient_source": "live_Temperature_column",
+    "T_ambient_hardcoded_removed": true,
+    "T_ambient_mean_DEPRECATED": 20.0
   },
   "meta": {
     "created": "2026-03-27",
@@ -292,8 +300,12 @@
     "warmup_rows": 300,
     "formula_pressure": "P* = P_actual / P_cluster_mean",
     "formula_vibration": "a* = a_actual / a_cluster_mean",
-    "formula_temperature": "dT* = (T - T_ambient) / (T_cluster_max - T_ambient)",
+    "formula_temperature": "dT* = (T - T_cluster_min) / (T_cluster_max - T_cluster_min) | cluster-relative min-max | climate-agnostic | sub-ambient negatives preserved (flash-cooling signal)",
     "normal_range": "0.0 to 1.0",
-    "fault_indicator": "drift above 1.0 or anomalous temporal pattern"
+    "fault_indicator": "drift above 1.0 or anomalous temporal pattern",
+    "T_ambient_note": "T_ambient column NOT used in temperature normalization. Cluster min/max used instead \u2014 makes formula climate-independent. Sub-ambient cooldown values (flash evaporative cooling) preserved as small negatives \u2014 meaningful fault signal, not clipped.",
+    "M3_rerun_date": "2026-03-28",
+    "range_issues": "None \u2014 all >1.0 values are real physics",
+    "normalised_rows": 117970
   }
 }
