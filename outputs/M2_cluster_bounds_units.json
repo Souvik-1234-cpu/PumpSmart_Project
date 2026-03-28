@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "description": "Unit annotations for M2_cluster_bounds.csv columns",
+    "source_csv": "outputs/M2_cluster_bounds.csv",
+    "audit_date": "2026-03-28",
+    "note": "All statistics computed directly from M1 clean CSVs — raw sensor units preserved throughout. No transformation between M1 and M2."
+  },
+  "metadata_columns": {
+    "cluster_id": {"unit": "categorical", "description": "K-Means cluster index (0-3)"},
+    "operating_mode": {"unit": "categorical", "description": "Assigned mode: cooldown/startup/steady_state/high_load"},
+    "n_rows": {"unit": "count", "description": "Number of 1-second samples in cluster"}
+  },
+  "sensor_column_units": {
+    "X_ACR_Mot.PV": "mm/s",
+    "X_ACR_Mot.SV": "m/s2",
+    "X_ACR_Mot.TV": "degC",
+    "X_ACR_Pmp.PV": "mm/s",
+    "X_ACR_Pmp.SV": "m/s2",
+    "X_ACR_Pmp.TV": "degC",
+    "X_Temp.SV":    "degC",
+    "X_Pres.SV":    "bar"
+  },
+  "column_suffix_meanings": {
+    "_mean":  "Arithmetic mean of all samples in cluster",
+    "_std":   "Standard deviation",
+    "_p2_5":  "2.5th percentile — lower normalization bound",
+    "_p97_5": "97.5th percentile — upper normalization bound",
+    "_max":   "Absolute maximum observed in cluster",
+    "_min":   "Absolute minimum observed in cluster"
+  },
+  "normalization_usage": {
+    "P_star": "P* = P_actual / P_cluster_mean  (pressure and vibration channels)",
+    "T_star": "DeltaT* = (T_bearing - T_Temp.SV_row) / (T_cluster_max - T_Temp.SV_row)",
+    "T_ambient_source": "Temperature column (ambient air, degC) — per-row value, NOT fixed 20.0 degC",
+    "normal_range": "Normal operation -> normalised values approximately 0 to 1. Fault -> drift above 1.0"
+  },
+  "physics_paradox_note": {
+    "description": "K-Means Thermal Run-In Paradox — documented for audit trail",
+    "observation": "Startup cluster (C2) mean Mot.TV=39.61 degC > High-load cluster (C3) mean Mot.TV=35.09 degC",
+    "engineering_explanation": "Pump starts cold. First minutes of startup: bearings heat rapidly from near-ambient to 39+ degC while flow/pressure is still ramping up. High-load steady operation: bearings settle at 35 degC with turbulent cooling from high volumetric flow. This is physically correct and matches industrial pump thermal behaviour.",
+    "consequence_for_ML": "Temperature channels are CORROBORATING only. Vibration (SV) and pressure (Pres.SV) are primary discriminators. Fault rules in M5/M6 use rate-of-change dX*/dt, not absolute cluster temperature comparisons."
+  }
+}
