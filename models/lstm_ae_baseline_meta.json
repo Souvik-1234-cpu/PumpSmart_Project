@@ -1,5 +1,5 @@
 {
-  "version": "v7",
+  "version": "v8",
   "date": "2026-03-28",
   "architecture": {
     "hidden": 128,
@@ -12,7 +12,7 @@
   "training": {
     "best_epoch": 141,
     "best_val_loss": 0.026862,
-    "winsorization": "mean+4sigma per channel",
+    "winsorization": "cluster_conditional_mean_multiplier",
     "spike_seeds": 1044,
     "spike_rows_excl": 12620
   },
@@ -36,5 +36,163 @@
     "X_ACR_Pmp.TV_norm": 0.8,
     "X_Temp.SV_norm": 1.0,
     "X_Pres.SV_norm": 2.0
+  },
+  "cluster_winsor_bounds": {
+    "X_Pres.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.030553,
+        "upper_mult": 3.0,
+        "upper": 3.000001,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.364301,
+        "upper_mult": 5.6,
+        "upper": 5.6,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.045629,
+        "upper_mult": 2.0,
+        "upper": 2.0,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 1.964287,
+        "upper_mult": 3.0,
+        "upper": 3.0,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.SV_norm": {
+      "startup": {
+        "mean": 1.000001,
+        "std": 0.362023,
+        "upper_mult": 6.7,
+        "upper": 6.700007,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.178997,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.426979,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000001,
+        "std": 2.887255,
+        "upper_mult": 6.7,
+        "upper": 6.700004,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.747304,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.282964,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.173141,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 3.333269,
+        "upper_mult": 8.8,
+        "upper": 8.799996,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.PV_norm": {
+      "startup": {
+        "mean": 1.000132,
+        "std": 0.321473,
+        "upper_mult": 2.2,
+        "upper": 2.200291,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.000052,
+        "std": 0.146505,
+        "upper_mult": 2.2,
+        "upper": 2.200114,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999897,
+        "std": 0.189407,
+        "upper_mult": 2.2,
+        "upper": 2.199774,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 0.999923,
+        "std": 0.364874,
+        "upper_mult": 2.2,
+        "upper": 2.199832,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "startup": {
+        "mean": 0.999907,
+        "std": 0.460005,
+        "upper_mult": 3.2,
+        "upper": 3.199702,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 0.999879,
+        "std": 0.105679,
+        "upper_mult": 2.6,
+        "upper": 2.599685,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999958,
+        "std": 0.110954,
+        "upper_mult": 2.6,
+        "upper": 2.599891,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000563,
+        "std": 0.534461,
+        "upper_mult": 2.6,
+        "upper": 2.601465,
+        "lower": 0.0
+      }
+    }
+  },
+  "v8_physics_fixes": {
+    "FIX_1": "Pmp.PV startup ceiling raised to 3.2x (was 2.6x global). Preserves ISO 13373-3 BPF startup harmonics.",
+    "FIX_2": "Pres.SV cluster-conditional: startup=3.0x, steady_state=5.6x, high_load=2.0x, cooldown=3.0x. Prevents Joukowsky water hammer signal destruction.",
+    "FIX_3": "pressure_transient ratio uses high_load cluster mean. Ensures M6 generates physically correct amplitude faults.",
+    "FIX_4": "cluster_winsor_bounds saved for M6 direct consumption. No downstream compensation needed."
   }
 }

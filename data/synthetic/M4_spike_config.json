@@ -1,9 +1,9 @@
 {
   "script": "module_04_lstm_ae_baseline",
-  "version": "v7",
+  "version": "v8",
   "date": "2026-03-28",
-  "description": "Per-channel spike bounds \u2014 M6 fault seed reference",
-  "winsor_sigma": 4.0,
+  "description": "Cluster-conditional winsor bounds \u2014 M6 direct reference (v8 physics fix)",
+  "winsor_method": "cluster_conditional_mean_multiplier",
   "spike_seed_sigma": 3.0,
   "channels": [
     "X_ACR_Mot.PV_norm",
@@ -15,50 +15,211 @@
     "X_Temp.SV_norm",
     "X_Pres.SV_norm"
   ],
-  "spike_thresholds": {
+  "cluster_winsor_bounds": {
+    "X_Pres.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.030553,
+        "upper_mult": 3.0,
+        "upper": 3.000001,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.364301,
+        "upper_mult": 5.6,
+        "upper": 5.6,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.045629,
+        "upper_mult": 2.0,
+        "upper": 2.0,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 1.964287,
+        "upper_mult": 3.0,
+        "upper": 3.0,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.SV_norm": {
+      "startup": {
+        "mean": 1.000001,
+        "std": 0.362023,
+        "upper_mult": 6.7,
+        "upper": 6.700007,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.178997,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.426979,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000001,
+        "std": 2.887255,
+        "upper_mult": 6.7,
+        "upper": 6.700004,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.747304,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.282964,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.173141,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 3.333269,
+        "upper_mult": 8.8,
+        "upper": 8.799996,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.PV_norm": {
+      "startup": {
+        "mean": 1.000132,
+        "std": 0.321473,
+        "upper_mult": 2.2,
+        "upper": 2.200291,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.000052,
+        "std": 0.146505,
+        "upper_mult": 2.2,
+        "upper": 2.200114,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999897,
+        "std": 0.189407,
+        "upper_mult": 2.2,
+        "upper": 2.199774,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 0.999923,
+        "std": 0.364874,
+        "upper_mult": 2.2,
+        "upper": 2.199832,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "startup": {
+        "mean": 0.999907,
+        "std": 0.460005,
+        "upper_mult": 3.2,
+        "upper": 3.199702,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 0.999879,
+        "std": 0.105679,
+        "upper_mult": 2.6,
+        "upper": 2.599685,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999958,
+        "std": 0.110954,
+        "upper_mult": 2.6,
+        "upper": 2.599891,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000563,
+        "std": 0.534461,
+        "upper_mult": 2.6,
+        "upper": 2.601465,
+        "lower": 0.0
+      }
+    }
+  },
+  "global_spike_thresholds": {
     "X_Pres.SV_norm": {
       "mean": 1.0,
       "std": 1.159397,
-      "spike_threshold": 4.47819,
-      "winsor_upper": 5.637586
+      "spike_threshold": 4.47819
     },
     "X_ACR_Mot.SV_norm": {
       "mean": 1.000001,
       "std": 1.413452,
-      "spike_threshold": 5.240356,
-      "winsor_upper": 6.653808
+      "spike_threshold": 5.240356
     },
     "X_ACR_Pmp.SV_norm": {
       "mean": 1.0,
       "std": 1.958697,
-      "spike_threshold": 6.876091,
-      "winsor_upper": 8.834788
+      "spike_threshold": 6.876091
     },
     "X_ACR_Mot.PV_norm": {
       "mean": 1.000022,
       "std": 0.291122,
-      "spike_threshold": 1.873388,
-      "winsor_upper": 2.16451
+      "spike_threshold": 1.873388
     },
     "X_ACR_Pmp.PV_norm": {
       "mean": 1.000064,
       "std": 0.398311,
-      "spike_threshold": 2.194999,
-      "winsor_upper": 2.59331
+      "spike_threshold": 2.194999
     }
   },
+  "pressure_transient_reference": {
+    "mode": "high_load",
+    "mean": 1.0,
+    "reason": "Joukowsky water hammer energy = rho*c*dv; governed by operating pressure (~42 bar), not startup (~0.62 bar)"
+  },
+  "pmpPV_startup_ceiling_physics": "ISO 13373-3: multistage pump startup BPF harmonics reach 2-4x steady-state. p97.5/mean ratio in startup = 2.24x. Ceiling set to 3.2x to preserve legitimate BPF bursts while excluding true fault spikes above 4.0x.",
   "total_spike_windows": 1044,
   "spike_rows_excluded": 12620,
   "fault_hint_counts": {
-    "pressure_transient": 415,
+    "pressure_transient": 408,
+    "pressure_spike_high_load": 7,
     "impeller_cavitation": 113,
     "bearing_impact": 44,
     "mechanical_transient": 472
   },
   "physics_notes": {
-    "pressure_transient": "Water hammer / startup valve surge. Pres.SV >3sigma.",
-    "impeller_cavitation": "Cavitation burst. Pmp.SV >3sigma. Accompanied by Pres.SV drop.",
-    "bearing_impact": "Bearing shock. Mot.SV >3sigma. May precede temperature rise.",
-    "mechanical_transient": "Multi-channel spike. Coupling / rotor imbalance event."
+    "pressure_transient": "Water hammer during startup/cooldown. Joukowsky dP=rho*c*dv. Ratio computed vs high_load mean (42 bar reference).",
+    "pressure_spike_high_load": "Pressure anomaly during full-load operation. Tight ceiling (2.0x). Any spike here is a genuine fault event.",
+    "impeller_cavitation": "Cavitation burst. Pmp.SV dominant. Accompanied by Pres.SV drop. MUST start in startup cluster context (NPSHa marginal at 0.43-0.85 bar).",
+    "bearing_impact": "Bearing shock. Mot.SV dominant. May precede temperature rise with tau=20-40 step lag (thermal time constant).",
+    "mechanical_transient": "Multi-channel spike. Coupling/rotor imbalance. Pmp.PV + Pmp.SV co-elevation pattern."
+  },
+  "v8_fixes": {
+    "FIX_1": "Pmp.PV startup ceiling raised to 3.2x (was 2.6x global). Preserves ISO 13373-3 BPF startup harmonics.",
+    "FIX_2": "Pres.SV cluster-conditional: startup=3.0x, steady_state=5.6x, high_load=2.0x, cooldown=3.0x. Prevents Joukowsky water hammer signal destruction.",
+    "FIX_3": "pressure_transient ratio uses high_load cluster mean. Ensures M6 generates physically correct amplitude faults.",
+    "FIX_4": "cluster_winsor_bounds saved for M6 direct consumption. No downstream compensation needed."
   }
 }

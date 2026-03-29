@@ -1,45 +1,68 @@
-# M4 LSTM-AE Baseline Report (v3 — Physics Integrity)
-**Date:** 2026-03-27  
-**Script:** module_04_lstm_ae_baseline  
+# M4 LSTM-AE Baseline Report v8
+**Date:** 2026-03-28 | **Version:** v8 — Cluster-Conditional Winsorization
 
-## v3 Changes vs v2
-| Change | v2 | v3 |
-|---|---|---|
-| Epochs | 60 | 200 (early-stop aware) |
-| LR Scheduler | ReduceOnPlateau | CosineAnnealingWarmRestarts T0=20 |
-| Dropout | 0.2 | 0.3 |
-| Gradient clip | 1.0 | 0.5 |
-| Loss | 0.6MAE+0.4MSE | Physics-weighted channels |
-| Threshold metric | Combined loss | Pure MAE (scale-free) |
-| Overfit guard | None | Hard stop if val-train gap > 0.15 |
-| Encoder | No norm | LayerNorm on bottleneck |
-
-## Channel Physics Weights
-| Channel | Weight | Reason |
-|---|---|---|
-| Mot.SV | 2.0 | ISO 10816 vibration — bearing fault indicator |
-| Pmp.SV | 2.0 | Pump vibration — impeller cavitation |
-| Pres.SV | 2.0 | Discharge pressure — NPSH violation |
-| Mot.PV | 1.5 | Motor power — overload detection |
-| Pmp.PV | 1.5 | Pump power — hydraulic efficiency |
-| Temp.SV | 1.0 | Process temperature — baseline |
-| Mot.TV | 0.8 | Motor temp — slow thermal lag |
-| Pmp.TV | 0.8 | Pump temp — slow thermal lag |
+## Physics Fixes vs v7
+- **FIX-1**: `Pmp.PV` startup ceiling raised to 3.2x (ISO 13373-3: BPF harmonics 2-4x steady-state during ramp-up)
+- **FIX-2**: `Pres.SV` cluster-conditional ceilings: startup=3.0x, steady_state=5.6x, high_load=2.0x, cooldown=3.0x (Joukowsky water hammer prevention)
+- **FIX-3**: `pressure_transient` spike ratio vs high_load mean (42 bar reference, not startup 0.62 bar)
+- **FIX-4**: Full cluster bounds saved to M4_spike_config.json for M6 direct consumption
 
 ## Training Results
 | Metric | Value |
-|---|---|
-| Best val loss (weighted) | 0.251071 |
-| Best epoch | 297 |
-| Training time | 98s |
-| Peak VRAM | 0.2 GB |
+|--------|-------|
+| Best val loss | 0.026862 |
+| Best epoch | 141 |
+| Training time | 51.1s |
 | Overfit triggered | False |
 
-## Anomaly Threshold (Pure MAE)
+## Threshold
 | Metric | Value |
-|---|---|
-| Mean error | 0.049839 |
-| Std error | 0.198503 |
-| P95 | 0.099678 |
-| P99 | 0.518297 |
-| **Threshold** | **0.645347** |
+|--------|-------|
+| Mean MAE | 0.026765 |
+| Std MAE | 0.025972 |
+| P99 | 0.102045 |
+| Threshold | 0.110058 |
+| Separation ratio | 4.11x |
+| False alarms | 8 |
+| Spike rows excluded | 12620 |
+
+## Cluster-Conditional Winsor Bounds (v8 key output)
+
+### X_Pres.SV_norm
+| Mode | Mean | Upper (normalised) | Multiplier |
+|------|------|--------------------|------------|
+| startup | 1.0000 | 3.0000 | 3.0x |
+| steady_state | 1.0000 | 5.6000 | 5.6x |
+| high_load | 1.0000 | 2.0000 | 2.0x |
+| cooldown | 1.0000 | 3.0000 | 3.0x |
+
+### X_ACR_Pmp.PV_norm
+| Mode | Mean | Upper (normalised) | Multiplier |
+|------|------|--------------------|------------|
+| startup | 0.9999 | 3.1997 | 3.2x |
+| steady_state | 0.9999 | 2.5997 | 2.6x |
+| high_load | 1.0000 | 2.5999 | 2.6x |
+| cooldown | 1.0006 | 2.6015 | 2.6x |
+
+## Spike Seeds (M6 input)
+| Fault Hint | Windows |
+|------------|---------|
+| pressure_transient | 408 |
+| pressure_spike_high_load | 7 |
+| impeller_cavitation | 113 |
+| bearing_impact | 44 |
+| mechanical_transient | 472 |
+
+## Validation Gates
+| Gate | Result |
+|------|--------|
+| GATE1_no_overfit | PASS |
+| GATE2_mae_lt_006 | PASS |
+| GATE3_threshold_range | PASS |
+| GATE4_separation_gt3 | PASS |
+| GATE5_false_alarms_lt1pct | PASS |
+| GATE6_tv_channels_ok | PASS |
+| GATE7_spike_seeds_saved | PASS |
+| GATE8_val_loss_lt_005 | PASS |
+| GATE9_pmpPV_startup_ceiling_correct | PASS |
+| GATE10_pres_cluster_ceilings_ordered | PASS |
