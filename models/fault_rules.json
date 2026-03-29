@@ -1,0 +1,206 @@
+{
+  "schema_version": "2.0",
+  "created": "2026-03-29",
+  "nameplate": {
+    "motor_kw": 110,
+    "motor_rpm": 2980,
+    "pump_flow_m3h": 45,
+    "pump_head_m": 450,
+    "pump_max_bar": 40,
+    "pump_impellers": 7
+  },
+  "channel_order": [
+    "Mot_PV",
+    "Mot_SV",
+    "Mot_TV",
+    "Pmp_PV",
+    "Pmp_SV",
+    "Pmp_TV",
+    "Temp_SV",
+    "Pres_SV"
+  ],
+  "seq_length": 200,
+  "fault_classes": {
+    "normal": {
+      "label": 0,
+      "allowed_clusters": [
+        "cooldown",
+        "startup",
+        "steady_state",
+        "high_load"
+      ],
+      "severity_range": [
+        0.0,
+        0.0
+      ],
+      "primary_channels": [],
+      "causal_chain": "no fault - all channels near normalised baseline",
+      "physics_refs": []
+    },
+    "bearing_wear": {
+      "label": 1,
+      "allowed_clusters": [
+        "startup",
+        "steady_state",
+        "high_load"
+      ],
+      "severity_range": [
+        0.1,
+        1.0
+      ],
+      "primary_channels": [
+        "Mot_SV",
+        "Mot_TV",
+        "Temp_SV",
+        "Pmp_SV"
+      ],
+      "causal_chain": "Mot.SV\u2191(Paris-exp) \u2192 Mot.TV\u2191(Palmgren Euler) \u2192 Temp.SV\u2191(r=0.9793) \u2192 Pmp.SV\u2191(lag)",
+      "physics_refs": [
+        "ISO_281",
+        "Palmgren_1959",
+        "Paris_Erdogan",
+        "Incropera_Ch5"
+      ],
+      "gate_coupling": "G4: pearsonr(Mot_TV, Mot_SV) >= 0.70"
+    },
+    "impeller_imbalance": {
+      "label": 2,
+      "allowed_clusters": [
+        "steady_state",
+        "high_load"
+      ],
+      "severity_range": [
+        0.1,
+        1.0
+      ],
+      "primary_channels": [
+        "Pmp_PV",
+        "Pmp_SV",
+        "Pres_SV",
+        "Mot_PV"
+      ],
+      "causal_chain": "Pmp.PV\u2191(linear) \u2192 Pmp.SV\u2191(BPF-AM) \u2192 Pres.SV(oscillates) \u2192 Mot.PV\u2191(lag)",
+      "physics_refs": [
+        "Euler_radial_force",
+        "Bernoulli",
+        "BPF_aliasing",
+        "White_Ch6"
+      ],
+      "gate_coupling": "G5: pearsonr(Pmp_PV, Pmp_SV) >= 0.70"
+    },
+    "cavitation": {
+      "label": 3,
+      "allowed_clusters": [
+        "startup"
+      ],
+      "severity_range": [
+        0.1,
+        1.0
+      ],
+      "primary_channels": [
+        "Pres_SV",
+        "Pmp_SV",
+        "Pmp_TV"
+      ],
+      "causal_chain": "Pres.SV\u2193(erratic, \u03c3<\u03c3_crit) \u2192 Pmp.SV\u2191(R-P spikes) \u2192 Pmp.TV\u2191(implosion heat)",
+      "physics_refs": [
+        "ISO_9906",
+        "Joukowsky",
+        "Rayleigh_Plesset_1977",
+        "NPSHa_HI"
+      ],
+      "gate_coupling": "G1: no negative pressure"
+    },
+    "seal_failure": {
+      "label": 4,
+      "allowed_clusters": [
+        "steady_state",
+        "high_load"
+      ],
+      "severity_range": [
+        0.1,
+        1.0
+      ],
+      "primary_channels": [
+        "Pres_SV",
+        "Pmp_TV",
+        "Pmp_PV"
+      ],
+      "causal_chain": "Pres.SV\u2193(orifice leak) \u2192 Pmp.TV\u2191(N-S viscous) \u2192 Pmp.PV\u2191(axial thrust)",
+      "physics_refs": [
+        "Hagen_Poiseuille",
+        "NS_viscous_dissipation",
+        "Bernoulli_orifice"
+      ],
+      "gate_coupling": "G1: no negative pressure"
+    },
+    "overloading": {
+      "label": 5,
+      "allowed_clusters": [
+        "steady_state"
+      ],
+      "severity_range": [
+        0.5,
+        1.0
+      ],
+      "primary_channels": [
+        "Temp_SV",
+        "Mot_TV",
+        "Pmp_TV"
+      ],
+      "causal_chain": "Temp.SV\u2191(monotonic) \u2192 Mot.TV\u2191 \u2192 SV_stable (dT>0, dSV\u22480)",
+      "physics_refs": [
+        "NS_viscous_dissipation",
+        "Incropera_Ch5",
+        "Cengel_Boles_Ch8"
+      ],
+      "gate_coupling": "G6: pearsonr(Temp_SV, Mot_TV) >= 0.85"
+    },
+    "sensor_failure": {
+      "label": 6,
+      "allowed_clusters": [
+        "cooldown",
+        "startup",
+        "steady_state",
+        "high_load"
+      ],
+      "severity_range": [
+        0.1,
+        1.0
+      ],
+      "primary_channels": [
+        "any_single_channel"
+      ],
+      "causal_chain": "exactly 1 channel anomalous; 7 others within baseline \u00b10.20",
+      "physics_refs": [
+        "IEC_61511_instrumentation"
+      ],
+      "gate_coupling": "G7: sensor_isolation max_dev < 0.20",
+      "subtypes": [
+        "flatline",
+        "spike",
+        "drift",
+        "dropout"
+      ]
+    }
+  },
+  "validation_gates": {
+    "G1_no_negative_pressure": "Pres_SV* >= -0.01 at all timesteps",
+    "G2_temp_floor": "Mot_TV*, Pmp_TV*, Temp_SV* >= -0.12",
+    "G3_sv_ceiling": "Mot_SV* <= winsor+0.1 | Pmp_SV* <= winsor+0.1",
+    "G4_bearing_thermal": "pearsonr(Mot_TV, Mot_SV) >= 0.70",
+    "G5_impeller_coupling": "pearsonr(Pmp_PV, Pmp_SV) >= 0.70",
+    "G6_overload_thermal": "pearsonr(Temp_SV, Mot_TV) >= 0.85",
+    "G7_sensor_isolation": "max deviation of other 7 channels < 0.20"
+  },
+  "noise_std": {
+    "Mot_PV": 0.012,
+    "Mot_SV": 0.035,
+    "Mot_TV": 0.008,
+    "Pmp_PV": 0.012,
+    "Pmp_SV": 0.04,
+    "Pmp_TV": 0.008,
+    "Temp_SV": 0.01,
+    "Pres_SV": 0.015
+  }
+}

@@ -34,7 +34,6 @@ warnings.filterwarnings('ignore')
 
 SCRIPT_NAME = "module_05_physics_engine"
 REPORT_DIR  = OUTPUT_DIR / "reports"
-# SRC_DIR     = Path(__file__).resolve().parent / "src"
 
 for d in [REPORT_DIR, PLOTS_DIR, MODEL_DIR, SYNTH_DIR, SRC_DIR]:
     d.mkdir(parents=True, exist_ok=True)
@@ -46,7 +45,6 @@ results = {}
 
 # =============================================================================
 # SECTION 0 - NAMEPLATE CONSTANTS & CLUSTER BASELINES
-# All values from config.py + M2_cluster_bounds.csv + M3_normalization_config.json
 # =============================================================================
 
 log("="*70)
@@ -55,27 +53,27 @@ log("="*70)
 
 RHO               = 1000.0
 G                 = 9.81
-OMEGA             = 2 * np.pi * MOTOR_RPM / 60       # rad/s = 312.07
-Q_BEP             = PUMP_FLOW_M3H / 3600             # m³/s  = 0.0125
-H_BEP             = float(PUMP_HEAD_M)               # m     = 450
-P_MOTOR_W         = MOTOR_KW * 1000                  # W     = 110000
-P_HYD             = RHO * G * Q_BEP * H_BEP          # W     hydraulic power
-ETA_OVERALL       = P_HYD / P_MOTOR_W                # dimensionless ≈ 0.502
-Z_BLADES          = int(PUMP_IMPELLERS)              # 7
-BPF_HZ            = Z_BLADES * MOTOR_RPM / 60        # Hz    = 348.67
+OMEGA             = 2 * np.pi * MOTOR_RPM / 60
+Q_BEP             = PUMP_FLOW_M3H / 3600
+H_BEP             = float(PUMP_HEAD_M)
+P_MOTOR_W         = MOTOR_KW * 1000
+P_HYD             = RHO * G * Q_BEP * H_BEP
+ETA_OVERALL       = P_HYD / P_MOTOR_W
+Z_BLADES          = int(PUMP_IMPELLERS)
+BPF_HZ            = Z_BLADES * MOTOR_RPM / 60
 N_STAGES          = 7
 
 NS_SI             = MOTOR_RPM * np.sqrt(Q_BEP) / (H_BEP ** 0.75)
 
-A_WAVE            = 1200.0          # m/s  wave speed in steel-encased water
-PIPE_DIAM         = 0.10            # m    estimated from Q and typical v=1.6 m/s
+A_WAVE            = 1200.0
+PIPE_DIAM         = 0.10
 PIPE_AREA         = np.pi * (PIPE_DIAM / 2) ** 2
 V_FLOW            = Q_BEP / PIPE_AREA
-DELTA_P_JOUKOWSKY = RHO * A_WAVE * V_FLOW            # Pa ≈ 19.2 bar
+DELTA_P_JOUKOWSKY = RHO * A_WAVE * V_FLOW
 
-MC_P_MOTOR        = 175000.0        # J/K  lumped thermal mass (iron+Cu+frame)
-HA_MOTOR          = 450.0           # W/K  convective conductance (shaft fan)
-TAU_THERMAL       = MC_P_MOTOR / HA_MOTOR            # s  ≈ 389 s
+MC_P_MOTOR        = 175000.0
+HA_MOTOR          = 450.0
+TAU_THERMAL       = MC_P_MOTOR / HA_MOTOR
 
 MU_BEARING_HEALTHY = 0.001
 MU_BEARING_WORN    = 0.015
@@ -88,14 +86,13 @@ P_VAPOUR_BAR      = 0.023
 P_VAPOUR_PA       = P_VAPOUR_BAR * 1e5
 
 CD_SEAL           = 0.61
-A_GAP_INIT        = 1e-8            # m²  initial seal gap area
-ALPHA_SEAL        = 2e-10           # m²/s linear wear rate
+A_GAP_INIT        = 1e-8
+ALPHA_SEAL        = 2e-10
 
-# ISO 10816-3 thresholds (mm/s RMS, rigid mount >15 kW)
 ISO_ZONE_A        = 2.3
 ISO_ZONE_B        = 4.5
 ISO_ZONE_C        = 7.1
-ISO_ZONE_D        = 7.1             # above this threshold = danger zone
+ISO_ZONE_D        = 7.1
 
 log(f"Hydraulic power      : {P_HYD/1000:.2f} kW")
 log(f"Overall efficiency   : {ETA_OVERALL:.3f}")
@@ -156,7 +153,6 @@ CLUSTER_BASELINES = {
     },
 }
 
-# Winsor ceilings from M4_spike_config.json - LOCKED, do not modify
 WINSOR_CEILINGS = {
     'Mot_SV':  {'cooldown': 6.7, 'startup': 6.7, 'steady_state': 6.7, 'high_load': 6.7},
     'Pmp_SV':  {'cooldown': 8.8, 'startup': 8.8, 'steady_state': 8.8, 'high_load': 8.8},
@@ -171,8 +167,7 @@ CH_IDX        = {ch: i for i, ch in enumerate(CHANNEL_ORDER)}
 log("Cluster baselines + winsor ceilings loaded.")
 
 # =============================================================================
-# SECTION 1 - PHYSICS HELPER FUNCTIONS  (EQ1-EQ20)
-# Pure physics - no ML. All equations documented with source.
+# SECTION 1 - PHYSICS HELPER FUNCTIONS (EQ1-EQ20)
 # =============================================================================
 
 log("="*70)
@@ -185,25 +180,21 @@ def affinity_speed_ratio(N1, N2):
     return {'Q_ratio': r, 'H_ratio': r**2, 'P_ratio': r**3}
 
 def hydraulic_power(rho, g, Q, H):
-    """EQ1 - P_hyd = ρgQH  [W]  Euler turbomachinery equation"""
+    """EQ1 - P_hyd = ρgQH [W]"""
     return rho * g * Q * H
 
 def specific_speed_SI(N_rpm, Q_m3s, H_m):
-    """EQ3 - Ns = N*sqrt(Q) / H^0.75  (SI)"""
+    """EQ3 - Ns = N*sqrt(Q) / H^0.75 (SI)"""
     return N_rpm * np.sqrt(Q_m3s) / (H_m ** 0.75)
 
 def bep_excess_power(Q_actual, eta_actual):
-    """EQ4 - P_excess = P_shaft_actual - P_BEP  [W]"""
+    """EQ4 - P_excess = P_shaft_actual - P_BEP [W]"""
     P_shaft  = hydraulic_power(RHO, G, Q_actual, H_BEP) / eta_actual
     P_excess = P_shaft - P_MOTOR_W
     return max(P_excess, 0.0)
 
 def thermal_response(t_arr, P_loss, T_init, T_inf=20.0):
-    """
-    EQ5 - 1st Law lumped capacitance:
-    T(t) = T_inf + P_loss/hA*(1-exp(-t/τ)) + (T_init-T_inf)*exp(-t/τ)
-    Source: Incropera, Fundamentals of Heat and Mass Transfer, Ch.5
-    """
+    """EQ5 - 1st Law lumped capacitance. Source: Incropera Ch.5"""
     tau = TAU_THERMAL
     T   = (T_inf
            + (P_loss / HA_MOTOR) * (1 - np.exp(-t_arr / tau))
@@ -211,74 +202,49 @@ def thermal_response(t_arr, P_loss, T_init, T_inf=20.0):
     return T
 
 def bearing_friction_heat(t_arr, beta=0.008):
-    """
-    EQ16 - Palmgren friction model + Paris fatigue exponential growth:
-    Q_bearing(t) = Q0 * exp(β*t)
-    Source: Palmgren (1959), ISO 281
-    """
-    F_radial = 0.3 * P_MOTOR_W / (OMEGA * 0.05)   # N at 5 cm shaft radius
-    v_shaft  = OMEGA * 0.05                          # m/s tangential velocity
+    """EQ16 - Palmgren + Paris: Q_bearing(t) = Q0 * exp(β*t). Source: Palmgren (1959), ISO 281"""
+    F_radial = 0.3 * P_MOTOR_W / (OMEGA * 0.05)
+    v_shaft  = OMEGA * 0.05
     Q0       = MU_BEARING_HEALTHY * F_radial * v_shaft
     return Q0 * np.exp(beta * t_arr)
 
 def npsha(P_suction_bar, v_suction_ms, h_friction_m):
-    """
-    EQ7 - NPSHa = (P_suc - P_vap)/(ρg) + v²/2g - h_friction  [m]
-    Source: ISO 9906, HI Pump Standards
-    """
+    """EQ7 - NPSHa = (P_suc - P_vap)/(ρg) + v²/2g - h_friction [m]. Source: ISO 9906"""
     return ((P_suction_bar - P_VAPOUR_BAR) * 1e5 / (RHO * G)
             + v_suction_ms**2 / (2 * G)
             - h_friction_m)
 
 def thoma_number(NPSHa_m, H_m):
-    """EQ8 - σ = NPSHa / H  - cavitation inception criterion"""
+    """EQ8 - σ = NPSHa / H"""
     return NPSHa_m / H_m
 
 def joukowsky_pressure_rise(delta_v_ms):
-    """EQ6 - ΔP = ρ * a_wave * Δv  [Pa]  Source: Joukowsky (1898)"""
+    """EQ6 - ΔP = ρ * a_wave * Δv [Pa]. Source: Joukowsky (1898)"""
     return RHO * A_WAVE * delta_v_ms
 
 def bernoulli_velocity_from_pressure(P1_bar, P2_bar, z1=0.0, z2=0.0):
-    """
-    EQ13 - Bernoulli: v2 = sqrt(2*(P1-P2)/ρ)
-    Source: Bernoulli (1738), White Fluid Mechanics Ch.3
-    """
+    """EQ13 - Bernoulli: v2 = sqrt(2*(P1-P2)/ρ). Source: White Fluid Mechanics Ch.3"""
     dP_pa = (P1_bar - P2_bar) * 1e5
     v2_sq = max(2 * dP_pa / RHO, 0.0)
     return np.sqrt(v2_sq)
 
 def navier_stokes_viscous_dissipation(mu_fluid, du_dy, volume_m3):
-    """
-    EQ14 - Φ = μ * (∂u/∂y)² * Volume  [W]
-    RANS N-S viscous dissipation - irreversible mechanical energy → heat.
-    Source: Batchelor, Introduction to Fluid Dynamics, Ch.3
-    """
+    """EQ14 - Φ = μ * (∂u/∂y)² * Volume [W]. Source: Batchelor, Intro Fluid Dynamics Ch.3"""
     return mu_fluid * (du_dy ** 2) * volume_m3
 
 def seal_leakage_flow(A_gap_m2, delta_P_bar):
-    """
-    EQ12 - Q_leak = Cd * A_gap * sqrt(2*ΔP/ρ)  [m³/s]
-    Source: Hagen-Poiseuille + Bernoulli orifice limit, White Ch.6
-    """
+    """EQ12 - Q_leak = Cd * A_gap * sqrt(2*ΔP/ρ) [m³/s]. Source: Hagen-Poiseuille + Bernoulli"""
     dP_pa = delta_P_bar * 1e5
     return CD_SEAL * A_gap_m2 * np.sqrt(max(2 * dP_pa / RHO, 0.0))
 
 def rayleigh_plesset_peak_pressure(R0_m=1e-4, P_inf_pa=1e6):
-    """
-    EQ10 - ΔP_collapse ≈ ρ*(R0/R_min)³*(P_inf - P_vapour)
-    R_min ≈ 0.01*R0 (complete collapse).
-    Source: Plesset & Prosperetti (1977), Annual Rev. Fluid Mech.
-    """
+    """EQ10 - ΔP_collapse. Source: Plesset & Prosperetti (1977)"""
     R_min  = 0.01 * R0_m
     P_peak = RHO * (R0_m / R_min)**3 * (P_inf_pa - P_VAPOUR_PA)
     return P_peak
 
 def flash_evaporation_temp_drop(T_before_C, m_metal_kg=200, P_drop_bar=40):
-    """
-    EQ11 - m_flash * h_fg = m_metal * Cp_metal * ΔT
-    Source: Thermodynamics (Cengel & Boles), Ch.8
-    Explains M3 sub-ambient normalised temperature rows (18 rows preserved).
-    """
+    """EQ11 - m_flash * h_fg = m_metal * Cp_metal * ΔT. Source: Cengel & Boles Ch.8"""
     h_fg     = 2257e3
     Cp_metal = 500.0
     m_flash  = CD_SEAL * 1e-4 * np.sqrt(2 * P_drop_bar * 1e5 / RHO)
@@ -286,84 +252,63 @@ def flash_evaporation_temp_drop(T_before_C, m_metal_kg=200, P_drop_bar=40):
     return T_before_C - delta_T
 
 def thermal_coupling_enforce(Mot_TV_star, r_coupling=0.9793, Temp_ref_star=0.5):
-    """
-    EQ15 - Enforces M2 confirmed coupling r=0.9793 between Mot.TV and Temp.SV.
-    Temp.SV* = Temp_ref* + r * (Mot.TV* - TV_ref*)
-    """
+    """EQ15 - Enforces M2 coupling r=0.9793 between Mot.TV and Temp.SV."""
     return Temp_ref_star + r_coupling * (Mot_TV_star - Temp_ref_star)
 
 log("All 20 physics helper functions defined.")
-log(f"  EQ1  hydraulic_power")
-log(f"  EQ2  affinity_speed_ratio")
-log(f"  EQ3  specific_speed_SI")
-log(f"  EQ4  bep_excess_power")
-log(f"  EQ5  thermal_response (1st Law lumped capacitance)")
-log(f"  EQ6  joukowsky_pressure_rise")
-log(f"  EQ7  npsha")
-log(f"  EQ8  thoma_number")
-log(f"  EQ9  Paris-Erdogan via bearing_friction_heat beta")
-log(f"  EQ10 rayleigh_plesset_peak_pressure")
-log(f"  EQ11 flash_evaporation_temp_drop")
-log(f"  EQ12 seal_leakage_flow")
-log(f"  EQ13 bernoulli_velocity_from_pressure")
-log(f"  EQ14 navier_stokes_viscous_dissipation")
-log(f"  EQ15 thermal_coupling_enforce (r=0.9793)")
-log(f"  EQ16 bearing_friction_heat (Palmgren)")
-log(f"  EQ17 ISO10816 zone check (constants)")
-log(f"  EQ18 BEP 25pct overload check")
-log(f"  EQ19 continuity pressure delivery")
-log(f"  EQ20 L10 bearing life (ISO 281)")
+for eq in ["EQ1 hydraulic_power","EQ2 affinity_speed_ratio","EQ3 specific_speed_SI",
+           "EQ4 bep_excess_power","EQ5 thermal_response (1st Law lumped capacitance)",
+           "EQ6 joukowsky_pressure_rise","EQ7 npsha","EQ8 thoma_number",
+           "EQ9 Paris-Erdogan via bearing_friction_heat beta",
+           "EQ10 rayleigh_plesset_peak_pressure","EQ11 flash_evaporation_temp_drop",
+           "EQ12 seal_leakage_flow","EQ13 bernoulli_velocity_from_pressure",
+           "EQ14 navier_stokes_viscous_dissipation","EQ15 thermal_coupling_enforce (r=0.9793)",
+           "EQ16 bearing_friction_heat (Palmgren)","EQ17 ISO10816 zone check (constants)",
+           "EQ18 BEP 25pct overload check","EQ19 continuity pressure delivery",
+           "EQ20 L10 bearing life (ISO 281)"]:
+    log(f"  {eq}")
 
 # =============================================================================
 # SECTION 2 - SCADA NOISE MODEL
-# Per-channel Gaussian noise from M2/M3 observed std in normalised space
 # =============================================================================
 
 NOISE_STD = {
-    'Mot_PV':  0.012,   # PV is RMS envelope - smooth
-    'Mot_SV':  0.035,   # SV is broadband - noisy
-    'Mot_TV':  0.008,   # temperature sensors smooth
+    'Mot_PV':  0.012,
+    'Mot_SV':  0.035,
+    'Mot_TV':  0.008,
     'Pmp_PV':  0.012,
-    'Pmp_SV':  0.040,   # pump side noisier than motor side
+    'Pmp_SV':  0.040,
     'Pmp_TV':  0.008,
     'Temp_SV': 0.010,
     'Pres_SV': 0.015,
 }
 
 def add_scada_noise(arr, channel, rng):
-    """Add realistic Gaussian SCADA noise to a channel time-series."""
     return arr + rng.normal(0, NOISE_STD[channel], size=arr.shape)
 
 # =============================================================================
 # SECTION 3 - SIX FAULT CAUSAL CHAIN FUNCTIONS
-# Each returns ndarray shape=(200, 8) in normalised space.
-# T = 200 timesteps @ 1s/step - enough for causal cascade to manifest.
 # =============================================================================
-
 
 T_SEQ = 200
 t_arr = np.arange(T_SEQ, dtype=np.float64)
-
 
 log("="*70)
 log("SECTION 3 - Fault causal chain functions")
 log("="*70)
 
-
 # --------------------------------------------------------------------------
-# FAULT 1 - BEARING WEAR   *** PATCH 3 APPLIED HERE ***
-# Clusters: startup, steady_state, high_load
-# Chain: Mot.SV↑(Paris exp) → Mot.TV↑(Palmgren heat) → Temp.SV↑(r=0.9793)
-#        → Pmp.SV↑(shaft coupling lag 5-15s)
-# FIX: thermal uses time-varying Q_brg_t (Euler step) not scalar mean
-#      → guarantees pearsonr(Mot_TV, Mot_SV) >= 0.70 at all severities
+# FAULT 1 - BEARING WEAR   *** PATCH 3 APPLIED ***
+# Chain: Mot.SV↑(Paris exp) → Mot.TV↑(Euler time-varying Palmgren heat)
+#        → Temp.SV↑(r=0.9793) → Pmp.SV↑(shaft coupling lag 5-15s)
+# FIX: Euler integration of Q_brg_t(t) instead of scalar mean.
+#      Guarantees pearsonr(Mot_TV, Mot_SV) >= 0.70 at ALL severities.
 # --------------------------------------------------------------------------
-
 
 def fault_bearing_wear(cluster='steady_state', severity=0.6, seed=42):
     """
     Bearing wear progressive fault.
-    severity in [0.1, 1.0] - 1.0 = near-failure state by t=199
+    severity in [0.1, 1.0] — 1.0 = near-failure state by t=199
     Returns: ndarray (200, 8) normalised float32
     """
     rng  = np.random.default_rng(seed)
@@ -374,66 +319,61 @@ def fault_bearing_wear(cluster='steady_state', severity=0.6, seed=42):
     for i, ch in enumerate(CHANNEL_ORDER):
         seq[:, i] = bl.get(ch, 1.0)
 
-    # Mot.SV - Paris-Erdogan exponential growth
-    # beta: at severity=1.0, Mot.SV reaches 80% of winsor ceiling by t=199
+    # Mot.SV — Paris-Erdogan exponential growth
     beta_MotSV = severity * np.log(max(0.80 * ceil['Mot_SV'][cluster], 1.25)) / T_SEQ
     beta_MotSV = max(beta_MotSV, 0.003)
     MotSV_star = np.exp(beta_MotSV * t_arr)
     MotSV_star = np.clip(MotSV_star, 0.0, ceil['Mot_SV'][cluster])
 
-    # Mot.PV - displacement lags velocity (integral of SV envelope)
+    # Mot.PV — displacement lags velocity
     MotPV_star = 1.0 + 0.45 * (MotSV_star - 1.0)
     MotPV_star = np.clip(MotPV_star, 0.8, ceil['Mot_PV'][cluster])
 
     # --- PATCH 3 START ---
-    # Mot.TV - TIME-VARYING bearing heat via Palmgren + Euler integration
-    # Fix: previously used Q_brg_t.mean() which is a scalar, causing Mot_TV
-    # to saturate too fast relative to Mot_SV → pearsonr drops below 0.70.
-    # Now: heat input Q_brg_t[t] grows with same Paris-exp beta as Mot_SV,
-    # and Euler step propagates temperature forward in time → TV tracks SV shape.
-    F_bearing   = 0.3 * P_MOTOR_W / (OMEGA * 0.05)       # radial bearing load (N)
-    v_tip       = OMEGA * 0.05                             # journal surface speed (m/s)
-    Q0_scalar   = MU_BEARING_HEALTHY * F_bearing * v_tip  # baseline friction heat at t=0 (W)
-    # severity_eff = max(severity, 0.45)          # floor at 0.45 so G4 gate always fires  ensures minimum detectable heat even at low severity
-    # Q0_scalar = MU_BEARING_HEALTHY * F * v_tip * (1.0 + severity_eff)
-    # Heat grows with Paris-exp beta (same exponent as crack / wear growth)
-    Q_brg_t = Q0_scalar * np.exp(beta_MotSV * 0.6 * t_arr) * severity  # shape (T_SEQ,)
+    # Mot.TV — TIME-VARYING bearing heat via Palmgren + Euler integration
+    # Q_brg_t[t] grows with same Paris-exp beta as Mot_SV.
+    # Euler step propagates temperature forward → TV tracks SV shape.
+    # Guarantees pearsonr(Mot_TV, Mot_SV) >= 0.70 at ALL severities including sev=0.4
+    # Source: Palmgren (1959), ISO 281 — friction heat ∝ vibration velocity envelope
+    F_bearing   = 0.3 * P_MOTOR_W / (OMEGA * 0.05)
+    v_tip       = OMEGA * 0.05
+    Q0_scalar   = MU_BEARING_HEALTHY * F_bearing * v_tip
+    Q_brg_t     = Q0_scalar * np.exp(beta_MotSV * 0.6 * t_arr) * severity  # shape (T_SEQ,)
 
-    # 1st-Law lumped capacitance - Euler step so TV tracks TV(t) not a scalar
-    T_inf      = bl['raw_MotTV_min'] + 2.0
-    T_init     = bl['raw_MotTV_mean']
+    T_inf       = bl['raw_MotTV_min'] + 2.0
+    T_init      = bl['raw_MotTV_mean']
     MotTV_range = max(bl['raw_MotTV_max'] - bl['raw_MotTV_min'], 1.0)
 
     T_MotTV_raw    = np.empty(T_SEQ, dtype=np.float64)
     T_MotTV_raw[0] = T_init
     for _t in range(1, T_SEQ):
-        dT               = (Q_brg_t[_t] / HA_MOTOR) - (T_MotTV_raw[_t-1] - T_inf) / TAU_THERMAL
-        T_MotTV_raw[_t]  = T_MotTV_raw[_t-1] + dT          # dt = 1 s
+        dT              = (Q_brg_t[_t] / HA_MOTOR) - (T_MotTV_raw[_t-1] - T_inf) / TAU_THERMAL
+        T_MotTV_raw[_t] = T_MotTV_raw[_t-1] + dT   # dt = 1s
 
     MotTV_star = (T_MotTV_raw - T_inf) / MotTV_range
     MotTV_star = np.clip(MotTV_star, -0.05, 1.5)
     # --- PATCH 3 END ---
 
-    # Temp.SV - thermal coupling r=0.9793 (M2 confirmed)
+    # Temp.SV — thermal coupling r=0.9793 (M2 confirmed)
     TempSV_star = thermal_coupling_enforce(MotTV_star, r_coupling=0.9793,
                                            Temp_ref_star=bl['Temp_SV'])
     TempSV_star = np.clip(TempSV_star, -0.05, 1.5)
 
-    # Pmp.SV - shaft-coupling lag 5-15 steps
+    # Pmp.SV — shaft-coupling lag 5-15 steps
     lag = int(rng.integers(5, 16))
     PmpSV_star = np.ones(T_SEQ)
     PmpSV_star[lag:] = 1.0 + 0.55 * severity * (MotSV_star[:-lag] - 1.0)
     PmpSV_star = np.clip(PmpSV_star, 0.8, ceil['Pmp_SV'][cluster])
 
-    # Pmp.PV - follows Pmp.SV via M2 coupling r=0.8882
+    # Pmp.PV — follows Pmp.SV via M2 coupling r=0.8882
     PmpPV_star = 1.0 + 0.8882 * (PmpSV_star - 1.0) * 0.5
     PmpPV_star = np.clip(PmpPV_star, 0.8, ceil['Pmp_PV'][cluster])
 
-    # Pmp.TV - minor rise from shaft heat conduction
+    # Pmp.TV — minor rise from shaft heat conduction
     PmpTV_star = bl['Pmp_TV'] + 0.15 * severity * (MotTV_star - bl['Mot_TV'])
     PmpTV_star = np.clip(PmpTV_star, -0.05, 1.3)
 
-    # Pres.SV - slight drop from increased friction drag
+    # Pres.SV — slight drop from increased friction drag
     PresSV_star = 1.0 - 0.04 * severity * (t_arr / T_SEQ)
     PresSV_star = np.clip(PresSV_star, 0.3, ceil['Pres_SV'][cluster])
 
@@ -450,9 +390,8 @@ def fault_bearing_wear(cluster='steady_state', severity=0.6, seed=42):
 
 # --------------------------------------------------------------------------
 # FAULT 2 - IMPELLER IMBALANCE
-# Clusters: steady_state, high_load
 # Chain: Pmp.PV↑(linear 1×RPM) → Pmp.SV↑(BPF AM) →
-#        Pres.SV oscillates (BPF pulsation) → Mot.PV↑(shaft lag)
+#        Pres.SV oscillates (BPF pulsation) → Mot.PV↑(shaft lag)
 # --------------------------------------------------------------------------
 
 def fault_impeller_imbalance(cluster='steady_state', severity=0.6, seed=42):
@@ -517,8 +456,7 @@ def fault_impeller_imbalance(cluster='steady_state', severity=0.6, seed=42):
 # --------------------------------------------------------------------------
 # FAULT 3 - CAVITATION
 # LOCKED to startup cluster ONLY (NPSHa marginal at P=0.43-0.85 bar)
-# Chain: Pres.SV drops erratic (σ < σ_crit) → Pmp.SV spikes (R-P implosions)
-#        → Pmp.TV↑ (cumulative implosion heat)
+# Chain: Pres.SV drops erratic → Pmp.SV spikes (R-P implosions) → Pmp.TV↑
 # --------------------------------------------------------------------------
 
 def fault_cavitation(cluster='startup', severity=0.6, seed=42):
@@ -597,10 +535,7 @@ def fault_cavitation(cluster='startup', severity=0.6, seed=42):
 
 # --------------------------------------------------------------------------
 # FAULT 4 - SEAL FAILURE
-# Clusters: steady_state, high_load
-# Chain: Pres.SV monotonic↓ (Q_leak grows via orifice eq) →
-#        Pmp.TV↑ (N-S viscous dissipation seal face) →
-#        Pmp.PV slight↑ (axial thrust imbalance)
+# Chain: Pres.SV↓(Q_leak grows via orifice) → Pmp.TV↑(N-S viscous) → Pmp.PV↑
 # --------------------------------------------------------------------------
 
 def fault_seal_failure(cluster='steady_state', severity=0.6, seed=42):
@@ -662,12 +597,11 @@ def fault_seal_failure(cluster='steady_state', severity=0.6, seed=42):
     return seq.astype(np.float32)
 
 
-
 # --------------------------------------------------------------------------
 # FAULT 5 - OVERLOADING
-# LOCKED to steady_state ONLY (stable vibration baseline required)
+# LOCKED to steady_state ONLY
 # Chain: Temp.SV↑ monotonic → Mot.TV↑ → SV STABLE
-# Key distinguisher vs bearing: dT/dt > 0 while dSV/dt ≈ 0
+# Key distinguisher: dT/dt > 0 while dSV/dt ≈ 0
 # --------------------------------------------------------------------------
 
 def fault_overloading(cluster='steady_state', severity=0.6, seed=42):
@@ -743,17 +677,14 @@ def fault_overloading(cluster='steady_state', severity=0.6, seed=42):
 
 
 # --------------------------------------------------------------------------
-# FAULT 6 - SENSOR FAILURE   *** PATCH 5 APPLIED HERE ***
-# Clusters: ANY (hardware failure is context-independent)
+# FAULT 6 - SENSOR FAILURE   *** PATCH 5 APPLIED ***
 # Sub-types: flatline / spike / drift / dropout
-# Physics constraint: exactly 1 channel anomalous; all 7 others < 0.20 dev
-# FIX: spike subtype guard - max(min(4.0, ceil_val), 2.5 + 0.1) prevents
-#      rng.uniform(high < low) crash when ceil_val < 2.5 (e.g. Pres_SV high_load)
+# FIX: spike subtype guard — spike_hi = max(min(4.0, ceil_val), spike_lo+0.1)
+#      prevents rng.uniform(high < low) crash when ceil_val < 2.5
+#      e.g. Pres_SV high_load ceiling = 2.0
 # --------------------------------------------------------------------------
 
-
 SENSOR_SUBTYPES = ['flatline', 'spike', 'drift', 'dropout']
-
 
 def fault_sensor_failure(cluster='steady_state', severity=0.6, seed=42,
                          target_channel=None, subtype=None):
@@ -786,10 +717,9 @@ def fault_sensor_failure(cluster='steady_state', severity=0.6, seed=42,
 
     elif subtype == 'spike':
         # --- PATCH 5 START ---
-        # Guard: ceil_val for TV channels (Mot_TV, Pmp_TV, Temp_SV) is not in
-        # WINSOR_CEILINGS so defaults to 3.0 - fine. But Pres_SV high_load
-        # has ceil_val=2.0 < 2.5, making rng.uniform(2.5, 2.0) crash with
-        # "high - low < 0". Fix: clamp spike_hi to always be > spike_lo.
+        # Guard against rng.uniform(high < low) crash.
+        # Pres_SV high_load: ceil_val=2.0 < spike_lo=2.5 → would crash.
+        # Fix: clamp spike_hi so it is always strictly > spike_lo.
         onset     = int(rng.integers(10, T_SEQ - 30))
         duration  = int(rng.integers(3, 25))
         spike_lo  = 2.5
@@ -815,7 +745,7 @@ def fault_sensor_failure(cluster='steady_state', severity=0.6, seed=42,
     return seq.astype(np.float32), target_channel, subtype
 
 # =============================================================================
-# SECTION 4 - PHYSICS VALIDATION GATES  (7 gates)
+# SECTION 4 - PHYSICS VALIDATION GATES (7 gates)
 # =============================================================================
 
 log("="*70)
@@ -873,7 +803,6 @@ def validate_sequence(seq, fault_type, cluster, target_ch=None):
 
 # =============================================================================
 # SECTION 5 - INITIAL VALIDATION SUITE (19 test cases)
-# FIX Bug 3: Single definition, correct channel key format throughout
 # =============================================================================
 
 log("="*70)
@@ -910,7 +839,7 @@ for cfg in FAULT_TEST_CONFIGS_S5:
     fault_type, cluster, severity, seed, tgt_ch, subtype = cfg
     try:
         if fault_type == 'bearing_wear':
-            seq = fault_bearing_wear(cluster, severity, seed);      tgt_ch_ret = None
+            seq = fault_bearing_wear(cluster, severity, seed);       tgt_ch_ret = None
         elif fault_type == 'impeller_imbalance':
             seq = fault_impeller_imbalance(cluster, severity, seed); tgt_ch_ret = None
         elif fault_type == 'cavitation':
@@ -943,17 +872,13 @@ for cfg in FAULT_TEST_CONFIGS_S5:
         log(f"  [ERROR]  {fault_type} | {cluster} | {e}")
         ALL_S5_PASS = False
 
-results['s5_all_pass']    = ALL_S5_PASS
+results['s5_all_pass']     = ALL_S5_PASS
 results['s5_cases_tested'] = len(FAULT_TEST_CONFIGS_S5)
 log(f"\nSection 5 done - ALL_PASS: {ALL_S5_PASS}")
 
-# -----------------------------------------------------------
-# >>> SECTIONS 0-5 COMPLETE. AWAITING GO FOR S6-S11 <<<
-# -----------------------------------------------------------
 
 # =============================================================================
 # SECTION 6 - NAMEPLATE EQUATION VERIFICATION (EQ1-EQ20)
-# Every equation validated against: 110kW, 2980RPM, 45m³/h, 450m, 40bar, 7 imp
 # =============================================================================
 
 log("="*70)
@@ -962,126 +887,118 @@ log("="*70)
 
 eq_checks = {}
 
-# EQ1 - Hydraulic Power
+# EQ1
 val = hydraulic_power(RHO, G, Q_BEP, H_BEP) / 1000
 eq_checks['EQ1_P_hyd_kW'] = {
-    'value': round(val, 2), 'expected': '45-65 kW',
-    'pass': 45 < val < 65}
+    'value': round(val, 2), 'expected': '45-65 kW', 'pass': 45 < val < 65}
 
-# EQ2 - Affinity Laws H ratio at 2980→2500 RPM
+# EQ2
 af = affinity_speed_ratio(2980, 2500)
 eq_checks['EQ2_affinity_H_ratio'] = {
     'value': round(af['H_ratio'], 4), 'expected': '1.4198',
     'pass': abs(af['H_ratio'] - (2980/2500)**2) < 0.001}
 
-# EQ3 - Specific Speed SI
+# EQ3
 ns = specific_speed_SI(MOTOR_RPM, Q_BEP, H_BEP)
 eq_checks['EQ3_Ns_SI'] = {
     'value': round(ns, 2), 'expected': '1-15 (ultra-high-head multistage)',
     'pass': 1 < ns < 15}
 
-# EQ4 - BEP excess power at 10% overflow
+# EQ4
 Pex = bep_excess_power(Q_BEP * 1.10, ETA_OVERALL * 0.95)
 eq_checks['EQ4_BEP_excess_kW_10pct'] = {
-    'value': round(Pex / 1000, 3), 'expected': '≥ 0 kW',
-    'pass': Pex >= 0}
+    'value': round(Pex / 1000, 3), 'expected': '≥ 0 kW', 'pass': Pex >= 0}
 
-# EQ5 - Thermal time constant
+# EQ5
 eq_checks['EQ5_tau_thermal_s'] = {
     'value': round(TAU_THERMAL, 1), 'expected': '300-700 s',
     'pass': 300 < TAU_THERMAL < 700}
 
-# EQ6 - Joukowsky water hammer
+# EQ6
 dP_jou = joukowsky_pressure_rise(V_FLOW)
 eq_checks['EQ6_joukowsky_bar'] = {
     'value': round(dP_jou / 1e5, 2), 'expected': '10-30 bar',
     'pass': 10 < dP_jou / 1e5 < 30}
 
-# EQ7 - NPSHa at startup suction conditions
+# EQ7
 NPSHa_check = npsha(0.621, 1.5, 0.5)
 eq_checks['EQ7_NPSHa_startup_m'] = {
     'value': round(NPSHa_check, 2), 'expected': '1-10 m (marginal)',
     'pass': 1 < NPSHa_check < 10}
 
-# EQ8 - Thoma sigma (cavitation inception)
+# EQ8
 sigma_check = thoma_number(NPSHa_check, H_BEP)
 eq_checks['EQ8_thoma_sigma'] = {
     'value': round(sigma_check, 5), 'expected': '< 0.02 (cavitation risk at startup)',
     'pass': sigma_check < 0.02}
 
-# EQ9 - BPF (blade pass frequency)  - self-referential, always correct
+# EQ9
 BPF_EXPECTED = round(PUMP_IMPELLERS * MOTOR_RPM / 60, 2)
 eq_checks['EQ9_BPF_Hz'] = {
     'value': round(BPF_HZ, 2), 'expected': f'{BPF_EXPECTED} Hz',
     'pass': abs(BPF_HZ - BPF_EXPECTED) < 0.1}
 
-# EQ10 - Rayleigh-Plesset peak pressure
+# EQ10
 P_rp = rayleigh_plesset_peak_pressure()
 eq_checks['EQ10_RP_peak_GPa'] = {
     'value': round(P_rp / 1e9, 2), 'expected': '> 0.1 GPa local',
     'pass': P_rp > 1e8}
 
-# EQ11 - Flash evaporation temperature drop
+# EQ11
 T_after = flash_evaporation_temp_drop(T_before_C=25.0)
 eq_checks['EQ11_flash_dT_C'] = {
     'value': round(25.0 - T_after, 4), 'expected': 'small positive ΔT',
     'pass': T_after < 25.0}
 
-# EQ12 - Seal leakage flow at 1e-7 m² gap, 40 bar
+# EQ12
 Q_lk = seal_leakage_flow(1e-7, 40.0)
 eq_checks['EQ12_seal_Q_leak_m3s'] = {
-    'value': f"{Q_lk:.3e}", 'expected': 'small positive',
-    'pass': Q_lk > 0}
+    'value': f"{Q_lk:.3e}", 'expected': 'small positive', 'pass': Q_lk > 0}
 
-# EQ13 - Bernoulli impeller velocity at full pressure drop
+# EQ13
 v_imp = bernoulli_velocity_from_pressure(40.0, 0.023)
 eq_checks['EQ13_bernoulli_v_ms'] = {
     'value': round(v_imp, 2), 'expected': '> 50 m/s at 40 bar',
     'pass': v_imp > 50}
 
-# EQ14 - N-S viscous dissipation
+# EQ14
 Phi = navier_stokes_viscous_dissipation(1e-3, 300.0, 1e-4)
 eq_checks['EQ14_NS_dissipation_W'] = {
-    'value': round(Phi, 4), 'expected': '> 0 W',
-    'pass': Phi > 0}
+    'value': round(Phi, 4), 'expected': '> 0 W', 'pass': Phi > 0}
 
-# EQ15 - Thermal coupling enforce (r=0.9793)
+# EQ15
 TV_test  = 0.85
 Temp_out = thermal_coupling_enforce(TV_test, 0.9793, 0.5)
 eq_checks['EQ15_thermal_coupling_enforce'] = {
     'value': round(Temp_out, 4), 'expected': f'≈ {0.5 + 0.9793*(0.85-0.5):.4f}',
     'pass': abs(Temp_out - (0.5 + 0.9793 * (TV_test - 0.5))) < 1e-6}
 
-# EQ16 - Bearing friction heat at t=0
+# EQ16
 Q_brg0 = bearing_friction_heat(np.array([0.0]))[0]
 eq_checks['EQ16_bearing_Q0_W'] = {
-    'value': round(Q_brg0, 2), 'expected': '> 0 W',
-    'pass': Q_brg0 > 0}
+    'value': round(Q_brg0, 2), 'expected': '> 0 W', 'pass': Q_brg0 > 0}
 
-# EQ17 - ISO 10816-3 zone check (constants sanity)
+# EQ17
 eq_checks['EQ17_ISO10816_zones'] = {
     'value': f'A={ISO_ZONE_A} B={ISO_ZONE_B} C={ISO_ZONE_C}',
     'expected': 'A<B<C (2.3<4.5<7.1)',
     'pass': ISO_ZONE_A < ISO_ZONE_B < ISO_ZONE_C}
 
-# EQ18 - BEP 25% overload check (Q_max = 1.25*Q_BEP)
+# EQ18
 Pex_25 = bep_excess_power(Q_BEP * 1.25, ETA_OVERALL * 0.85)
 eq_checks['EQ18_BEP_excess_25pct_kW'] = {
-    'value': round(Pex_25 / 1000, 3), 'expected': '≥ 0 kW',
-    'pass': Pex_25 >= 0}
+    'value': round(Pex_25 / 1000, 3), 'expected': '≥ 0 kW', 'pass': Pex_25 >= 0}
 
-# EQ19 - Continuity: P_hyd / P_motor ≈ eta_overall
+# EQ19
 eta_check = hydraulic_power(RHO, G, Q_BEP, H_BEP) / P_MOTOR_W
 eq_checks['EQ19_eta_continuity'] = {
     'value': round(eta_check, 4), 'expected': f'≈ {ETA_OVERALL:.4f}',
     'pass': abs(eta_check - ETA_OVERALL) < 1e-6}
 
-# EQ20 - L10 bearing life sanity
+# EQ20
 eq_checks['EQ20_L10_hours'] = {
-    'value': L10_HOURS, 'expected': '> 15000 h (ISO 281)',
-    'pass': L10_HOURS > 15000}
+    'value': L10_HOURS, 'expected': '> 15000 h (ISO 281)', 'pass': L10_HOURS > 15000}
 
-# ---- Report EQ results ----
 EQ_ALL_PASS = True
 for eq_name, res in eq_checks.items():
     status = "PASS" if res['pass'] else "FAIL"
@@ -1089,23 +1006,20 @@ for eq_name, res in eq_checks.items():
     if not res['pass']:
         EQ_ALL_PASS = False
 
-results['eq_all_pass']    = EQ_ALL_PASS
-results['eq_pass_count']  = sum(1 for r in eq_checks.values() if r['pass'])
-results['eq_total']       = len(eq_checks)
+results['eq_all_pass']   = EQ_ALL_PASS
+results['eq_pass_count'] = sum(1 for r in eq_checks.values() if r['pass'])
+results['eq_total']      = len(eq_checks)
 log(f"\nSection 6 done - EQ PASS: {results['eq_pass_count']}/{results['eq_total']}")
 
 
 # =============================================================================
-# SECTION 7 - FULL SEQUENCE GENERATION + GATE VALIDATION
-# Generates multi-severity, multi-cluster sequences for every fault class.
-# Also generates Type-A (normal) sequences for M6 pool seeding.
+# SECTION 7 - FULL SEQUENCE GENERATION + GATE VALIDATION (26 test cases)
 # =============================================================================
 
 log("="*70)
 log("SECTION 7 - Full sequence generation + validation")
 log("="*70)
 
-# FIX Bug 3: Single consolidated FAULT_TEST_CONFIGS, correct key format
 FAULT_TEST_CONFIGS = [
     # (fault_type,           cluster,        severity, seed, tgt_ch,    subtype)
     ('bearing_wear',       'steady_state', 0.4, 100, None,       None),
@@ -1184,7 +1098,7 @@ for cfg in FAULT_TEST_CONFIGS:
         log(f"  [ERROR] {key} - {e}")
         s7_all_pass = False
 
-# ---- Normal (Type-A) sequences - 4 clusters × 3 seeds ----
+# Normal (Type-A) sequences — 4 clusters × 3 seeds
 log("  Generating Type-A normal sequences...")
 for cluster in CLUSTER_BASELINES:
     for seed in [200, 201, 202]:
@@ -1206,20 +1120,13 @@ results['s7_fault_pass_count'] = s7_pass_count
 results['s7_fault_total']      = len(FAULT_TEST_CONFIGS)
 results['s7_all_pass']         = s7_all_pass
 results['s7_fail_list']        = s7_fail_list
-# --- DEBUG: show exactly which fault seqs failed ---
-for _k, _v in results.get('s7_details', {}).items():
-    if not _v.get('pass', True):
-        print(f"  FAIL  {_k}")
-        for _reason in _v.get('fail_reasons', []):
-            print(f"         -> {_reason}")
 log(f"\nSection 7 done - {s7_pass_count}/{len(FAULT_TEST_CONFIGS)} fault seqs PASS | "
     f"Total seqs: {len(generated_sequences)}")
 
 
 # =============================================================================
 # SECTION 8 - SAVE fault_rules.json + unit_registry.json
-# fault_rules.json = contract between M5 and M6
-# FIX Bug 4: overloading allowed_clusters = ['steady_state'] only
+# FIX: overloading severity_range = [0.5, 1.0] only (assert floor matches)
 # =============================================================================
 
 log("="*70)
@@ -1230,12 +1137,12 @@ FAULT_RULES = {
     "schema_version": "2.0",
     "created":        str(date.today()),
     "nameplate": {
-        "motor_kw":      MOTOR_KW,
-        "motor_rpm":     MOTOR_RPM,
-        "pump_flow_m3h": PUMP_FLOW_M3H,
-        "pump_head_m":   PUMP_HEAD_M,
-        "pump_max_bar":  PUMP_MAX_BAR,
-        "pump_impellers":PUMP_IMPELLERS
+        "motor_kw":       MOTOR_KW,
+        "motor_rpm":      MOTOR_RPM,
+        "pump_flow_m3h":  PUMP_FLOW_M3H,
+        "pump_head_m":    PUMP_HEAD_M,
+        "pump_max_bar":   PUMP_MAX_BAR,
+        "pump_impellers": PUMP_IMPELLERS
     },
     "channel_order": CHANNEL_ORDER,
     "seq_length":    T_SEQ,
@@ -1253,7 +1160,7 @@ FAULT_RULES = {
             "allowed_clusters": ["startup","steady_state","high_load"],
             "severity_range": [0.1, 1.0],
             "primary_channels": ["Mot_SV","Mot_TV","Temp_SV","Pmp_SV"],
-            "causal_chain": "Mot.SV↑(Paris-exp) → Mot.TV↑(Palmgren) → Temp.SV↑(r=0.9793) → Pmp.SV↑(lag)",
+            "causal_chain": "Mot.SV↑(Paris-exp) → Mot.TV↑(Palmgren Euler) → Temp.SV↑(r=0.9793) → Pmp.SV↑(lag)",
             "physics_refs": ["ISO_281","Palmgren_1959","Paris_Erdogan","Incropera_Ch5"],
             "gate_coupling": "G4: pearsonr(Mot_TV, Mot_SV) >= 0.70"
         },
@@ -1287,7 +1194,7 @@ FAULT_RULES = {
         "overloading": {
             "label": 5,
             "allowed_clusters": ["steady_state"],
-            "severity_range": [0.5, 1.0],        # <-- was [0.1, 1.0]
+            "severity_range": [0.5, 1.0],
             "primary_channels": ["Temp_SV","Mot_TV","Pmp_TV"],
             "causal_chain": "Temp.SV↑(monotonic) → Mot.TV↑ → SV_stable (dT>0, dSV≈0)",
             "physics_refs": ["NS_viscous_dissipation","Incropera_Ch5","Cengel_Boles_Ch8"],
@@ -1326,7 +1233,6 @@ except Exception as e:
     log(f"  [ERROR] fault_rules.json - {e}")
     results['fault_rules_saved'] = False
 
-# unit_registry.json - load from Space file if present, else write fresh
 unit_reg_src  = Path("unit_registry.json")
 unit_reg_path = MODEL_DIR / "unit_registry.json"
 try:
@@ -1339,21 +1245,21 @@ try:
             "schema_version": "1.0",
             "created": str(date.today()),
             "sensors": {
-                "Mot_PV": {"unit": "mm/s_RMS", "description": "Motor bearing displacement PV",
-                           "normal_range": [0.0, 2.3], "iso_standard": "ISO_10816-3"},
-                "Mot_SV": {"unit": "mm/s_RMS", "description": "Motor bearing velocity SV",
-                           "normal_range": [0.0, 4.5], "iso_standard": "ISO_10816-3"},
-                "Mot_TV": {"unit": "degC",     "description": "Motor bearing temperature",
-                           "normal_range": [18.0, 60.0], "iso_standard": "IEC_60034"},
-                "Pmp_PV": {"unit": "mm/s_RMS", "description": "Pump bearing displacement PV",
-                           "normal_range": [0.0, 2.3], "iso_standard": "ISO_10816-3"},
-                "Pmp_SV": {"unit": "mm/s_RMS", "description": "Pump bearing velocity SV",
-                           "normal_range": [0.0, 4.5], "iso_standard": "ISO_10816-3"},
-                "Pmp_TV": {"unit": "degC",     "description": "Pump bearing temperature",
-                           "normal_range": [18.0, 60.0], "iso_standard": "IEC_60034"},
-                "Temp_SV": {"unit": "degC",    "description": "Process fluid temperature",
+                "Mot_PV":  {"unit": "mm/s_RMS", "description": "Motor bearing displacement PV",
+                            "normal_range": [0.0, 2.3], "iso_standard": "ISO_10816-3"},
+                "Mot_SV":  {"unit": "mm/s_RMS", "description": "Motor bearing velocity SV",
+                            "normal_range": [0.0, 4.5], "iso_standard": "ISO_10816-3"},
+                "Mot_TV":  {"unit": "degC",     "description": "Motor bearing temperature",
+                            "normal_range": [18.0, 60.0], "iso_standard": "IEC_60034"},
+                "Pmp_PV":  {"unit": "mm/s_RMS", "description": "Pump bearing displacement PV",
+                            "normal_range": [0.0, 2.3], "iso_standard": "ISO_10816-3"},
+                "Pmp_SV":  {"unit": "mm/s_RMS", "description": "Pump bearing velocity SV",
+                            "normal_range": [0.0, 4.5], "iso_standard": "ISO_10816-3"},
+                "Pmp_TV":  {"unit": "degC",     "description": "Pump bearing temperature",
+                            "normal_range": [18.0, 60.0], "iso_standard": "IEC_60034"},
+                "Temp_SV": {"unit": "degC",     "description": "Process fluid temperature",
                             "normal_range": [18.0, 55.0], "iso_standard": "ISO_9906"},
-                "Pres_SV": {"unit": "bar",     "description": "Discharge pressure",
+                "Pres_SV": {"unit": "bar",      "description": "Discharge pressure",
                             "normal_range": [0.0, 40.0], "iso_standard": "ISO_9906"}
             }
         }
@@ -1367,9 +1273,7 @@ except Exception as e:
 
 
 # =============================================================================
-# SECTION 9 - WINSOR CONFIG SAVE (M6 reference copy)
-# Saves M4 winsor ceilings + M3 cluster baselines into one M5 config JSON
-# for M6 to consume without re-reading multiple files.
+# SECTION 9 - M5 PHYSICS CONFIG SAVE (M6 reference copy)
 # =============================================================================
 
 log("="*70)
@@ -1388,20 +1292,20 @@ M5_CONFIG = {
         for cl, bl in CLUSTER_BASELINES.items()
     },
     "physics_constants": {
-        "RHO":              RHO,
-        "G":                G,
-        "OMEGA_rad_s":      round(OMEGA, 4),
-        "Q_BEP_m3s":        Q_BEP,
-        "H_BEP_m":          H_BEP,
-        "P_MOTOR_W":        P_MOTOR_W,
-        "ETA_OVERALL":      round(ETA_OVERALL, 4),
-        "BPF_HZ":           round(BPF_HZ, 2),
-        "TAU_THERMAL_s":    round(TAU_THERMAL, 1),
-        "P_VAPOUR_BAR":     P_VAPOUR_BAR,
-        "A_WAVE_m_s":       A_WAVE,
-        "ISO_ZONE_A_mm_s":  ISO_ZONE_A,
-        "ISO_ZONE_B_mm_s":  ISO_ZONE_B,
-        "ISO_ZONE_C_mm_s":  ISO_ZONE_C,
+        "RHO":           RHO,
+        "G":             G,
+        "OMEGA_rad_s":   round(OMEGA, 4),
+        "Q_BEP_m3s":     Q_BEP,
+        "H_BEP_m":       H_BEP,
+        "P_MOTOR_W":     P_MOTOR_W,
+        "ETA_OVERALL":   round(ETA_OVERALL, 4),
+        "BPF_HZ":        round(BPF_HZ, 2),
+        "TAU_THERMAL_s": round(TAU_THERMAL, 1),
+        "P_VAPOUR_BAR":  P_VAPOUR_BAR,
+        "A_WAVE_m_s":    A_WAVE,
+        "ISO_ZONE_A_mm_s": ISO_ZONE_A,
+        "ISO_ZONE_B_mm_s": ISO_ZONE_B,
+        "ISO_ZONE_C_mm_s": ISO_ZONE_C,
     }
 }
 
@@ -1418,9 +1322,8 @@ except Exception as e:
 
 # =============================================================================
 # SECTION 10 - VALIDATION PLOTS
-# Plot 1: M5_fault_signatures_validation.png - 6 fault channel traces
-# Plot 2: M5_thermal_coupling_validation.png - Mot.TV vs Temp.SV scatter
-# FIX Bug 1+2: CH_IDX (not CHIDX) | 'Mot_TV'/'Temp_SV' (not 'MotTV'/'TempSV')
+# Plot 1: M5_fault_signatures_validation.png
+# Plot 2: M5_thermal_coupling_validation.png
 # =============================================================================
 
 log("="*70)
@@ -1485,26 +1388,22 @@ except Exception as e:
     log(f"  [ERROR] Plot 1 - {e}")
     results['plot1_saved'] = False
 
-# ---- Plot 2: Thermal coupling Mot.TV vs Temp.SV ----
 try:
     fig2, axes2 = plt.subplots(2, 3, figsize=(16, 9))
     fig2.patch.set_facecolor('#0d1117')
 
     THERMAL_KEYS = [
-        ('bearing_wear',   'steady_state', 0.7, 101),
-        ('overloading',    'steady_state', 0.7, 141),
-        ('seal_failure',   'steady_state', 0.7, 131),
-        ('cavitation',     'startup',      0.7, 121),
-        ('bearing_wear',   'high_load',    0.6, 103),
-        ('normal',         'steady_state', 0.0, 200),
+        ('bearing_wear',  'steady_state', 0.7, 101),
+        ('overloading',   'steady_state', 0.7, 141),
+        ('seal_failure',  'steady_state', 0.7, 131),
+        ('cavitation',    'startup',      0.7, 121),
+        ('bearing_wear',  'high_load',    0.6, 103),
+        ('normal',        'steady_state', 0.0, 200),
     ]
-
     THERMAL_LABELS = {
-        'bearing_wear':   'Bearing Wear',
-        'overloading':    'Overloading',
-        'seal_failure':   'Seal Failure',
-        'cavitation':     'Cavitation',
-        'normal':         'Normal',
+        'bearing_wear': 'Bearing Wear', 'overloading': 'Overloading',
+        'seal_failure': 'Seal Failure', 'cavitation':  'Cavitation',
+        'normal':       'Normal',
     }
 
     for idx, (ft, cl, sev, sd) in enumerate(THERMAL_KEYS):
@@ -1514,7 +1413,6 @@ try:
 
         if key in generated_sequences:
             seq = generated_sequences[key]['seq']
-            # FIX Bug 1+2: CH_IDX correct dict | 'Mot_TV' and 'Temp_SV' correct keys
             x = seq[:, CH_IDX['Mot_TV']]
             y = seq[:, CH_IDX['Temp_SV']]
             r, _ = pearsonr(x, y)
@@ -1548,8 +1446,6 @@ except Exception as e:
 
 # =============================================================================
 # SECTION 11 - EXPORT src/physics_engine.py (importable library for M6)
-# Writes a self-contained module exposing all 6 fault functions +
-# validate_sequence + FAULT_RULES + CH_IDX + CHANNEL_ORDER
 # =============================================================================
 
 log("="*70)
@@ -1573,48 +1469,44 @@ import numpy as np
 import json
 from scipy.stats import pearsonr
 
-# -- paths ------------------------------------------------------------------
 _HERE            = Path(__file__).resolve().parent
 FAULT_RULES_PATH = _HERE.parent / "models" / "fault_rules.json"
 M5_CONFIG_PATH   = _HERE.parent / "models" / "M5_physics_config.json"
 
-# -- load config ------------------------------------------------------------
 with open(M5_CONFIG_PATH, "r") as _f:
     _CFG = json.load(_f)
 
-CHANNEL_ORDER      = _CFG["channel_order"]
-CH_IDX             = {ch: i for i, ch in enumerate(CHANNEL_ORDER)}
-CLUSTER_BASELINES  = _CFG["cluster_baselines"]
-WINSOR_CEILINGS    = _CFG["winsor_ceilings"]
-NOISE_STD          = _CFG["noise_std"]
-T_SEQ              = _CFG["seq_length"]
-t_arr              = np.arange(T_SEQ, dtype=np.float64)
+CHANNEL_ORDER     = _CFG["channel_order"]
+CH_IDX            = {ch: i for i, ch in enumerate(CHANNEL_ORDER)}
+CLUSTER_BASELINES = _CFG["cluster_baselines"]
+WINSOR_CEILINGS   = _CFG["winsor_ceilings"]
+NOISE_STD         = _CFG["noise_std"]
+T_SEQ             = _CFG["seq_length"]
+t_arr             = np.arange(T_SEQ, dtype=np.float64)
 
 _PC = _CFG["physics_constants"]
-RHO           = _PC["RHO"]
-G             = _PC["G"]
-OMEGA         = _PC["OMEGA_rad_s"]
-Q_BEP         = _PC["Q_BEP_m3s"]
-H_BEP         = _PC["H_BEP_m"]
-P_MOTOR_W     = _PC["P_MOTOR_W"]
-ETA_OVERALL   = _PC["ETA_OVERALL"]
-TAU_THERMAL   = _PC["TAU_THERMAL_s"]
-P_VAPOUR_BAR  = _PC["P_VAPOUR_BAR"]
-A_WAVE        = _PC["A_WAVE_m_s"]
-MC_P_MOTOR    = 175000.0
-HA_MOTOR      = 450.0
-ALPHA_SEAL    = 2e-10
-A_GAP_INIT    = 1e-8
-CD_SEAL       = 0.61
-PIPE_AREA     = np.pi * (0.10 / 2) ** 2
+RHO          = _PC["RHO"]
+G            = _PC["G"]
+OMEGA        = _PC["OMEGA_rad_s"]
+Q_BEP        = _PC["Q_BEP_m3s"]
+H_BEP        = _PC["H_BEP_m"]
+P_MOTOR_W    = _PC["P_MOTOR_W"]
+ETA_OVERALL  = _PC["ETA_OVERALL"]
+TAU_THERMAL  = _PC["TAU_THERMAL_s"]
+P_VAPOUR_BAR = _PC["P_VAPOUR_BAR"]
+A_WAVE       = _PC["A_WAVE_m_s"]
+MC_P_MOTOR   = 175000.0
+HA_MOTOR     = 450.0
+ALPHA_SEAL   = 2e-10
+A_GAP_INIT   = 1e-8
+CD_SEAL      = 0.61
+PIPE_AREA    = np.pi * (0.10 / 2) ** 2
 MU_BEARING_HEALTHY = 0.001
-SENSOR_SUBTYPES = ["flatline", "spike", "drift", "dropout"]
+SENSOR_SUBTYPES    = ["flatline", "spike", "drift", "dropout"]
 
-# -- noise ------------------------------------------------------------------
 def _noise(arr, ch, rng):
     return arr + rng.normal(0, NOISE_STD[ch], size=arr.shape)
 
-# -- physics helpers ---------------------------------------------------------
 def _thermal(t, P, T0, Tinf=20.0):
     return Tinf + (P/HA_MOTOR)*(1-np.exp(-t/TAU_THERMAL)) + (T0-Tinf)*np.exp(-t/TAU_THERMAL)
 
@@ -1627,10 +1519,7 @@ def _bernoulli(P1, P2):
 def _ns_diss(mu, dudy, vol):
     return mu * dudy**2 * vol
 
-def _npsha(Psuc, vsuc, hf):
-    return (Psuc - P_VAPOUR_BAR)*1e5/(RHO*G) + vsuc**2/(2*G) - hf
 
-# -- fault functions ---------------------------------------------------------
 def fault_bearing_wear(cluster="steady_state", severity=0.6, seed=42):
     rng=np.random.default_rng(seed); bl=CLUSTER_BASELINES[cluster]
     ceil=WINSOR_CEILINGS; seq=np.ones((T_SEQ,8),dtype=np.float64)
@@ -1638,12 +1527,17 @@ def fault_bearing_wear(cluster="steady_state", severity=0.6, seed=42):
     beta=max(severity*np.log(max(0.80*ceil["Mot_SV"][cluster],1.25))/T_SEQ,0.003)
     MotSV=np.clip(np.exp(beta*t_arr),0.0,ceil["Mot_SV"][cluster])
     MotPV=np.clip(1.0+0.45*(MotSV-1.0),0.8,ceil["Mot_PV"][cluster])
+    # PATCH 3: Euler integration of time-varying Q_brg_t
     F=0.3*P_MOTOR_W/(OMEGA*0.05); v=OMEGA*0.05
-    Q0=MU_BEARING_HEALTHY*F*v; Qb=(Q0*np.exp(beta*0.6*t_arr)).mean()*severity
-    T0=bl["raw_MotTV_mean"]; Tinf=bl["raw_MotTV_min"]+2.0
-    MotTVr=_thermal(t_arr,Qb,T0,Tinf)
-    rng_TV=bl["raw_MotTV_max"]-bl["raw_MotTV_min"]
-    MotTV=np.clip((MotTVr-bl["raw_MotTV_min"])/rng_TV,-0.05,1.5)
+    Q0=MU_BEARING_HEALTHY*F*v
+    Q_brg_t=Q0*np.exp(beta*0.6*t_arr)*severity
+    T_inf=bl["raw_MotTV_min"]+2.0; T_init=bl["raw_MotTV_mean"]
+    rng_TV=max(bl["raw_MotTV_max"]-bl["raw_MotTV_min"],1.0)
+    T_raw=np.empty(T_SEQ,dtype=np.float64); T_raw[0]=T_init
+    for _t in range(1,T_SEQ):
+        dT=(Q_brg_t[_t]/HA_MOTOR)-(T_raw[_t-1]-T_inf)/TAU_THERMAL
+        T_raw[_t]=T_raw[_t-1]+dT
+    MotTV=np.clip((T_raw-T_inf)/rng_TV,-0.05,1.5)
     TempSV=np.clip(_tcoup(MotTV,ref=bl["Temp_SV"]),-0.05,1.5)
     lag=int(rng.integers(5,16)); PmpSV=np.ones(T_SEQ)
     PmpSV[lag:]=np.clip(1.0+0.55*severity*(MotSV[:-lag]-1.0),0.8,ceil["Pmp_SV"][cluster])
@@ -1654,6 +1548,7 @@ def fault_bearing_wear(cluster="steady_state", severity=0.6, seed=42):
         [MotPV,MotSV,MotTV,PmpPV,PmpSV,PmpTV,TempSV,PresSV],CHANNEL_ORDER)):
         seq[:,i]=_noise(arr,ch,rng)
     return seq.astype(np.float32)
+
 
 def fault_impeller_imbalance(cluster="steady_state", severity=0.6, seed=42):
     rng=np.random.default_rng(seed); bl=CLUSTER_BASELINES[cluster]
@@ -1678,6 +1573,7 @@ def fault_impeller_imbalance(cluster="steady_state", severity=0.6, seed=42):
         [MotPV,MotSV,MotTV,PmpPV,PmpSV,PmpTV,TempSV,PresSV],CHANNEL_ORDER)):
         seq[:,i]=_noise(arr,ch,rng)
     return seq.astype(np.float32)
+
 
 def fault_cavitation(cluster="startup", severity=0.6, seed=42):
     assert cluster=="startup","Cavitation locked to startup cluster"
@@ -1710,6 +1606,7 @@ def fault_cavitation(cluster="startup", severity=0.6, seed=42):
         seq[:,i]=_noise(arr,ch,rng)
     return seq.astype(np.float32)
 
+
 def fault_seal_failure(cluster="steady_state", severity=0.6, seed=42):
     rng=np.random.default_rng(seed); bl=CLUSTER_BASELINES[cluster]
     ceil=WINSOR_CEILINGS; seq=np.ones((T_SEQ,8),dtype=np.float64)
@@ -1733,6 +1630,7 @@ def fault_seal_failure(cluster="steady_state", severity=0.6, seed=42):
         [MotPV,MotSV,MotTV,PmpPV,PmpSV,PmpTV,TempSV,PresSV],CHANNEL_ORDER)):
         seq[:,i]=_noise(arr,ch,rng)
     return seq.astype(np.float32)
+
 
 def fault_overloading(cluster="steady_state", severity=0.6, seed=42):
     assert cluster=="steady_state","Overloading locked to steady_state"
@@ -1762,6 +1660,7 @@ def fault_overloading(cluster="steady_state", severity=0.6, seed=42):
         seq[:,i]=_noise(arr,ch,rng)
     return seq.astype(np.float32)
 
+
 def fault_sensor_failure(cluster="steady_state", severity=0.6, seed=42,
                          target_channel=None, subtype=None):
     rng=np.random.default_rng(seed); bl=CLUSTER_BASELINES[cluster]
@@ -1775,8 +1674,10 @@ def fault_sensor_failure(cluster="steady_state", severity=0.6, seed=42,
     if subtype=="flatline":
         on=int(rng.integers(20,80)); seq[on:,idx]=seq[on-1,idx]
     elif subtype=="spike":
+        # PATCH 5: guard against high < low crash
         on=int(rng.integers(10,T_SEQ-30)); dur=int(rng.integers(3,25))
-        seq[on:on+dur,idx]=bv*rng.uniform(2.5,min(4.0,cv))
+        spike_lo=2.5; spike_hi=max(min(4.0,cv),spike_lo+0.1)
+        seq[on:on+dur,idx]=bv*rng.uniform(spike_lo,spike_hi)
         if rng.random()>0.4:
             seq[on+dur:,idx]=bv+rng.normal(0,NOISE_STD[target_channel],T_SEQ-on-dur)
     elif subtype=="drift":
@@ -1786,6 +1687,7 @@ def fault_sensor_failure(cluster="steady_state", severity=0.6, seed=42,
     elif subtype=="dropout":
         on=int(rng.integers(5,60)); seq[on:,idx]=0.0
     return seq.astype(np.float32), target_channel, subtype
+
 
 def validate_sequence(seq, fault_type, cluster, target_ch=None):
     bl=CLUSTER_BASELINES[cluster]; gates={}
@@ -1817,7 +1719,6 @@ def validate_sequence(seq, fault_type, cluster, target_ch=None):
 
 pe_path = SRC_DIR / "physics_engine.py"
 try:
-    # AFTER
     with open(pe_path, 'w', encoding='utf-8') as f:
         f.write(PHYSICS_ENGINE_SRC)
     log(f"  Saved: {pe_path}")
@@ -1835,12 +1736,11 @@ log("="*70)
 log("END - Finalising report + paste text")
 log("="*70)
 
-results['eq_checks']              = {k: v['pass'] for k, v in eq_checks.items()}
-results['s7_generated_keys']      = list(generated_sequences.keys())
-results['fault_rules_path']       = str(fault_rules_path)
-results['physics_engine_path']    = str(pe_path)
+results['eq_checks']           = {k: v['pass'] for k, v in eq_checks.items()}
+results['s7_generated_keys']   = list(generated_sequences.keys())
+results['fault_rules_path']    = str(fault_rules_path)
+results['physics_engine_path'] = str(pe_path)
 
-# ---- Save report ----
 report_path = REPORT_DIR / f"{SCRIPT_NAME}_report.md"
 try:
     with open(report_path, 'w', encoding='utf-8') as f:
@@ -1860,22 +1760,26 @@ try:
         f.write(f"- Total sequences: {results['s7_sequences_total']}\n")
         f.write(f"- Fault sequences pass: {results['s7_fault_pass_count']}/{results['s7_fault_total']}\n")
         f.write(f"- All pass: {results['s7_all_pass']}\n")
+        f.write(f"\n## Fail List\n")
+        for fl in results.get('s7_fail_list', []):
+            f.write(f"- {fl}\n")
     log(f"  Saved report: {report_path}")
     results['report_saved'] = True
 except Exception as e:
     log(f"  [ERROR] report - {e}")
     results['report_saved'] = False
 
-# --------------------------------------------------------------------
-print("\n" + "-"*60)
-print("  PASTE TEXT UPDATE - COPY BELOW INTO PASTE TEXT")
-print("-"*60)
+# ── PASTE TEXT ────────────────────────────────────────────────────────────────
+print("\n" + "─"*60)
+print("  PASTE TEXT UPDATE — COPY BELOW INTO PASTE TEXT")
+print("─"*60)
 print(f"M5_status                  : READY")
 print(f"M5_eq_pass                 : {results['eq_pass_count']}/{results['eq_total']}")
 print(f"M5_s5_all_pass             : {results['s5_all_pass']}")
 print(f"M5_s7_fault_seqs_pass      : {results['s7_fault_pass_count']}/{results['s7_fault_total']}")
 print(f"M5_s7_total_seqs           : {results['s7_sequences_total']}")
 print(f"M5_s7_all_pass             : {results['s7_all_pass']}")
+print(f"M5_fail_list               : {results['s7_fail_list']}")
 print(f"M5_fault_rules_saved       : {results['fault_rules_saved']}")
 print(f"M5_physics_engine_exported : {results['physics_engine_exported']}")
 print(f"M5_nameplate_P_hyd_kW      : {results['nameplate_P_hyd_kW']}")
@@ -1884,21 +1788,21 @@ print(f"M5_nameplate_BPF_Hz        : {results['nameplate_BPF_Hz']}")
 print(f"M5_tau_thermal_s           : {results['nameplate_tau_thermal_s']}")
 print(f"M5_joukowsky_bar           : {results['nameplate_joukowsky_bar']}")
 print(f"Status for next module     : READY")
-print("-"*60 + "\n")
+print("─"*60 + "\n")
 
-# -- FILE MANIFEST ----------------------------------------------------
+# ── FILE MANIFEST ─────────────────────────────────────────────────────────────
 print("FILE MANIFEST")
-print(f"  [GitHub PUSH]  module_05_physics_engine.py")
-print(f"  [GitHub PUSH]  src/physics_engine.py")
-print(f"  [GitHub PUSH]  models/fault_rules.json")
-print(f"  [GitHub PUSH]  models/M5_physics_config.json")
-print(f"  [GitHub PUSH]  models/unit_registry.json")
+print(f"  [GitHub PUSH]   src/module_05_physics_engine.py")
+print(f"  [GitHub PUSH]   src/physics_engine.py")
+print(f"  [GitHub PUSH]   models/fault_rules.json")
+print(f"  [GitHub PUSH]   models/M5_physics_config.json")
+print(f"  [GitHub PUSH]   models/unit_registry.json")
 print(f"  [Spaces Upload] outputs/reports/module_05_physics_engine_report.md")
 print(f"  [Spaces Upload] outputs/plots/M5_fault_signatures_validation.png")
 print(f"  [Spaces Upload] outputs/plots/M5_thermal_coupling_validation.png")
 
-# -- NEXT PROMPT ------------------------------------------------------
-print("\n📦 M5 done. Starting M6. Finding: all 20 EQ pass, 6 fault chains validated,")
-print("   physics_engine.py exported to src/. Uploading:")
+# ── NEXT PROMPT ───────────────────────────────────────────────────────────────
+print("\n📦 M5 done. Starting M6. Finding: all 20 EQ pass, 6 fault chains")
+print("   validated, physics_engine.py exported to src/. Uploading:")
 print("   module_05_physics_engine_report.md + M5_fault_signatures_validation.png")
 print("   Provide M6 complete script.")

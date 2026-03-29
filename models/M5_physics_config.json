@@ -1,0 +1,155 @@
+{
+  "schema_version": "1.0",
+  "created": "2026-03-29",
+  "channel_order": [
+    "Mot_PV",
+    "Mot_SV",
+    "Mot_TV",
+    "Pmp_PV",
+    "Pmp_SV",
+    "Pmp_TV",
+    "Temp_SV",
+    "Pres_SV"
+  ],
+  "seq_length": 200,
+  "noise_std": {
+    "Mot_PV": 0.012,
+    "Mot_SV": 0.035,
+    "Mot_TV": 0.008,
+    "Pmp_PV": 0.012,
+    "Pmp_SV": 0.04,
+    "Pmp_TV": 0.008,
+    "Temp_SV": 0.01,
+    "Pres_SV": 0.015
+  },
+  "winsor_ceilings": {
+    "Mot_SV": {
+      "cooldown": 6.7,
+      "startup": 6.7,
+      "steady_state": 6.7,
+      "high_load": 6.7
+    },
+    "Pmp_SV": {
+      "cooldown": 8.8,
+      "startup": 8.8,
+      "steady_state": 8.8,
+      "high_load": 8.8
+    },
+    "Mot_PV": {
+      "cooldown": 2.2,
+      "startup": 2.2,
+      "steady_state": 2.2,
+      "high_load": 2.2
+    },
+    "Pmp_PV": {
+      "cooldown": 2.6,
+      "startup": 3.2,
+      "steady_state": 2.6,
+      "high_load": 2.6
+    },
+    "Pres_SV": {
+      "cooldown": 3.0,
+      "startup": 3.0,
+      "steady_state": 5.6,
+      "high_load": 2.0
+    }
+  },
+  "cluster_baselines": {
+    "cooldown": {
+      "Mot_PV": 1.0,
+      "Mot_SV": 1.0,
+      "Mot_TV": 0.38,
+      "Pmp_PV": 1.0,
+      "Pmp_SV": 1.0,
+      "Pmp_TV": 0.38,
+      "Temp_SV": 0.36,
+      "Pres_SV": 1.0,
+      "raw_Mot_SV_mean": 0.878,
+      "raw_Pmp_SV_mean": 0.843,
+      "raw_Pres_mean": 8.312,
+      "raw_MotTV_mean": 22.979,
+      "raw_MotTV_min": 17.719,
+      "raw_MotTV_max": 31.367,
+      "raw_PmpTV_min": 17.609,
+      "raw_PmpTV_max": 28.961,
+      "raw_Temp_min": 18.03,
+      "raw_Temp_max": 33.381
+    },
+    "startup": {
+      "Mot_PV": 1.0,
+      "Mot_SV": 1.0,
+      "Mot_TV": 0.63,
+      "Pmp_PV": 1.0,
+      "Pmp_SV": 1.0,
+      "Pmp_TV": 0.65,
+      "Temp_SV": 0.63,
+      "Pres_SV": 1.0,
+      "raw_Mot_SV_mean": 0.475,
+      "raw_Pmp_SV_mean": 0.514,
+      "raw_Pres_mean": 0.621,
+      "raw_MotTV_mean": 39.613,
+      "raw_MotTV_min": 30.141,
+      "raw_MotTV_max": 54.297,
+      "raw_PmpTV_min": 35.57,
+      "raw_PmpTV_max": 46.063,
+      "raw_Temp_min": 30.349,
+      "raw_Temp_max": 55.04
+    },
+    "steady_state": {
+      "Mot_PV": 1.0,
+      "Mot_SV": 1.0,
+      "Mot_TV": 0.69,
+      "Pmp_PV": 1.0,
+      "Pmp_SV": 1.0,
+      "Pmp_TV": 0.68,
+      "Temp_SV": 0.7,
+      "Pres_SV": 1.0,
+      "raw_Mot_SV_mean": 16.082,
+      "raw_Pmp_SV_mean": 36.323,
+      "raw_Pres_mean": 35.789,
+      "raw_MotTV_mean": 36.503,
+      "raw_MotTV_min": 18.313,
+      "raw_MotTV_max": 48.445,
+      "raw_PmpTV_min": 18.461,
+      "raw_PmpTV_max": 43.164,
+      "raw_Temp_min": 18.27,
+      "raw_Temp_max": 44.608
+    },
+    "high_load": {
+      "Mot_PV": 1.0,
+      "Mot_SV": 1.0,
+      "Mot_TV": 0.62,
+      "Pmp_PV": 1.0,
+      "Pmp_SV": 1.0,
+      "Pmp_TV": 0.73,
+      "Temp_SV": 0.51,
+      "Pres_SV": 1.0,
+      "raw_Mot_SV_mean": 36.265,
+      "raw_Pmp_SV_mean": 25.316,
+      "raw_Pres_mean": 42.025,
+      "raw_MotTV_mean": 35.09,
+      "raw_MotTV_min": 18.32,
+      "raw_MotTV_max": 48.617,
+      "raw_PmpTV_min": 18.492,
+      "raw_PmpTV_max": 44.398,
+      "raw_Temp_min": 18.216,
+      "raw_Temp_max": 46.447
+    }
+  },
+  "physics_constants": {
+    "RHO": 1000.0,
+    "G": 9.81,
+    "OMEGA_rad_s": 312.0649,
+    "Q_BEP_m3s": 0.0125,
+    "H_BEP_m": 450.0,
+    "P_MOTOR_W": 110000,
+    "ETA_OVERALL": 0.5016,
+    "BPF_HZ": 347.67,
+    "TAU_THERMAL_s": 388.9,
+    "P_VAPOUR_BAR": 0.023,
+    "A_WAVE_m_s": 1200.0,
+    "ISO_ZONE_A_mm_s": 2.3,
+    "ISO_ZONE_B_mm_s": 4.5,
+    "ISO_ZONE_C_mm_s": 7.1
+  }
+}

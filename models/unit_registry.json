@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "created": "2026-03-29",
+  "sensors": {
+    "Mot_PV": {
+      "unit": "mm/s_RMS",
+      "description": "Motor bearing displacement PV",
+      "normal_range": [
+        0.0,
+        2.3
+      ],
+      "iso_standard": "ISO_10816-3"
+    },
+    "Mot_SV": {
+      "unit": "mm/s_RMS",
+      "description": "Motor bearing velocity SV",
+      "normal_range": [
+        0.0,
+        4.5
+      ],
+      "iso_standard": "ISO_10816-3"
+    },
+    "Mot_TV": {
+      "unit": "degC",
+      "description": "Motor bearing temperature",
+      "normal_range": [
+        18.0,
+        60.0
+      ],
+      "iso_standard": "IEC_60034"
+    },
+    "Pmp_PV": {
+      "unit": "mm/s_RMS",
+      "description": "Pump bearing displacement PV",
+      "normal_range": [
+        0.0,
+        2.3
+      ],
+      "iso_standard": "ISO_10816-3"
+    },
+    "Pmp_SV": {
+      "unit": "mm/s_RMS",
+      "description": "Pump bearing velocity SV",
+      "normal_range": [
+        0.0,
+        4.5
+      ],
+      "iso_standard": "ISO_10816-3"
+    },
+    "Pmp_TV": {
+      "unit": "degC",
+      "description": "Pump bearing temperature",
+      "normal_range": [
+        18.0,
+        60.0
+      ],
+      "iso_standard": "IEC_60034"
+    },
+    "Temp_SV": {
+      "unit": "degC",
+      "description": "Process fluid temperature",
+      "normal_range": [
+        18.0,
+        55.0
+      ],
+      "iso_standard": "ISO_9906"
+    },
+    "Pres_SV": {
+      "unit": "bar",
+      "description": "Discharge pressure",
+      "normal_range": [
+        0.0,
+        40.0
+      ],
+      "iso_standard": "ISO_9906"
+    }
+  }
+}
