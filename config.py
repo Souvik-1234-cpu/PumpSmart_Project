@@ -22,6 +22,9 @@ MODEL_DIR  = ROOT_DIR / "models"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 PLOTS_DIR  = OUTPUT_DIR / "plots"
 
+# ── Source Directory (physics_engine.py lives here) ───────
+SRC_DIR    = ROOT_DIR / "src"
+
 # ── Pump Nameplate Constants ──────────────────────────────
 MOTOR_KW        = 110
 MOTOR_RPM       = 2980
@@ -48,5 +51,5 @@ EPOCHS          = 50
 
 # ── Auto-create all directories ───────────────────────────
 for _dir in [RAW_DIR, CLEAN_DIR, NORM_DIR, SYNTH_DIR,
-             MODEL_DIR, PLOTS_DIR, OUTPUT_DIR / "reports"]:
+             MODEL_DIR, PLOTS_DIR, OUTPUT_DIR / "reports", SRC_DIR]:
     _dir.mkdir(parents=True, exist_ok=True)
