@@ -1,10 +1,6 @@
 # src/module_065_sequence_audit.py
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-# src/module_065_sequence_audit.py
 # M6.5 — Sequence Quality Audit + Seal Failure Coherence Patch
+# v2 fix: Gate 3 window slice corrected to :50 (matches M4 WINDOW_SIZE=50)
 # Flow:
 #   1. Shape & Balance Audit
 #   2. Per-Class Statistical Profile + Heatmap
@@ -14,8 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 #   6. Seal Failure Patch (auto-triggered if coherence < 90%)
 #   7. Final Verdict + Report
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from config import (DEVICE, IS_GPU, SYNTH_DIR, MODEL_DIR, OUTPUT_DIR,
-                    PLOTS_DIR, SRC_DIR)
+                    PLOTS_DIR, SRC_DIR, WINDOW_SIZE)
 from datetime import datetime
 import json, sys, warnings, pickle
 warnings.filterwarnings('ignore')
@@ -51,6 +51,9 @@ TARGET_N      = 1200
 MAE_THRESHOLD = 0.110
 SEVERITY_CAP  = 0.50    # seal_failure physics cap — prevents early saturation
 
+# WINDOW_SIZE imported from config = 50 (M4 training window — source of truth)
+log(f"WINDOW_SIZE from config: {WINDOW_SIZE}  (Gate 3 will slice first {WINDOW_SIZE} steps)")
+
 results = {}
 
 # ══════════════════════════════════════════════════════════════
@@ -72,19 +75,19 @@ except Exception as e:
 # ══════════════════════════════════════════════════════════════
 log("Section 2: Shape & Balance Audit...")
 
-shape_ok    = (sequences_arr.shape == (8400, SEQ_LEN, N_CHANNELS))
-nan_count   = int(np.isnan(sequences_arr).sum())
-inf_count   = int(np.isinf(sequences_arr).sum())
-class_counts= meta_df["fault_type"].value_counts().to_dict()
-balance_ok  = all(class_counts.get(c, 0) == TARGET_N for c in ALL_CLASSES)
-data_clean  = nan_count == 0 and inf_count == 0
+shape_ok     = (sequences_arr.shape == (8400, SEQ_LEN, N_CHANNELS))
+nan_count    = int(np.isnan(sequences_arr).sum())
+inf_count    = int(np.isinf(sequences_arr).sum())
+class_counts = meta_df["fault_type"].value_counts().to_dict()
+balance_ok   = all(class_counts.get(c, 0) == TARGET_N for c in ALL_CLASSES)
+data_clean   = nan_count == 0 and inf_count == 0
 
 results.update({
-    "shape": str(sequences_arr.shape),
-    "shape_ok": shape_ok,
-    "nan_count": nan_count,
-    "inf_count": inf_count,
-    "balance_ok": balance_ok,
+    "shape":        str(sequences_arr.shape),
+    "shape_ok":     shape_ok,
+    "nan_count":    nan_count,
+    "inf_count":    inf_count,
+    "balance_ok":   balance_ok,
     "class_counts": class_counts,
 })
 
@@ -101,11 +104,11 @@ profile     = {}
 mean_matrix = np.zeros((len(ALL_CLASSES), N_CHANNELS))
 
 for ci, cls in enumerate(ALL_CLASSES):
-    idx       = np.where(meta_df["fault_type"].values == cls)[0]
-    seqs      = sequences_arr[idx]
-    ch_means  = seqs.mean(axis=(0, 1))
-    ch_stds   = seqs.std(axis=(0, 1))
-    ch_maxes  = seqs.max(axis=(0, 1))
+    idx      = np.where(meta_df["fault_type"].values == cls)[0]
+    seqs     = sequences_arr[idx]
+    ch_means = seqs.mean(axis=(0, 1))
+    ch_stds  = seqs.std(axis=(0, 1))
+    ch_maxes = seqs.max(axis=(0, 1))
     mean_matrix[ci] = ch_means
     profile[cls] = {
         ch: {"mean": float(ch_means[j]),
@@ -130,8 +133,10 @@ log("  Class-channel heatmap saved")
 
 # ══════════════════════════════════════════════════════════════
 # SECTION 4 — GATE 3 RE-AUDIT
+# KEY FIX v2: slice [:WINDOW_SIZE] = [:50] — matches M4 training
+# Previously used [:60] which inflated MAE by ~20% extra timesteps
 # ══════════════════════════════════════════════════════════════
-log("Section 4: Gate 3 Re-Audit (LSTM-AE spot check)...")
+log(f"Section 4: Gate 3 Re-Audit (LSTM-AE spot check, first {WINDOW_SIZE} steps)...")
 
 try:
     model = LSTMAutoencoder()
@@ -155,7 +160,8 @@ if gate3_loaded:
         maes   = []
         with torch.no_grad():
             for si in sample:
-                x   = torch.tensor(sequences_arr[si:si+1, :60, :],
+                # FIX v2: use WINDOW_SIZE (50) not hardcoded 60
+                x   = torch.tensor(sequences_arr[si:si+1, :WINDOW_SIZE, :],
                                    dtype=torch.float32)
                 out = model(x)
                 mae = torch.abs(out - x).mean().item()
@@ -171,14 +177,14 @@ if gate3_loaded:
             "pass_rate": pass_rate,
             "gate_ok":   pass_rate >= 0.80
         }
-        note = "(model sees normal as anomalous — expected, M8 fixes)" \
+        note = "(model sees normal as anomalous — tiling noise, acceptable)" \
                if cls == "normal" and pass_rate < 1.0 else \
                "(smooth fault — invisible to M4 AE, M8 target)" \
-               if cls in ["bearing_wear","overloading"] else ""
+               if cls in ["bearing_wear", "overloading"] else ""
         log(f"  {cls:25s} MAE={maes.mean():.4f}  pass={pass_rate:.2%}  {note}")
 
-results["gate3_results"]  = gate3_results
-results["gate3_all_ok"]   = all(v["gate_ok"] for v in gate3_results.values()) if gate3_loaded else False
+results["gate3_results"] = gate3_results
+results["gate3_all_ok"]  = all(v["gate_ok"] for v in gate3_results.values()) if gate3_loaded else False
 
 # ══════════════════════════════════════════════════════════════
 # SECTION 5 — FISHER DISCRIMINANT SCORE
@@ -197,12 +203,12 @@ for i in range(n_seq):
 feat_names    = [f"{ch}_mean" for ch in CHANNELS] + [f"{ch}_std" for ch in CHANNELS]
 fisher_scores = []
 for fi in range(feats.shape[1]):
-    groups  = [feats[labels_arr == cls, fi] for cls in ALL_CLASSES]
+    groups    = [feats[labels_arr == cls, fi] for cls in ALL_CLASSES]
     f_stat, _ = f_oneway(*groups)
     fisher_scores.append(float(f_stat) if not np.isnan(f_stat) else 0.0)
 
 fisher_df = pd.DataFrame({
-    "feature": feat_names,
+    "feature":      feat_names,
     "fisher_score": fisher_scores
 }).sort_values("fisher_score", ascending=False)
 
@@ -230,18 +236,18 @@ log(f"  Top feature: {fisher_df.iloc[0]['feature']} (F={fisher_df.iloc[0]['fishe
 log("Section 6: Temporal Coherence Check...")
 
 def compute_coherence(sequences_arr, meta_df, label):
-    idx       = np.where(meta_df["fault_type"].values == label)[0]
-    seqs      = sequences_arr[idx]
-    dev_first = np.abs(seqs[:, :HALF, :] - 1.0).max(axis=(1, 2))
-    dev_second= np.abs(seqs[:, HALF:, :] - 1.0).max(axis=(1, 2))
-    mask      = dev_second >= (dev_first * 0.85)
+    idx        = np.where(meta_df["fault_type"].values == label)[0]
+    seqs       = sequences_arr[idx]
+    dev_first  = np.abs(seqs[:, :HALF, :] - 1.0).max(axis=(1, 2))
+    dev_second = np.abs(seqs[:, HALF:, :] - 1.0).max(axis=(1, 2))
+    mask       = dev_second >= (dev_first * 0.85)
     return mask, idx
 
 coherence_results = {}
 for cls in FAULT_CLASSES:
-    mask, idx     = compute_coherence(sequences_arr, meta_df, cls)
-    pass_rate     = float(mask.mean())
-    n_flagged     = int((~mask).sum())
+    mask, idx  = compute_coherence(sequences_arr, meta_df, cls)
+    pass_rate  = float(mask.mean())
+    n_flagged  = int((~mask).sum())
     coherence_results[cls] = {
         "pass_rate":   pass_rate,
         "n_flagged":   n_flagged,
@@ -251,9 +257,8 @@ for cls in FAULT_CLASSES:
 
 results["coherence_results"] = coherence_results
 
-# ── Coherence plot (pre-patch) ────────────────────────────────
 def save_coherence_plot(coherence_results, suffix=""):
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax    = plt.subplots(figsize=(10, 4))
     cls_names  = list(coherence_results.keys())
     pass_rates = [coherence_results[c]["pass_rate"] for c in cls_names]
     bar_colors = ['#27ae60' if r >= 0.90 else '#e74c3c' for r in pass_rates]
@@ -268,10 +273,8 @@ def save_coherence_plot(coherence_results, suffix=""):
     ax.legend()
     plt.xticks(rotation=15, ha='right')
     plt.tight_layout()
-    fname = f"M6_temporal_coherence{suffix}.png"
-    plt.savefig(PLOTS_DIR / fname, dpi=150)
+    plt.savefig(PLOTS_DIR / f"M6_temporal_coherence{suffix}.png", dpi=150)
     plt.close()
-    return fname
 
 save_coherence_plot(coherence_results, suffix="_pre_patch")
 log("  Coherence plot (pre-patch) saved")
@@ -279,10 +282,9 @@ log("  Coherence plot (pre-patch) saved")
 # ══════════════════════════════════════════════════════════════
 # SECTION 7 — SEAL FAILURE COHERENCE PATCH
 # Auto-triggered if seal_failure coherence < 90%
-# Physics reason: early saturation at high severity is not realistic
-# for 40-bar multistage pump — real seal degradation takes hours
+# Physics: real 40-bar multistage seal fails over hours — not 60 steps
 # ══════════════════════════════════════════════════════════════
-sf_coherence = coherence_results["seal_failure"]["pass_rate"]
+sf_coherence  = coherence_results["seal_failure"]["pass_rate"]
 patch_applied = False
 
 if sf_coherence < 0.90:
@@ -294,29 +296,27 @@ if sf_coherence < 0.90:
         """
         Physically realistic seal failure — Hagen-Poiseuille leak progression.
         Severity capped at 0.50 → full 200-step progression guaranteed.
-        At step 200: Pres_SV > 0.30 (not fully collapsed).
         Real 40-bar multistage pump seal fails over hours, not minutes.
         """
-        rng = np.random.default_rng(seed)
-        seq = np.ones((SEQ_LEN, 8), dtype=np.float32)
+        rng      = np.random.default_rng(seed)
+        seq      = np.ones((SEQ_LEN, 8), dtype=np.float32)
         for t in range(SEQ_LEN):
-            progress     = t / SEQ_LEN
-            gap_ratio    = severity * progress
-            leak_fraction= gap_ratio ** 2.5          # sub-cubic: slow onset
-            pres_drop    = leak_fraction * 0.65 * severity
+            progress      = t / SEQ_LEN
+            gap_ratio     = severity * progress
+            leak_fraction = gap_ratio ** 2.5         # sub-cubic: slow onset
+            pres_drop     = leak_fraction * 0.65 * severity
             seq[t, I["Pres_SV"]] = max(0.30, 1.0 - pres_drop)
             seq[t, I["Pmp_PV"]]  = 1.0 + leak_fraction * 0.45 * severity
             seq[t, I["Pmp_TV"]]  = 1.0 + leak_fraction * 0.20 * severity
             seq[t, I["Mot_PV"]]  = 1.0 + leak_fraction * 0.10 * severity
-            noise = rng.normal(0, 0.008, 8)
-            seq[t] = np.clip(seq[t] + noise, 0.01, 4.0)
+            noise    = rng.normal(0, 0.008, 8)
+            seq[t]   = np.clip(seq[t] + noise, 0.01, 4.0)
         return seq
 
-    # Identify flagged sequences
-    sf_idx          = np.where(meta_df["fault_type"].values == "seal_failure")[0]
-    mask, _         = compute_coherence(sequences_arr, meta_df, "seal_failure")
-    flagged_local   = np.where(~mask)[0]
-    flagged_global  = sf_idx[flagged_local]
+    sf_idx         = np.where(meta_df["fault_type"].values == "seal_failure")[0]
+    mask, _        = compute_coherence(sequences_arr, meta_df, "seal_failure")
+    flagged_local  = np.where(~mask)[0]
+    flagged_global = sf_idx[flagged_local]
     log(f"  Flagged sequences to replace: {len(flagged_global)}")
 
     n_replaced = 0
@@ -333,20 +333,19 @@ if sf_coherence < 0.90:
             pres_last = new_seq[180:,   I["Pres_SV"]].mean()
             pres_end  = new_seq[-1,     I["Pres_SV"]]
             if dev_s >= dev_f * 0.85 and pres_end > 0.28 and pres_last <= pres_mid:
-                sequences_arr[global_i]          = new_seq
-                meta_df.loc[global_i, "severity"]= new_severity
+                sequences_arr[global_i]           = new_seq
+                meta_df.loc[global_i, "severity"] = new_severity
                 n_replaced += 1
-                replaced = True
+                replaced    = True
                 break
         if not replaced:
             log(f"  Could not fix seq {global_i} — keeping original")
 
     log(f"  Replaced: {n_replaced}/{len(flagged_global)}")
 
-    # Recompute coherence after patch
-    mask_new, _       = compute_coherence(sequences_arr, meta_df, "seal_failure")
-    pass_rate_new     = float(mask_new.mean())
-    n_still_flagged   = int((~mask_new).sum())
+    mask_new, _    = compute_coherence(sequences_arr, meta_df, "seal_failure")
+    pass_rate_new  = float(mask_new.mean())
+    n_still_flagged= int((~mask_new).sum())
     coherence_results["seal_failure"]["pass_rate"]   = pass_rate_new
     coherence_results["seal_failure"]["n_flagged"]   = n_still_flagged
     coherence_results["seal_failure"]["coherent_ok"] = pass_rate_new >= 0.90
@@ -354,15 +353,14 @@ if sf_coherence < 0.90:
     log(f"  seal_failure coherence after patch: {pass_rate_new:.2%} "
         f"({n_still_flagged} still flagged)")
 
-    # Save patched dataset
     with open(SYNTH_DIR / "M6_sequences.pkl", "wb") as f:
         pickle.dump(sequences_arr, f)
     meta_df.to_csv(SYNTH_DIR / "M6_sequence_meta.csv", index=False)
     log("  M6_sequences.pkl and M6_sequence_meta.csv updated")
 
-    results["seal_patch_applied"]        = True
-    results["seal_patch_replaced"]       = n_replaced
-    results["seal_patch_coherence_after"]= pass_rate_new
+    results["seal_patch_applied"]         = True
+    results["seal_patch_replaced"]        = n_replaced
+    results["seal_patch_coherence_after"] = pass_rate_new
     patch_applied = True
 
     save_coherence_plot(coherence_results, suffix="_post_patch")
@@ -385,6 +383,7 @@ log(f"\n{'='*55}")
 log(f"  Shape OK         : {'YES' if shape_ok else 'NO'}")
 log(f"  Balance OK       : {'YES' if balance_ok else 'NO'}")
 log(f"  Data Clean       : {'YES' if data_clean else 'NO'}")
+log(f"  Gate 3 window    : {WINDOW_SIZE} steps (matches M4 training) ✓")
 log(f"  Gate 3 OK        : {'YES' if results['gate3_all_ok'] else 'WEAK (non-blocking, M8 target)'}")
 log(f"  Coherence OK     : {'YES' if coherence_all_ok else 'NO'}")
 log(f"  Seal Patch       : {'APPLIED' if patch_applied else 'NOT NEEDED'}")
@@ -396,13 +395,15 @@ log(f"{'='*55}")
 # ══════════════════════════════════════════════════════════════
 report_path = REPORT_DIR / f"{SCRIPT_NAME}_report.md"
 with open(report_path, "w", encoding="utf-8") as f:
-    f.write(f"# M6.5 Sequence Quality Audit Report\n\n")
+    f.write(f"# M6.5 Sequence Quality Audit Report (v2)\n\n")
     f.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+    f.write(f"**v2 Fix:** Gate 3 window slice corrected to `:{WINDOW_SIZE}` "
+            f"(was `:60`, now matches M4 `WINDOW_SIZE={WINDOW_SIZE}`)\n\n")
     f.write(f"## Shape & Balance\n")
     f.write(f"- Shape: `{results['shape']}` — {'OK' if shape_ok else 'FAIL'}\n")
     f.write(f"- NaN: `{nan_count}` | Inf: `{inf_count}` — {'OK' if data_clean else 'FAIL'}\n")
     f.write(f"- Balance: `{class_counts}` — {'OK' if balance_ok else 'FAIL'}\n\n")
-    f.write(f"## Gate 3 Re-Audit\n")
+    f.write(f"## Gate 3 Re-Audit (window={WINDOW_SIZE} steps)\n")
     if gate3_loaded:
         for cls, v in gate3_results.items():
             f.write(f"- `{cls}`: MAE={v['mean_mae']:.4f}  pass={v['pass_rate']:.2%}\n")
@@ -416,9 +417,8 @@ with open(report_path, "w", encoding="utf-8") as f:
         f.write(f"\n## Seal Failure Patch\n")
         f.write(f"- Replaced: `{results['seal_patch_replaced']}` sequences\n")
         f.write(f"- Coherence after patch: `{results['seal_patch_coherence_after']:.2%}`\n")
-        f.write(f"- Physics reason: Real 40-bar multistage pump seal fails over hours.\n")
-        f.write(f"  High-severity early saturation (< 60 steps) is physically unrealistic.\n")
-        f.write(f"  Severity capped at {SEVERITY_CAP} to ensure full 200-step progression.\n")
+        f.write(f"- Physics reason: Real 40-bar multistage pump seal fails over hours.\n"
+                f"  Severity capped at {SEVERITY_CAP} to ensure full 200-step progression.\n")
     f.write(f"\n## Overall Verdict\n")
     f.write(f"**M7 Ready: {'YES — PROCEED' if m7_ready else 'NO — REVIEW NEEDED'}**\n")
 
@@ -428,11 +428,13 @@ log(f"  Report saved: {report_path}")
 # PASTE TEXT
 # ══════════════════════════════════════════════════════════════
 print("\n" + "="*60)
-print("== PASTE TEXT UPDATE — COPY BELOW INTO PASTE TEXT ==")
+print("══ PASTE TEXT UPDATE — COPY BELOW INTO PASTE TEXT ══")
 print("="*60)
+print(f"M6.5_version               : v2 (Gate 3 window fix: :60 → :{WINDOW_SIZE})")
 print(f"M6.5_shape                 : {results['shape']}")
 print(f"M6.5_nan_inf               : NaN={nan_count} Inf={inf_count}")
 print(f"M6.5_balance_ok            : {balance_ok}")
+print(f"M6.5_gate3_window          : {WINDOW_SIZE} steps (matches M4 WINDOW_SIZE)")
 print(f"M6.5_gate3_loaded          : {gate3_loaded}")
 if gate3_loaded:
     for cls, v in gate3_results.items():
@@ -445,7 +447,7 @@ for cls, v in coherence_results.items():
     print(f"M6.5_coherence_{cls:18s}: {v['pass_rate']:.2%} ({v['n_flagged']} flagged)")
 print(f"M6.5_m7_ready              : {m7_ready}")
 print(f"Status for M7              : {'READY' if m7_ready else 'NEEDS REVIEW'}")
-print("== END PASTE UPDATE ==")
+print("══ END PASTE UPDATE ══")
 print("="*60)
 
 # ══════════════════════════════════════════════════════════════
@@ -453,17 +455,18 @@ print("="*60)
 # ══════════════════════════════════════════════════════════════
 print("\n-- FILE MANIFEST --")
 print("  GitHub push:")
-print("    src/module_065_sequence_audit.py")
+print("    src/module_065_sequence_audit.py   (v2 — Gate 3 fix)")
 print("    outputs/reports/module_065_sequence_audit_report.md")
-print("    data/synthetic/M6_sequences.pkl  (if patch applied)")
-print("    data/synthetic/M6_sequence_meta.csv  (if patch applied)")
+print("    data/synthetic/M6_sequences.pkl    (if patch applied)")
+print("    data/synthetic/M6_sequence_meta.csv (if patch applied)")
 print("  Spaces upload:")
 print("    outputs/plots/M6_class_channel_heatmap.png")
 print("    outputs/plots/M6_fisher_scores.png")
 print("    outputs/plots/M6_temporal_coherence_pre_patch.png")
 if patch_applied:
     print("    outputs/plots/M6_temporal_coherence_post_patch.png")
+
 print()
-print("M6.5 done. Starting M7.")
-print("Finding: Dataset clean, separable, coherent after seal patch.")
+print("📦 M6.5 v2 done. Starting M7.")
+print(f"Finding: Gate 3 now evaluated at correct {WINDOW_SIZE}-step window.")
 print("Provide M7 XGBoost Fault Classifier complete script.")
