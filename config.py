@@ -38,8 +38,8 @@ PUMP_IMPELLERS  = 7
 GAP_MULTIPLIER  = 2.0          # gap > 2× median interval = new segment
 
 # ── Windowing ─────────────────────────────────────────────
-WINDOW_SIZE     = 60           # finalized in M2 based on autocorrelation
-WINDOW_STEP     = 10           # stride (to be confirmed in M2)
+WINDOW_SIZE     = 50           # finalized in M4 (overrides M2 default of 60)
+WINDOW_STEP     = 10           # stride
 
 # ── LSTM-AE Hyperparameters (M4 defaults) ────────────────
 LSTM_HIDDEN     = 64
