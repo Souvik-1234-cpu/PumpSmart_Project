@@ -1,0 +1,24 @@
+{
+  "date": "2026-04-11",
+  "lstm_ae_gate3_active": false,
+  "total_sequences": 8400,
+  "label_distribution": {
+    "normal": 1200,
+    "bearing_wear": 1200,
+    "impeller_imbalance": 1200,
+    "cavitation": 1200,
+    "seal_failure": 1200,
+    "overloading": 1200,
+    "sensor_failure": 1200
+  },
+  "coupling_fidelity_pct": 100.0,
+  "gate_fails": {
+    "bearing_wear": 731,
+    "impeller_imbalance": 470,
+    "cavitation": 0,
+    "seal_failure": 0,
+    "overloading": 1,
+    "sensor_failure": 311
+  },
+  "seeds_used": 1037
+}
