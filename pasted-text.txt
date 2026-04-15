@@ -1,0 +1,533 @@
+══════════════════════════════════════════════════════════════════
+PUMPSMART PROJECT — ACTIVE CONTEXT PASTE TEXT
+Pump: 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head
+Dataset: CIRA SACIP — https://zenodo.org/records/15301820
+Last updated: 2026-04-15
+ARCHITECTURE VERSION: v11.0 — Post-M6B Scope Definition
+══════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENT REGISTRY — WHICH FILE TO READ FOR WHICH MODULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GitHub is the ONLY source of truth for module specifications.
+Spaces files are supporting data (JSONs, CSVs, reports) ONLY.
+DO NOT use any Spaces .md or .pdf pathway files — ALL OUTDATED.
+
+GitHub file                              Covers
+---------------------------------------  --------------------------------
+completed_modules_M1_to_M6p5.md         M1, M2, M3, M4, M5, M6A, M6.5
+modules_M6B_synthetic_expanded.md       M6B full spec ← NEXT ACTIVE
+modules_M6p5r_feature_retrain.md        M6.5r retrain spec
+module_M7_xgboost_classifier.md         M7 XGBoost fault classifier
+module_M8_lstm_ae_v2.md                 M8 LSTM-AE v2 + fuzzy detection
+modules_M9_M10_M11_deployment.md        M9, M10, M11
+module_M12_validation_suite.md          M12 adversarial validation
+
+NOTE: M7 and M8 are SEPARATE files — both large, both standalone.
+      Do NOT merge them. archive_modules_M7_M8_v1_SUPERSEDED.md
+      is the archived pre-audit combined file — do not reference it.
+
+UPDATE RULE: Edit ONLY the relevant GitHub file per module.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODULE STATUS — v11.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M1     Data Ingestion & Cleaning            ✅ COMPLETE   2026-03-25
+M2     EDA & Operating Mode Clustering      ✅ COMPLETE   2026-03-26
+M3     Dimensionless Normalization           ✅ COMPLETE   2026-03-28
+M4     LSTM-AE Baseline v8                  ✅ COMPLETE   2026-03-28
+M5     Physics Engine                        ✅ COMPLETE   2026-03-29
+M6A    Single-Source Synthetic Generator     ✅ COMPLETE   2026-04-11
+       Output: 8,400 sequences, 7 classes
+M6.5   LSTM-AE Feature Extractor v2          ✅ COMPLETE   2026-04-11
+       Output: 8,400 × 25 feature matrix
+       Audit findings LOCKED → govern M6B, M7, M8 design
+────────────────────────────────────────────────────────────────
+M6B    Expanded Synthetic Generator          🔴 NEXT ACTIVE
+       Target: ~13,800 new sequences, 14 new classes
+       3-step script → writes fault_rules_v3.json
+M6.5r  Feature Extractor RE-RUN              ⬜ NOT STARTED
+       Runs AFTER M6B completes.
+       Re-runs M6.5 script on full M6A+M6B pool (~22,200 seqs)
+       Output: ~22,200 × 25 feature matrix → M7 input
+       ⚠️ This is a SEPARATE execution from M6.5 — different input,
+          different output file, different row count.
+M7     XGBoost Fault Classifier (21-class)   ⬜ NOT STARTED
+       Starts ONLY after M6.5r completes.
+       Input: M6.5r feature matrix (~22,200 × 25)
+       ⚠️ NOT 7-class. NOT fed from old M6.5 matrix.
+M8     LSTM-AE v2 + Fuzzy Logic              ⬜ NOT STARTED
+M9     Pump Selector / Household Advisor     ⬜ NOT STARTED
+M10    Flask Web Application                 ⬜ NOT STARTED
+M11    Docker / Hugging Face Deployment      ⬜ NOT STARTED
+M12    Physics-Governed Validation Suite     ⬜ NOT STARTED (post-M11)
+
+PIPELINE ORDER (non-negotiable):
+M6B → M6.5r → M7 → M8 → M9 → M10 → M11 → M12
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FAULT UNIVERSE — v11.0 (21 CLASSES TOTAL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CIRA ANCHOR RULE: Every fault class must have at least one of:
+  (a) spike seeds from M4_spike_seeds.npy, OR
+  (b) coupling constants confirmed in M5, OR
+  (c) rate-of-change parameters anchored to real CIRA observations.
+  If both (a) and (b) fail → SCIENTIFIC FRAUD. Do not include.
+
+REMOVED (no CIRA anchor): dry_running, shaft_misalignment,
+                            stator_winding_fault
+REMOVED compound chains:   C5 dry_running→bearing_wear,
+                            C7 shaft_misalignment→bearing_wear
+
+──────────────────────────────────────────────────────────────────
+GROUP A — Single-Source (M6A ✅ COMPLETE) — 7 classes × 1,200 seq
+──────────────────────────────────────────────────────────────────
+Label  Fault                CIRA Anchor
+0      normal               Real CIRA windows (9,711 clean)
+1      bearing_wear         44 spike seeds + Paris law
+2      impeller_imbalance   472 mech-transient seeds + BPF Euler
+3      cavitation           113 impeller-cavitation seeds + R-P
+4      seal_failure         408 pressure-transient seeds + H-P
+5      overloading          7 high-load seeds + N-S dissipation
+6      sensor_failure       4 subtypes: drift/spike/flatline/dropout
+TOTAL: 8,400 sequences — LOCKED. DO NOT MODIFY.
+Additional cols in metadata: fault_stage, severity (Weibull), source
+
+──────────────────────────────────────────────────────────────────
+GROUP B — Compound Chain Faults (M6B Step 1) — 6 classes
+──────────────────────────────────────────────────────────────────
+Each compound chain = UNIQUE INTEGER LABEL (single-label XGBoost).
+M10 API maps label → "Primary: X → Secondary: Y" in UI display.
+
+Label  Chain                           Lag         Sensor Signature
+7      bearing_wear → overloading      200–400 s   MotSV rise first,
+                                                    TempSV/MotTV runaway after
+8      cavitation → seal_failure       50–150 s    PmpSV spikes first,
+                                                    PresSV progressive drop after
+9      impeller_imbalance →            300–600 s   PmpSV BPF first,
+         bearing_wear                              MotSV Paris-law drift after
+10     seal_failure → cavitation       100–200 s   PresSV drops first,
+                                                    PmpSV spikes appear after
+11     overloading → bearing_wear      400–600 s   TempSV rises first,
+                                                    MotSV begins drift after
+12     impeller_imbalance →            100–300 s   PmpSV BPF first,
+         cavitation                               PresSV erratic + PmpSV spikes
+
+Target: ~1,200 sequences per chain = ~7,200 sequences total
+
+──────────────────────────────────────────────────────────────────
+GROUP C — Masked Faults (M6B Step 2) — 5 classes
+──────────────────────────────────────────────────────────────────
+Primary detection sensor fails exactly when real fault is present.
+Remaining 7 sensors carry secondary signals — model must still detect.
+
+Label  Masked Scenario                     Danger
+13     bearing_wear + MotSV flatlined       CRITICAL
+14     cavitation + PresSV dropout          CRITICAL
+15     seal_failure + PresSV drifting       CRITICAL
+16     overloading + TempSV stuck           HIGH
+17     impeller_imbalance + PmpSV flatline  HIGH
+
+Target: ~800 sequences per scenario = ~4,000 sequences total
+
+──────────────────────────────────────────────────────────────────
+GROUP D — Severity Variants (M6B Step 2) — 3 classes
+──────────────────────────────────────────────────────────────────
+Label  Variant                  Physics Mechanism
+18     cavitation_intermittent  NPSHa oscillates around NPSHr boundary
+19     seal_failure_fast        Large-Δ PresSV drops in ≤20 steps
+20     overloading_cyclic       Thermal sawtooth: load ON/OFF +
+                                rising baseline per cycle
+
+Target: ~600 sequences per variant = ~1,800 sequences total
+
+──────────────────────────────────────────────────────────────────
+GROUP E — Multi-Sensor Failure (M6B Step 2) — 2 classes
+──────────────────────────────────────────────────────────────────
+Label  Variant                      Failed Channels
+21     sensor_failure_2ch_thermal   MotTV + TempSV simultaneously
+22     sensor_failure_2ch_pump      PresSV + PmpTV simultaneously
+
+Target: ~400 sequences per variant = ~800 sequences total
+
+⚠️ Final integer labels (7–22) confirmed when fault_rules_v3.json
+   is written in M6B Step 3. Do not hardcode before then.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DATASET TOTALS — v11.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Group   Classes   Target Sequences  Status
+A       7         8,400             ✅ COMPLETE
+B       6         ~7,200            M6B Step 1
+C       5         ~4,000            M6B Step 2
+D       3         ~1,800            M6B Step 2
+E       2         ~800              M6B Step 2
+──────────────────────────────────────────────────────────────────
+TOTAL   23*       ~22,200           *incl. normal class
+M6B net new:      ~13,800 sequences, 16 new labels (7–22)
+
+RAM check: 22,200 × 200 × 8 × float32 ≈ 135 MB ✅ within 16GB RAM
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M6B SCRIPT STRUCTURE (3 STEPS, ~700 lines each)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Step 1 (~700 lines):
+  Group B — 6 compound chains
+  New validation gates G8 (temporal lag correct),
+                       G9 (causal channel ordering correct)
+  Output: data/synthetic/M6B_group_B_sequences.pkl
+
+Step 2 (~700 lines appended):
+  Group C — 5 masked faults
+  Group D — 3 severity variants
+  Group E — 2 multi-sensor failures
+  New validation gates G10 (masked: 7-sensor secondary signal),
+                       G11 (severity variant MAE profile correct)
+  Output: data/synthetic/M6B_group_CDE_sequences.pkl
+
+Step 3 (~700 lines appended):
+  Full merge: M6A sequences + M6B Groups B+C+D+E
+  Writes: models/fault_rules_v3.json (all 23-class definitions)
+  Full validation suite (physics, coupling, MAE, temporal gates)
+  Writes: outputs/reports/module_06B_synthetic_report.md
+  Output: data/synthetic/M6B_full_sequences.pkl
+          data/synthetic/M6B_sequence_meta.csv
+
+LOCKED FILES — DO NOT OVERWRITE IN M6B:
+  models/fault_rules.json     (v1 — M5/M6A reference, frozen)
+  data/synthetic/M6A outputs  (frozen after M6A completion)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M6.5 AUDIT FINDINGS — LOCKED CONSTRAINTS FOR M6B + M7 + M8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+These are COMPLETED audit results from M6.5 execution.
+They are NOT pending work. They are design constraints
+that M6B sequence generation and M7/M8 architecture MUST respect.
+
+Finding 1 — OVERLOADING IS THERMAL-DOMINANT:
+  Gate3=0.00%, MAE=0.093 (below M4 threshold=0.110058).
+  M4 LSTM-AE cannot detect overloading via single-window threshold.
+  → M6B Group D (overloading_cyclic): generate with steeper
+    TempSV sawtooth so trend accumulator fires within 15 min.
+  → M8 Mech C (Temp.SV Spearman drift ≥0.70) = PRIMARY detection.
+  → Gate M8-7: overloading TPR ≥80% via Mech C ONLY.
+  → M7: mean_err_TempSV expected SHAP rank 1 for overloading.
+
+Finding 2 — SEAL FAILURE IS A SLOW HYDRAULIC FAULT:
+  Gate3=29.17%, gradual Pres.SV decline only 29% windows exceed threshold.
+  → M6B Group D (seal_failure_fast): must show faster PresSV drop
+    (large-Δ in ≤20 steps) to increase M4 Gate3 pass rate.
+  → M8 Mech C (Pres.SV Spearman drift ≥0.70, negative) = PRIMARY.
+  → Gate M8-9: WATCH state ≤20 min. Gate M8-10: PresSV fires before WARN.
+  → M7: err_slope_PresSV expected in SHAP top-3 for seal_failure.
+
+Finding 3 — BEARING SEAM DISCONTINUITY (5.75% sequences):
+  dX/dt discontinuity at t49→t50 (spike seed / M5 physics seam).
+  Sequences kept in training — represent realistic shock events.
+  → M8 attention must NOT peak at t49–t50. Gate M8-8.
+  → M12 bearing configs: use smooth physics sequences only (no spike seeds).
+
+Finding 4 — FISHER RANK 1 = PmpSV_mean:
+  Validates channel weight direction for M8.
+  → M8 weights confirmed: Mot.SV=2.5, Pmp.SV=2.5, Pres.SV=2.5 (up from 2.0)
+  → Low weights confirmed: Temp.SV=0.5, Mot.TV=0.3, Pmp.TV=0.3
+  → Mech C monitors thermal channels UNWEIGHTED via Spearman.
+  → M6B compound chains must produce strong PmpSV signatures to be learnable.
+
+Finding 5 — CAVITATION BYPASSES WATCH/WARN → DIRECT DANGER:
+  Gate3=100%, MAE=0.675 (6.1× above threshold).
+  → M6B Group D (cavitation_intermittent): MAE must stay above
+    threshold even in low-NPSHa oscillation phase (not drop to 0.093).
+  → M8: cavitation always → DANGER in 1 window. No trend needed.
+  → Report overloading TPR and cavitation TPR SEPARATELY in M8.
+
+Finding 6 — NORMAL GATE3 PROBE 86.67% ≠ FALSE ALARM PROBLEM:
+  Probe sampled 30 edge-case windows deliberately.
+  Full M4 validation: 0.55% FPR (8/1,457 windows). Correct.
+  → Gate M8-2 FPR must use full 9,711-window pool ONLY.
+  → DO NOT adjust M4 threshold based on probe result.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DETECTION ARCHITECTURE — BIAS RESOLUTION (v11.0)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Two parallel confidence tracks run simultaneously in M8 + M10:
+
+Track 1 — Single fault (BIAS-01):
+  Early stage  → fault_stage=early, type=unknown → MONITOR
+  Confirmed    → ONE signature strengthens → ALERT (single label)
+
+Track 2 — Compound fault (BIAS-04):
+  Early stage  → fault_stage=early, type=unknown → MONITOR
+  Confirmed    → SECOND signature on CAUSALLY UNRELATED channels
+                 → CRITICAL (compound label)
+
+Physics discriminator (is it causal propagation or independent?):
+  MotSV rises → MotTV rises 30 steps LATER    = SINGLE (thermal lag)
+  MotSV rises + PresSV drops SIMULTANEOUSLY   = COMPOUND (uncorrelated)
+  PresSV drops → PmpSV spikes AFTER           = SINGLE (seal→cavitation chain)
+  PresSV drops + MotTV rises SIMULTANEOUSLY   = COMPOUND (no physical link)
+
+Three M10 API output states:
+  State 1: fault_stage=early, fault_type=unknown → action: MONITOR
+  State 2: fault_stage=developing, compound=False → action: ALERT
+           (single label, e.g. bearing_wear)
+  State 3: fault_stage=developing, compound=True  → action: CRITICAL
+           causal_chain=[bearing_wear→overloading]
+           (multi-label UI display, single integer label internally)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HARDWARE & CODE RULES — NEVER CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Device:   Lenovo LOQ 15APH8
+CPU:      AMD Ryzen 7840HS, 16GB DDR5 RAM
+GPU:      RTX 4060 Laptop, 8GB VRAM, CUDA 12.6, PyTorch 2.6.0+cu126
+Venv:     C:\Users\user\Desktop\PumpSmart_Project\.venv
+Activate: .venv\Scripts\Activate.ps1
+
+Every script, no exceptions:
+  Models      → .to(config.DEVICE)
+  DataLoaders → pin_memory=True, num_workers=4
+  LSTM        → torch.cuda.amp GradScaler + autocast
+  XGBoost     → device='cuda' train, device='cpu' deploy
+  Save/Load   → torch.save(state_dict) | map_location='cpu'
+  Imports     → from config import DEVICE, IS_GPU, all DIR paths
+  NEVER       → hardcode .cuda()
+  pandas only until M6B Step 3 merge
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOCKED PHYSICS VALUES — NEVER CHANGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M4_threshold:     0.110058  ← LOCKED. Changing invalidates all M6 data.
+M4_mean_mae:      0.026765
+M4_separation:    4.11x
+M4_false_alarms:  8 (0.55% of 1,457 val windows)
+M4_spike_seeds:   1,044 (shape: 1044 × 50 × 8)
+
+Top correlations — LOCKED, must hold in ALL synthetic sequences:
+  Mot.TV ↔ Temp.SV    r = 0.9793
+  Pmp.PV ↔ Pmp.SV     r = 0.8882
+  Pmp.PV ↔ Pres.SV    r = 0.8779
+
+Thermal coupling by fault — LOCKED (from M5 validation):
+  bearing_wear    steady-state   r = 0.972   PRESERVED
+  overloading     steady-state   r = 0.997   STRONGLY PRESERVED
+  seal_failure    steady-state   r = −0.013  BROKEN (hydraulic fault)
+  cavitation      startup        r = 0.376   WEAK (hydraulic fault)
+  normal          steady-state   r = −0.062  baseline
+
+Normalization — LOCKED (models/M3_normalization_config.json):
+  P* = P_actual  / P_cluster_mean
+  a* = a_actual  / a_cluster_mean
+  T* = (T_row − T_ambient_row) / (T_cluster_max − T_ambient_row)
+  Note: T_ambient_row = per-row Temperature column (NOT hardcoded 20°C)
+
+Cluster distribution (117,970 usable rows):
+  startup:       42.3%  (49,884 rows)
+  cooldown:      22.8%  (26,851 rows)
+  high_load:     22.5%  (26,600 rows)
+  steady_state:  12.4%  (14,635 rows)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCOPE BOUNDARY — NEVER VIOLATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+if pump_type == 'household': return physics_advisory_only()
+else: return ml_prediction()
+Household monoblock ≠ industrial pump.
+Cross-domain inference = OOD = safety risk. No exceptions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASTE KEYS — COMPLETED MODULES (LOCKED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M1:
+  M1_raw_rows:          173,730
+  M1_clean_rows:        147,217
+  M1_drop_pct:          15.26%
+  M1_segments:          66 total, 25 usable
+  M1_worst_null_col:    Barometer_PumpB_Day3 (65.46%)
+  M1_sampling:          1s uniform, all files
+
+M2:
+  M2_rows:              117,970
+  M2_optimal_k:         4
+  M2_silhouette:        0.5458
+  M2_window_size:       50
+  M2_stationarity:      88% ADF pass
+  M2_top_correlation:   Mot.TV↔Temp.SV r=0.9793
+  M2_pca_pc1:           47.37%
+  M2_pca_pc2:           32.97%
+
+M3:
+  M3_rows_normalized:   117,970
+  M3_clusters:          4
+  M3_channels:          8
+  M3_range_issues:      None
+  M3_config_file:       models/M3_normalization_config.json (LOCKED)
+
+M4:
+  M4_clean_windows:     9,711
+  M4_train_val:         8,254 / 1,457
+  M4_val_loss:          0.026862
+  M4_best_epoch:        141
+  M4_mean_mae:          0.026765
+  M4_threshold:         0.110058 (LOCKED)
+  M4_separation:        4.11x
+  M4_false_alarms:      8 (0.55%)
+  M4_spike_seeds:       1,044
+
+M5:
+  M5_equations:         20
+  M5_nameplate_pass:    20/20
+  M5_S5_cases:          19/19 PASS
+  M5_S7_faults:         24/26 PASS
+  M5_known_failures:    bearing_wear_steady_state_s100,
+                        overloading_steady_state_s140
+  M5_patch3:            Euler integration bearing heat
+  M5_patch5:            5% sensor failure spike guard
+  M5_overload_range:    (0.5, 1.0) production;
+                        mild (0.2, 0.5) via M6A sub-cluster
+
+M6A:
+  M6A_total_sequences:        8,400
+  M6A_sequences_per_class:    1,200
+  M6A_classes:                7 (normal + 6 single-source faults)
+  M6A_spike_seeds_used:       [fill from M6A run log]
+  M6A_spike_seeds_discarded:  [fill from M6A run log]
+  M6A_sub_cluster_mild_count: [fill]
+  M6A_physics_severe_count:   [fill]
+  M6A_coupling_fidelity_pass: [fill]
+  M6A_mae_gate_pass_rate:     [fill]
+  M6A_physics_violations:     NONE
+  M6A_extra_metadata_cols:    fault_stage, severity (Weibull), source
+
+M6.5 (v2 — Gate 3 window=50 fix applied, v1 Gate3 = INVALID):
+  M6p5_feature_matrix_rows:        8,400
+  M6p5_features_per_row:           24 + label = 25 columns
+  M6p5_output_file:                data/synthetic/M6_feature_matrix.csv
+  M6p5_gate3_normal_probe:         86.67% (edge-case probe, NOT FPR)
+  M6p5_gate3_bearing_wear:         13.33% (mild sev near-threshold ✅)
+  M6p5_gate3_impeller_imbalance:   30.00% (mild seqs dominate ✅)
+  M6p5_gate3_cavitation:           100.00% (MAE=0.675, 6.1× threshold ✅)
+  M6p5_gate3_seal_failure:         29.17% (slow PresSV — Mech C primary ✅)
+  M6p5_gate3_overloading:          0.00%  (thermal-dominant — Mech C primary ✅)
+  M6p5_gate3_sensor_failure:       93.33% (single-channel flatline ✅)
+  M6p5_temporal_coherence_min:     91.25% (cavitation — hydraulic shock)
+  M6p5_temporal_coherence_bearing: 94.25% (69 flagged, kept in training)
+  M6p5_top_fisher_feature:         PmpSV_mean (rank 1)
+  M6p5_fisher_rank3:               TempSV_mean (overloading discriminator)
+  M6p5_seal_patch:                 165→220 sequences, severity rebalanced
+  M6p5_window_fix:                 v2 corrected 60→50; v1 Gate3 = INVALID
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASTE KEYS — ACTIVE & FUTURE MODULES (POPULATE AFTER EACH RUN)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+M6B (NEXT ACTIVE — populate after each step runs):
+  M6B_step1_group_B_sequences:      [fill — target ~7,200]
+  M6B_step1_gate_G8_lag_correct:    [PASS/FAIL]
+  M6B_step1_gate_G9_channel_order:  [PASS/FAIL]
+  M6B_step2_group_C_sequences:      [fill — target ~4,000]
+  M6B_step2_group_D_sequences:      [fill — target ~1,800]
+  M6B_step2_group_E_sequences:      [fill — target ~800]
+  M6B_step2_gate_G10_masked:        [PASS/FAIL]
+  M6B_step2_gate_G11_severity:      [PASS/FAIL]
+  M6B_step3_total_sequences:        [fill — target ~22,200 incl. M6A]
+  M6B_step3_fault_rules_v3_written: [True/False]
+  M6B_step3_physics_violations:     [NONE or list]
+  M6B_step3_coupling_fidelity_all:  [fill]
+  M6B_step3_mae_gate_B_pass:        [fill]
+  M6B_step3_mae_gate_C_pass:        [fill]
+  Status_for_M6p5r:                 READY / BLOCKED
+
+M6.5r (RE-RUN — separate from M6.5, runs after M6B Step 3):
+  M6p5r_input:             data/synthetic/M6B_full_sequences.pkl
+  M6p5r_total_rows:        [fill — target ~22,200]
+  M6p5r_output_file:       data/synthetic/M6B_feature_matrix.csv
+  M6p5r_classes:           21 (labels 0–20)
+  M6p5r_balance_check:     [fill — all classes present]
+  M6p5r_fisher_rank1:      [fill — expect PmpSV_mean still rank 1]
+  M6p5r_compound_separation: [fill — Group B MAE vs Group A MAE]
+  Status_for_M7:           READY / BLOCKED
+
+M7 (21-class XGBoost — starts only after M6.5r):
+  M7_input_file:             data/synthetic/M6B_feature_matrix.csv
+  M7_n_classes:              21
+  M7_accuracy:               [fill — gate ≥85%]
+  M7_f1_per_class:           [fill all 21 — gate ≥0.80 each]
+  M7_f1_cavitation:          [fill — gate ≥0.88]
+  M7_f1_sensor_failure:      [fill — gate ≥0.92]
+  M7_f1_compound_mean:       [fill — Group B mean F1]
+  M7_f1_masked_mean:         [fill — Group C mean F1]
+  M7_shap_rank1_overloading: [fill — expect mean_err_TempSV]
+  M7_shap_rank1_seal:        [fill — expect err_slope_PresSV]
+  M7_shap_rank1_compound:    [fill — expect causal chain features]
+  M7_shap_rank1_masked:      [fill — expect secondary channel features]
+  M7_gate_tv_dominance:      [PASS/FAIL — TV must NOT be top-3 for vibration]
+  M7_all_gates_pass:         [True/False]
+  Status_for_M8:             READY / BLOCKED
+
+M8 (LSTM-AE v2 + Fuzzy Logic):
+  M8_val_loss:                   [fill]
+  M8_best_epoch:                 [fill]
+  M8_tpr_overall:                [fill — gate ≥90% excl. overloading/seal mild]
+  M8_tpr_cavitation:             [fill — expected 100%]
+  M8_tpr_bearing_wear:           [fill]
+  M8_tpr_compound_group_B:       [fill — new gate]
+  M8_tpr_masked_group_C:         [fill — new gate]
+  M8_tpr_overloading:            [fill — gate M8-7 ≥80% via Mech C only]
+  M8_tpr_seal_failure:           [fill — gate M8-9 WATCH ≤20 min]
+  M8_fpr_full_pool:              [fill — gate ≤5%, full 9,711 windows]
+  M8_youden_j:                   [fill — gate ≥0.85]
+  M8_separation_ratio:           [fill — gate ≥5.0×]
+  M8_fuzzy_lower_bound:          [fill — expected 0.07–0.09]
+  M8_fuzzy_upper_bound:          [fill — expected 0.15–0.50]
+  M8_rolling_watch_threshold:    [fill — target 0.085]
+  M8_rolling_warn_threshold:     [fill — target 0.095]
+  M8_slope_threshold:            [fill — target 0.0003/window]
+  M8_slow_drift_seal_watch_min:  [fill — gate ≤20 min]
+  M8_slow_drift_bearing_watch_min: [fill — gate ≤15 min]
+  M8_attention_seam_ratio:       [fill — gate <1.0 = PASS]
+  M8_threshold_startup:          [fill]
+  M8_threshold_steady_state:     [fill — baseline 0.110058]
+  M8_threshold_high_load:        [fill]
+  M8_threshold_cooldown:         [fill]
+  M8_all_gates_pass:             [True/False]
+  Status_for_M9:                 READY / BLOCKED
+
+M9–M12: [populate as each module completes — see GitHub spec files]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CROSS-MODULE INVARIANTS — ENFORCED M1→M12 (NEVER VIOLATE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1.  segment_id preserved in ALL dataframes through M6B
+2.  Windows NEVER cross segment boundaries
+3.  Normalization baselines LOCKED at M3_normalization_config.json
+4.  Winsor ceilings LOCKED at M4_spike_config.json
+    (M6→M12 read only, never override)
+5.  M4 threshold=0.110058 = fault/normal boundary for all M6 validation gates
+6.  M8 cluster-conditional thresholds = PRODUCTION boundary for M12
+7.  Physical couplings r≥0.87 in ALL synthetic sequences (M6B, M12)
+8.  Conservation of energy + mass in all synthetic sequences
+9.  if pump_type=='household': return physics_advisory_only() — NO EXCEPTIONS
+10. XGBoost: device='cuda' train, device='cpu' deploy
+11. All models: torch.save(state_dict) | torch.load(map_location='cpu')
+12. M7 trains on M6.5r feature matrix (~22,200 × 25), NOT M6.5 matrix (8,400 × 25)
+13. Fuzzy logic = core M8 detection component, not just M10 display
+14. M12 MUST pass PRODUCTION_VALIDATED before deployment on 110 kW asset
+15. M8 MUST detect slow drift faults (sev 0.2–0.3) within 20 min of onset
+    (Category 3 liability gate)
+16. fault_rules.json (v1) LOCKED for M5/M6A reference — DO NOT overwrite
+17. fault_rules_v3.json = new file written in M6B Step 3 — all 23-class definitions
+18. M6B compound chains = unique integer labels (single-label XGBoost)
+    M10 API maps label → causal_chain display in UI
+19. M6.5 (8,400-row matrix) ≠ M6.5r (~22,200-row matrix)
+    M7 uses M6.5r ONLY. Never feed old M6.5 matrix to M7.
+20. M7 spec = module_M7_xgboost_classifier.md (standalone file)
+    M8 spec = module_M8_lstm_ae_v2.md (standalone file)
+    These are SEPARATE files — NEVER merged back into one.
+    archive_modules_M7_M8_v1_SUPERSEDED.md = pre-audit archive, do not reference.
+
+══════════════════════════════════════════════════════════════════
+END OF PASTE TEXT — v11.0 — 2026-04-15
+Pump: 110 kW | 7-stage | 40 bar | CIRA SACIP anchored
+Active module: M6B (Step 1)
+Next action: Upload this file to Spaces as pasted-text.txt
+══════════════════════════════════════════════════════════════════
