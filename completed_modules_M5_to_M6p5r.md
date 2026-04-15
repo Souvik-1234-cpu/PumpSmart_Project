@@ -2,19 +2,19 @@
 # Physics-Informed ML Digital Twin: Industrial Centrifugal Pump Health Monitoring
 # PART 2 OF 2 — M5 through M6.5r Results + Invariants + File Structure + Tracker
 #
-# Status: M5, M6A, M6.5 sections LOCKED. M6B and M6.5r sections ACTIVE (latest results here).
+# Status: M5, M6A, M6.5 sections LOCKED. M6B and M6.5r sections = SPEC ONLY — NOT YET EXECUTED.
 # Updated: 2026-04-15 | Author: Souvik
 # Split from: completed_modules_M1_to_M6p5.md (original monolithic file)
 #
 # THIS FILE CONTAINS:
 #   - M5 physics engine results + paste keys (LOCKED)
 #   - M6A synthetic generator results + paste keys (LOCKED)
-#   - M6B expanded synthetic dataset results + paste keys (ACTIVE — 21-class, Groups A-E)
+#   - M6B expanded synthetic dataset SPEC + paste keys (🔴 NEXT ACTIVE — script not yet run)
 #   - M6.5 original LSTM-AE feature extractor results (LOCKED)
 #   - M6.5 6 critical audit findings in FULL detail (LOCKED — govern M7 and M8)
-#   - M6.5r updated spec (ACTIVE — 26-feature matrix, fault_rules_v3.json, 21 gates)
+#   - M6.5r updated spec (⬜ NOT STARTED — blocked until M6B runs)
 #   - Cross-module invariants 1–15 (updated for M6B)
-#   - File structure (updated for M6B outputs)
+#   - File structure (updated for M6B — PENDING files clearly marked)
 #   - Module progress tracker
 #
 # COMPANION FILE: completed_modules_context_and_M1_to_M4.md
@@ -71,8 +71,9 @@ Key equations include:
 ### Outputs
 ```
 src/module_05_physics_engine.py
-models/fault_rules.json              ← 6 fault types (M5 original) — LOCKED
-models/fault_rules_v3.json           ← 21 fault labels Groups A–E (M6B/M6.5r) — LOCKED
+models/fault_rules.json              ← 6 fault types (M5 original, Group A only) — LOCKED
+                                        NOTE: fault_rules_v3.json (21-class) is an M6B output,
+                                        NOT an M5 output. It will be written by M6B Step 3.
 models/M5_physics_config.json
 models/unit_registry.json
 outputs/plots/M5_fault_signatures.png
@@ -100,7 +101,7 @@ M5_overload_range  : [0.5, 1.0] production (mild via M6B sub-cluster)
 ## ╚══════════════════════════════════════════════════╝
 
 > ⚠️ M6A produced 7 classes, 8400 sequences. It has been SUPERSEDED by M6B
-> (21 classes, Groups A–E, ~27,000 sequences). M6B is the dataset used for
+> (21 classes, Groups A–E, ~25,000–27,000 sequences). M6B is the dataset used for
 > M7, M8, and all downstream modules. M6A results are LOCKED for reference only.
 
 ### M6A Architecture Decision: HYBRID PATH C (LOCKED)
@@ -147,14 +148,19 @@ M6A_status                : SUPERSEDED by M6B — not used in M7/M8 downstream
 
 ## ╔══════════════════════════════════════════════════╗
 ## M6B — EXPANDED SYNTHETIC DATASET (21-CLASS, GROUPS A–E)
-## Status: ✅ COMPLETED (2026-04-14) — ACTIVE — USED IN M7, M8, M12
+## Status: 🔴 NEXT ACTIVE — SPEC LOCKED, SCRIPT NOT YET RUN
 ## ╚══════════════════════════════════════════════════╝
+
+> ⚠️ IMPORTANT: M6B has NOT been executed. No output files exist yet.
+> fault_rules_v3.json, M6B_*.pkl, M6B_sequence_meta.csv, M6B_feature_matrix.csv
+> are ALL pending — they will be created when the M6B script runs.
+> This section is the LOCKED SPEC that governs the M6B script.
 
 ### Why M6B Was Created
 
 ```
 M6A had 7 classes (labels 0–6) — adequate for basic fault detection but insufficient for:
-  1. Compound fault scenarios (two faults active simultaneously)
+  1. Compound fault scenarios (two faults active with causal lag)
   2. Primary-channel masked faults (sensor dead, secondary path only)
   3. Fault severity variants (fast vs slow, intermittent vs sustained)
   4. Multi-sensor anomaly scenarios (2 sensors degraded simultaneously)
@@ -162,10 +168,10 @@ M6A had 7 classes (labels 0–6) — adequate for basic fault detection but insu
   6. M8 adversarial validation requires compound + masked + variant scenarios
 
 M6B adds Groups B, C, D, E to the base Group A (M6A classes).
-All 21 classes defined in fault_rules_v3.json — LOCKED.
+All 21 classes will be defined in fault_rules_v3.json — written by M6B Step 3.
 ```
 
-### 21-Class Label Map (fault_rules_v3.json — LOCKED)
+### 21-Class Label Map (LOCKED — will be written to fault_rules_v3.json by M6B Step 3)
 
 | Group | Label | Class Name | Description |
 |---|---|---|---|
@@ -189,22 +195,24 @@ All 21 classes defined in fault_rules_v3.json — LOCKED.
 | D | 17 | seal_failure_fast | Pres.SV drops in ≤20 steps (acute) |
 | D | 18 | overloading_cyclic | Sawtooth Temp.SV with rising baseline |
 | E | 19 | sensor_failure_2ch_thermal | Both Mot.TV + Temp.SV degrade simultaneously |
-| E | 20 | sensor_failure_2ch_pumpside | Both Pmp.SV + Pmp.PV degrade simultaneously |
+| E | 20 | sensor_failure_2ch_pumpside | Both Pres.SV + Pmp.TV degrade simultaneously — moisture ingress to pump-side junction box |
 
-### M6B Sequence Counts
+### M6B Sequence Counts (Target — populated after script runs)
 
 | Group | Classes | Sequences per Class | Group Total |
 |---|---|---|---|
 | A (base) | 7 (labels 0–6) | ~1,200–1,500 | ~9,000 |
-| B (compound) | 5 (labels 7–11) | ~1,200 | ~6,000 |
+| B (compound) | 5 (labels 7–11) | **1,500** | **~7,500** |
 | C (masked) | 4 (labels 12–15) | ~1,200 | ~4,800 |
 | D (variants) | 3 (labels 16–18) | ~1,200 | ~3,600 |
-| E (multi-sensor) | 2 (labels 19–20) | ~800 | ~1,600 |
-| **TOTAL** | **21** | — | **~25,000–27,000** |
+| E (multi-sensor) | 2 (labels 19–20) | ~1,000 | ~2,000 |
+| **TOTAL** | **21** | — | **~26,900** |
 
 ```
-M6B_combined_sequences.pkl : all groups windowed → full fault validation pool
-M6B_feature_matrix.csv     : ~189,000 rows × 26 columns (M6.5r extraction)
+⚠️ NONE OF THESE FILES EXIST YET — created by M6B script:
+data/synthetic/M6B_combined_sequences.pkl : all groups → full fault validation pool
+data/synthetic/M6B_feature_matrix.csv     : ~189,000 rows × 26 columns (from M6.5r)
+models/fault_rules_v3.json                : written by M6B Step 3
 ```
 
 ### M6B Group B — Compound Fault Physics Rules
@@ -214,6 +222,7 @@ All Group B sequences: two faults active with secondary_onset_lag separation.
   Phase 1: primary fault only (t=0 to secondary_onset_lag)
   Phase 2: both faults active simultaneously (t=secondary_onset_lag to t=199)
   secondary_onset_lag: drawn from Uniform(30, 80) steps
+  Sequences per class: 1,500 (higher than other groups — compound patterns harder to learn)
 
 Compound physics causality (LOCKED):
   Label 7: bearing_wear + overloading
@@ -273,49 +282,49 @@ Label 18: overloading_cyclic
 ```
 Label 19: sensor_failure_2ch_thermal
   → Both Mot.TV + Temp.SV simultaneously degrade (flatline/drift)
-  → Physically: common thermal measurement system failure
+  → Physically: common thermal measurement system failure (shared excitation rail)
   → multi_sensor_anomaly_count = 2 in M6.5r features
 
 Label 20: sensor_failure_2ch_pumpside
-  → Both Pmp.SV + Pmp.PV simultaneously degrade
-  → Physically: pump-side accelerometer assembly failure
+  → Both Pres.SV + Pmp.TV simultaneously degrade
+  → Physically: moisture ingress to pump-side junction box
+  → Both pump-side sensors affected; motor-side sensors (Mot.PV, Mot.SV, Mot.TV) remain normal
   → multi_sensor_anomaly_count = 2 in M6.5r features
 
 Gate M8-14: Group E TPR ≥ 88% for multi_sensor_count = 2 detection.
 ```
 
-### M6B Outputs
+### M6B Planned Outputs (⚠️ NONE EXIST YET — written when M6B script runs)
 ```
-data/synthetic/M6B_sequences_groupA.pkl      ← ~9000 Group A sequences
-data/synthetic/M6B_sequences_groupB.pkl      ← ~6000 Group B compound
-data/synthetic/M6B_sequences_groupC.pkl      ← ~4800 Group C masked
-data/synthetic/M6B_sequences_groupD.pkl      ← ~3600 Group D variants
-data/synthetic/M6B_sequences_groupE.pkl      ← ~1600 Group E multi-sensor
+data/synthetic/M6B_sequences_groupA.pkl      ← ~9,000 Group A sequences
+data/synthetic/M6B_sequences_groupB.pkl      ← ~7,500 Group B compound (1,500 × 5)
+data/synthetic/M6B_sequences_groupC.pkl      ← ~4,800 Group C masked
+data/synthetic/M6B_sequences_groupD.pkl      ← ~3,600 Group D variants
+data/synthetic/M6B_sequences_groupE.pkl      ← ~2,000 Group E multi-sensor
 data/synthetic/M6B_combined_sequences.pkl    ← ALL groups merged → M8 fault validation pool
 data/synthetic/M6B_sequence_meta.csv         ← seq_id, label, group, severity, cluster, source
-data/synthetic/M6B_feature_matrix.csv        ← ~189,000 rows × 26 columns → M7 input
-models/fault_rules_v3.json                   ← 21-class label map (LOCKED)
+models/fault_rules_v3.json                   ← 21-class label map (written by M6B Step 3)
 outputs/reports/module_06b_synthetic_report.md
 ```
 
-### M6B Paste Text Keys
+### M6B Paste Text Keys (⚠️ Populate AFTER script runs — do not fill in advance)
 ```
-M6B_total_sequences           : [~25,000–27,000]
+M6B_total_sequences           : [fill after run — target ~26,900]
 M6B_classes                   : 21 (labels 0–20, Groups A–E)
-M6B_group_A_sequences         : [~9,000]
-M6B_group_B_sequences         : [~6,000]
-M6B_group_C_sequences         : [~4,800]
-M6B_group_D_sequences         : [~3,600]
-M6B_group_E_sequences         : [~1,600]
-M6B_feature_matrix_rows       : [~189,000]
+M6B_group_A_sequences         : [fill after run — target ~9,000]
+M6B_group_B_sequences         : [fill after run — target ~7,500]
+M6B_group_C_sequences         : [fill after run — target ~4,800]
+M6B_group_D_sequences         : [fill after run — target ~3,600]
+M6B_group_E_sequences         : [fill after run — target ~2,000]
+M6B_feature_matrix_rows       : [fill after M6.5r — target ~189,000]
 M6B_feature_matrix_cols       : 26 (25 features + label)
 M6B_fault_rules_version       : fault_rules_v3.json
-M6B_physics_violations        : NONE
+M6B_physics_violations        : [fill after run — target: NONE]
 M6B_coupling_fidelity_pass    : [% passing r check]
 M6B_mae_gate_pass_rate_groupA : [% Group A fault seq MAE > 0.110058]
 M6B_compound_causal_pass      : [% Group B secondary_onset_lag physics correct]
 M6B_masked_secondary_pass     : [% Group C secondary channel signal detectable]
-Status_for_M6p5r              : READY
+Status_for_M6p5r              : PENDING — populate after M6B script runs successfully
 ```
 
 ---
@@ -491,14 +500,17 @@ M8 action:
 
 ## ╔══════════════════════════════════════════════════╗
 ## M6.5r — UPDATED FEATURE EXTRACTOR FOR M6B (21-CLASS)
-## Status: ✅ COMPLETED (2026-04-14) — ACTIVE — FEEDS M7 AND M8
+## Status: ⬜ NOT STARTED — BLOCKED until M6B script runs successfully
 ## ╚══════════════════════════════════════════════════╝
+
+> ⚠️ M6.5r cannot start until M6B_combined_sequences.pkl and fault_rules_v3.json exist.
+> This section is the LOCKED SPEC that governs the M6.5r script.
 
 ### Why M6.5r Was Created
 
 ```
 M6.5 (original): processed M6A only — 7 classes, 24 features, 8400 rows.
-M6B added Groups B, C, D, E → 21 classes, ~25,000–27,000 sequences.
+M6B adds Groups B, C, D, E → 21 classes, ~26,900 sequences.
 M6.5r runs M6B_combined_sequences through M4 LSTM-AE and extracts
 an EXPANDED 25-feature set (26 columns including label).
 
@@ -508,26 +520,37 @@ New features added for Groups B–E:
   burst_count               : number of MAE spikes in 200 steps (Group D16)
   cyclic_baseline_drift     : Temp.SV baseline slope (Group D18)
   multi_sensor_anomaly_count: 0/1/2 — how many channels simultaneously anomalous (Group E)
+  fault_group_id            : {0:normal,1:single,2:compound,3:masked,4:variant,5:multi_sensor}
+                              — M7 group-level regularizer (derived from metadata, not label)
 ```
 
-### M6.5r Feature Set — 25 Features + Label (26 columns)
+### M6.5r Feature Set — 25 Features + Label (26 columns TOTAL)
 
 ```
 Inherited from M6.5 (24 features):
   Per-channel mean reconstruction error   : 8 features
   Per-channel max reconstruction error    : 8 features
   Temporal evolution                      : 5 features
+    error_onset_lag, err_slope_primary, err_auc_primary,
+    kurtosis_err_PmpSV, kurtosis_err_PresSV
   Cross-channel                           : 2 features
+    corr_delta_PmpSV_PresSV, thermal_decoupling_flag
   Fuzzy fault membership                  : 1 feature
 
-New features for M6B Groups B–E (5 additional features):
+New features for M6B Groups B–E (6 additional features — replaces total to 25 unique + label):
   masked_channel_flag         : bool ← Group C primary detection channel absent
   secondary_onset_lag         : int  ← Group B secondary fault onset step
   burst_count                 : int  ← Group D16 cavitation_intermittent burst count
-  cyclic_baseline_drift       : float ← Group D18 overloading_cyclic slope
+  cyclic_baseline_drift       : float ← Group D18 overloading_cyclic baseline slope
   multi_sensor_anomaly_count  : int  ← Group E number of simultaneously anomalous channels
+  fault_group_id              : int  ← {0–5} group regularizer for M7 tree splitting
+
+NOTE: fault_group_id is set from fault_rules_v3.json group metadata field.
+      It does NOT leak label information — group is broader than label.
+      If M7 SHAP top-1 = fault_group_id for ANY class → FAIL (label leakage).
 
 Label: 0–20 (21 classes, fault_rules_v3.json)
+Total columns: 26 (25 features + label_int)
 
 Output: M6B_feature_matrix.csv — ~189,000 rows × 26 columns → M7 input
 ```
@@ -542,34 +565,34 @@ Output: M6B_feature_matrix.csv — ~189,000 rows × 26 columns → M7 input
 | W4 | Group C: masked channel std < 0.001 confirmed | 100% | Flatline verification |
 | W5 | Group C: secondary channel detectable (MAE>0 on secondary) | ≥95% | Secondary path exists |
 | W6 | Group D16: burst_count ≥ 2 per sequence | 100% | Intermittent by definition |
-| W7 | Group D17: Pres.SV slope > 3× Group A seal_failure | 100% | “Fast” validated |
+| W7 | Group D17: Pres.SV slope > 3× Group A seal_failure | 100% | "Fast" validated |
 | W8 | Group D18: cyclic_baseline_drift > 0 | 100% | Rising baseline confirmed |
 | W9 | Group E: multi_sensor_anomaly_count = 2 | 100% | Dual degradation |
 | W10 | secondary_onset_lag in [30, 80] for all Group B | 100% | Physics plausible range |
 
-### M6.5r Outputs
+### M6.5r Planned Outputs (⚠️ NONE EXIST YET — written when M6.5r script runs)
 ```
 data/synthetic/M6B_feature_matrix.csv     ← ~189,000 rows × 26 cols → M7 input
 src/module_065r_feature_extractor.py      ← extended feature extraction script
 outputs/reports/module_065r_feature_extractor_report.md
 ```
 
-### M6.5r Paste Text Keys
+### M6.5r Paste Text Keys (⚠️ Populate AFTER script runs — do not fill in advance)
 ```
-M6p5r_rows                   : [~189,000]
+M6p5r_rows                   : [fill after run — target ~189,000]
 M6p5r_cols                   : 26 (25 features + label)
 M6p5r_labels                 : 21 (0–20, fault_rules_v3.json)
-M6p5r_gate_W1_pass           : PASS/FAIL
-M6p5r_gate_W2_pass           : PASS/FAIL
-M6p5r_gate_W3_pass           : PASS/FAIL
-M6p5r_gate_W4_pass           : PASS/FAIL
-M6p5r_gate_W5_pass           : PASS/FAIL
-M6p5r_gate_W6_to_W10_pass    : PASS/FAIL
+M6p5r_gate_W1_pass           : [PASS/FAIL]
+M6p5r_gate_W2_pass           : [PASS/FAIL]
+M6p5r_gate_W3_pass           : [PASS/FAIL]
+M6p5r_gate_W4_pass           : [PASS/FAIL]
+M6p5r_gate_W5_pass           : [PASS/FAIL]
+M6p5r_gate_W6_to_W10_pass    : [PASS/FAIL]
 M6p5r_masked_channel_pct     : [% Group C rows with masked_channel_flag=1]
 M6p5r_mean_secondary_lag     : [mean secondary_onset_lag for Group B]
 M6p5r_mean_burst_count       : [mean burst_count for Group D16]
 M6p5r_multi_sensor_count_2   : [% Group E rows with multi_sensor_anomaly_count=2]
-Status_for_M7                : READY
+Status_for_M7                : PENDING — populate after M6.5r script runs successfully
 ```
 
 ---
@@ -598,7 +621,7 @@ Status_for_M7                : READY
 
 ---
 
-## FILE STRUCTURE (Updated for M6B)
+## FILE STRUCTURE (M6B outputs marked PENDING — do not exist yet)
 
 ```
 PumpSmart_Project/
@@ -607,29 +630,29 @@ PumpSmart_Project/
 │   ├── raw/                           ← 9 original CSVs (never modified)
 │   ├── clean/                         ← M1 output
 │   ├── normalized/                    ← M3 output
-│   └── synthetic/                     ← M4 seeds + M6A archive + M6B active
-│       ├── M4_spike_seeds.npy         ← shape=(1044, 50, 8) — LOCKED
-│       ├── M4_spike_seeds_meta.csv
-│       ├── M4_spike_config.json       ← LOCKED winsor bounds
-│       ├── M6A_sequences.pkl          ← 8400 seq (archived, superseded)
-│       ├── M6A_sequence_meta.csv      ← archived
-│       ├── M6_feature_matrix.csv      ← M6.5 output (M6A, 8400×25) — archived
-│       ├── M6B_sequences_groupA.pkl   ← ACTIVE — Group A ~9000 seq
-│       ├── M6B_sequences_groupB.pkl   ← ACTIVE — Group B ~6000 seq
-│       ├── M6B_sequences_groupC.pkl   ← ACTIVE — Group C ~4800 seq
-│       ├── M6B_sequences_groupD.pkl   ← ACTIVE — Group D ~3600 seq
-│       ├── M6B_sequences_groupE.pkl   ← ACTIVE — Group E ~1600 seq
-│       ├── M6B_combined_sequences.pkl ← ALL groups → M8 fault validation pool
-│       ├── M6B_sequence_meta.csv      ← ACTIVE — 21-class metadata
-│       └── M6B_feature_matrix.csv     ← ACTIVE — ~189,000×26 → M7 input
+│   └── synthetic/                     ← M4 seeds + M6A archive + M6B PENDING
+│       ├── M4_spike_seeds.npy         ← shape=(1044, 50, 8) — LOCKED ✅ EXISTS
+│       ├── M4_spike_seeds_meta.csv    ← ✅ EXISTS
+│       ├── M4_spike_config.json       ← LOCKED winsor bounds ✅ EXISTS
+│       ├── M6A_sequences.pkl          ← 8400 seq (archived, superseded) ✅ EXISTS
+│       ├── M6A_sequence_meta.csv      ← archived ✅ EXISTS
+│       ├── M6_feature_matrix.csv      ← M6.5 output (M6A, 8400×25) ✅ EXISTS
+│       ├── M6B_sequences_groupA.pkl   ← ⏳ PENDING — created by M6B script
+│       ├── M6B_sequences_groupB.pkl   ← ⏳ PENDING — created by M6B script
+│       ├── M6B_sequences_groupC.pkl   ← ⏳ PENDING — created by M6B script
+│       ├── M6B_sequences_groupD.pkl   ← ⏳ PENDING — created by M6B script
+│       ├── M6B_sequences_groupE.pkl   ← ⏳ PENDING — created by M6B script
+│       ├── M6B_combined_sequences.pkl ← ⏳ PENDING — created by M6B script
+│       ├── M6B_sequence_meta.csv      ← ⏳ PENDING — created by M6B script
+│       └── M6B_feature_matrix.csv     ← ⏳ PENDING — created by M6.5r script
 ├── models/
-│   ├── lstm_ae_baseline_best.pth      ← M4 model (LOCKED)
-│   ├── M3_normalization_config.json   ← LOCKED baselines
-│   ├── M4_threshold_config.json       ← threshold=0.110058 (LOCKED)
-│   ├── fault_rules.json               ← M5 original 6-class (LOCKED — archived)
-│   ├── fault_rules_v3.json            ← 21-class label map (LOCKED — ACTIVE)
-│   ├── M5_physics_config.json
-│   └── unit_registry.json
+│   ├── lstm_ae_baseline_best.pth      ← M4 model (LOCKED) ✅ EXISTS
+│   ├── M3_normalization_config.json   ← LOCKED baselines ✅ EXISTS
+│   ├── M4_threshold_config.json       ← threshold=0.110058 (LOCKED) ✅ EXISTS
+│   ├── fault_rules.json               ← M5 original 6-class (LOCKED — archived) ✅ EXISTS
+│   ├── fault_rules_v3.json            ← ⏳ PENDING — written by M6B Step 3
+│   ├── M5_physics_config.json         ← ✅ EXISTS
+│   └── unit_registry.json             ← ✅ EXISTS
 ├── outputs/
 │   ├── reports/                       ← one .md per module
 │   └── plots/                         ← one set of plots per module
@@ -649,14 +672,14 @@ M4    LSTM-AE Baseline (v8)              : ✅ COMPLETED (2026-03-28)
 M5    Physics Engine                     : ✅ COMPLETED (2026-03-29)
 M6A   Synthetic Dataset (7-class)        : ✅ COMPLETED (2026-04-11) — SUPERSEDED by M6B
 M6.5  LSTM-AE Feature Extractor v2      : ✅ COMPLETED (2026-04-11) — LOCKED
-M6B   Expanded Synthetic (21-class)     : ✅ COMPLETED (2026-04-14) — ACTIVE
-M6.5r Updated Feature Extractor (M6B)   : ✅ COMPLETED (2026-04-14) — ACTIVE
-M7    XGBoost Fault Classifier (21-class): 🔲 NEXT ACTIVE — trains on M6B_feature_matrix.csv
-M8    LSTM-AE v2 + Fuzzy Logic           : 🔲 NOT STARTED — see module_M8_lstm_ae_v2_architecture.md
-M9    Pump Selector + Household Advisor  : 🔲 NOT STARTED
-M10   Flask Web Application              : 🔲 NOT STARTED
-M11   Docker + Hugging Face Deployment   : 🔲 NOT STARTED
-M12   Physics-Governed Validation Suite  : 🔲 NOT STARTED (post-M11)
+M6B   Expanded Synthetic (21-class)     : 🔴 NEXT ACTIVE — spec locked, script not yet run
+M6.5r Updated Feature Extractor (M6B)   : ⬜ NOT STARTED — blocked until M6B completes
+M7    XGBoost Fault Classifier (21-class): ⬜ NOT STARTED — awaits M6B + M6.5r output files
+M8    LSTM-AE v2 + Fuzzy Logic           : ⬜ NOT STARTED — see module_M8_lstm_ae_v2_architecture.md
+M9    Pump Selector + Household Advisor  : ⬜ NOT STARTED
+M10   Flask Web Application              : ⬜ NOT STARTED
+M11   Docker + Hugging Face Deployment   : ⬜ NOT STARTED
+M12   Physics-Governed Validation Suite  : ⬜ NOT STARTED (post-M11)
 ```
 
 ---
@@ -666,7 +689,8 @@ M12   Physics-Governed Validation Suite  : 🔲 NOT STARTED (post-M11)
 | Version | Date | Change |
 |---------|------|--------|
 | v1.0 | 2026-04-12 | Original monolithic file `completed_modules_M1_to_M6p5.md` — M1 through M6.5 |
-| v2.0 | 2026-04-15 | **SPLIT into Part 1 + Part 2.** Part 2 = M5–M6.5r (this file). Added: M6B 21-class dataset (Groups A–E), M6.5r 26-feature matrix, fault_rules_v3.json, 10 M6.5r gates, cross-module invariant 12 updated (M6B matrix). File structure updated for M6B active files. Progress tracker updated for M6B + M6.5r completed status. |
+| v2.0 | 2026-04-15 | SPLIT into Part 1 + Part 2. Added M6B 21-class spec, M6.5r 26-feature spec, fault_rules_v3.json, 10 M6.5r gates, cross-module invariant 12 updated. File structure updated. Progress tracker updated. |
+| v3.0 | 2026-04-15 | **CORRECTION:** M6B and M6.5r status corrected from false ✅ COMPLETED to 🔴 NEXT ACTIVE / ⬜ NOT STARTED. Group E label 20 corrected: sensor pair = Pres.SV + Pmp.TV (pump-side junction box moisture ingress), NOT Pmp.SV + Pmp.PV. Group B sequences corrected: 1,500 per class (not 1,200). Group E sequences corrected: ~1,000 per class. fault_rules_v3.json removed from M5 outputs (it is an M6B output). File structure PENDING markers added for all M6B/M6.5r output files. fault_group_id added to M6.5r feature list. M7 tracker corrected to ⬜ NOT STARTED. All paste key sections marked PENDING. |
 
 ---
 
