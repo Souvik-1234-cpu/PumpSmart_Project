@@ -1,108 +1,137 @@
 # PumpSmart — Module M7: XGBoost Fault Classifier
-## Static Multi-Label Fault Classification via LSTM-AE Feature Bridge
+## 21-Class Single-Label Fault Classification via M6.5r Feature Bridge
 
-**Document version:** v1.0 — Post Bias-Audit  
-**Date:** 2026-04-12  
-**Prerequisite:** M6.5 all gates passed | `M6_feature_matrix.csv` (10000 × 29) available  
-**Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)  
-**Status:** NOT STARTED — NEXT ACTIVE after M6A regeneration + M6B + M6.5 v3
+**Document version:** v2.0 — Architecture Update: 21-class, M6B_feature_matrix input
+**Date:** 2026-04-15
+**Prerequisite:** M6.5r all gates passed | `data/synthetic/M6B_feature_matrix.csv` (~189,000 × 26) available
+**Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)
+**Status:** NOT STARTED — ACTIVE after M6B + M6.5r complete
 
 ---
 
 ## Why M7 Runs Before M8
 
 ```
-M7 runs FIRST — it validates that the M6.5 feature matrix is
+M7 runs FIRST — it validates that the M6.5r feature matrix is
 physically meaningful before M8 uses it to calibrate fuzzy boundaries.
 
-If M7 SHAP is physically wrong → M6.5 features are corrupt →
-M8 fuzzy calibration will be wrong → fix M6.5 first, do not proceed to M8.
+If M7 SHAP is physically wrong → M6.5r features are corrupt →
+M8 fuzzy calibration will be wrong → fix M6.5r first, do not proceed to M8.
 
 This sequencing is NON-NEGOTIABLE.
 ```
 
 ---
 
-## What Changed Since Original M7 Spec (Bias-Audit Updates)
+## v1.0 → v2.0 Architecture Change Summary
 
-| Item | Original Spec | Revised Spec | Reason |
-|------|--------------|-------------|--------|
-| Input rows | 8400 (M6A only) | **10000** (M6A + M6B compound) | Bias 4 fix — compound faults |
-| Input columns | 25 (24 feat + label) | **29** (25 feat + label_vector + is_compound + fault_stage + severity) | M6B metadata |
-| Classifier type | Multi-class (single label) | **Multi-label** (MultiOutputClassifier) | Bias 4 fix |
-| Label column | single int 0–6 | primary `label` + `label_vector` (multi-hot) | Compound faults |
-| Sample weights | inverse class frequency | **inverse class freq × severity weight** | Bias 3 fix |
-| Severity weighting | None | `sample_weight = 1 / (severity + 0.1)` | Early-stage focus |
-| Output | single fault class | **primary fault + secondary faults + conf%** | Bias 1 fix |
-| Confidence gating | None | **75% threshold → Stage 1 / Stage 2 / Stage 3** | Bias 1 fix |
-| New feature used | — | `compound_interaction_flag` (feature 25 from M6.5) | Bias 4 |
-| SHAP | Global only | **Per-class SHAP beeswarm** (7 single + 4 compound) | Multi-label |
+| Item | v1.0 (OLD — INVALID) | v2.0 (CURRENT — USE THIS) | Reason |
+|------|----------------------|--------------------------|--------|
+| Input file | `M6_feature_matrix.csv` | **`M6B_feature_matrix.csv`** | M6B expanded dataset |
+| Input rows | 10,000 | **~189,000 windows** | Full windowed pool from ~27,000 sequences |
+| Input columns | 29 | **26** (25 features + label_int + label_str) | M6.5r fixed feature set |
+| Classes | 7 | **21** | Groups A+B+C+D+E |
+| Classifier type | Multi-label (MultiOutputClassifier) | **Single-label (XGBClassifier)** | Compound labels are unique class integers |
+| Label column | multi-hot label_vector | **label_int (0–20, single integer)** | Compound = own label, not multi-hot |
+| Compound handling | 2 simultaneous label outputs | **Unique compound label (e.g. label 7 = bearing_wear→overloading)** | M10 API maps label→display string |
+| Sample weights | inverse freq × severity | **inverse class frequency only** (severity is implicit in feature slopes) | Severity info is in features, not metadata |
+| Feature count | 25 (incl. compound_interaction_flag) | **25** (M6.5r Domain 1+2+3 fixed set) | Different feature set — see M6.5r spec |
+| SHAP output | Per-class beeswarm (7 classes) | **Per-group beeswarm (5 groups A–E)** | Group-level physics validation |
+| Confidence gating | 3-stage (0.50/0.75) | **3-state WATCH/WARN/FAULT** (M8 governs, M7 outputs raw proba only) | Clean separation M7=classify, M8=alert |
+
+> **v1.0 is INVALID.** Do not use any v1.0 numbers, gates, or script fragments.
+> All references in M8, M10, M12 must point to v2.0 spec.
 
 ---
 
 ## Input Specification
 
 ```
-File    : data/synthetic/M6_feature_matrix.csv
-Shape   : 10000 rows × 29 columns
+File    : data/synthetic/M6B_feature_matrix.csv
+Rows    : ~189,000 windows (from ~27,000 sequences × 7 windows each)
+Columns : 26 total
+  [0]      label_int    — int 0–20, target column
+  [1–8]   mae_MotPV, mae_MotSV, mae_MotTV, mae_PmpPV,
+            mae_PmpSV, mae_PmpTV, mae_TempSV, mae_PresSV
+  [9–17]  mean_err_MotSV, std_err_MotSV, kurtosis_PmpSV,
+            err_slope_MotSV, err_slope_TempSV, err_slope_PresSV,
+            thermal_coupling_ratio, cross_channel_MotSV_PmpSV, max_err_all
+  [18–24] secondary_channel_mae_max, secondary_onset_lag,
+            masked_channel_flag, variant_slope_ratio,
+            cyclic_baseline_drift, multi_sensor_anomaly_count,
+            fault_group_id
+  [25]     label_str    — string class name (metadata only, NOT a feature)
 
-Column layout:
-  [0–7]   mean_err_* per channel          (8 features)
-  [8–15]  max_err_* per channel           (8 features)
-  [16–20] temporal evolution features     (5 features)
-  [21–22] cross-channel features          (2 features)
-  [23]    fuzzy_fault_membership          (1 feature)
-  [24]    compound_interaction_flag       (1 feature)  ← NEW in M6.5 v3
-  [25]    label                           (int 0–6, primary fault)
-  [26]    label_vector                    (str → list, multi-hot [0,1,1,0,0,0,0])
-  [27]    is_compound                     (bool)
-  [28]    fault_stage                     (str: early/developing/advanced)
-  [29]    severity                        (float, from M6A/M6B metadata)
-
-Label mapping (primary fault):
-  0 = normal
-  1 = cavitation
-  2 = bearing_wear
-  3 = seal_failure
-  4 = overloading
-  5 = impeller_imbalance
-  6 = sensor_failure
-
-Compound label_vector layout:
-  [cavitation, bearing_wear, impeller_imbalance, seal_failure,
-   overloading, sensor_failure, normal]
-  Example: bearing_wear + seal_failure → [0, 1, 0, 1, 0, 0, 0]
+Feature columns for XGBoost : [1–24] — 25 features
+Target column               : label_int (0–20)
+Do NOT include label_str as a feature — string column, metadata only.
 ```
+
+### 21-Class Label Map (from fault_rules_v3.json)
+
+| Label | Class | Group |
+|-------|-------|-------|
+| 0 | normal | A |
+| 1 | bearing_wear | A |
+| 2 | impeller_imbalance | A |
+| 3 | cavitation | A |
+| 4 | seal_failure | A |
+| 5 | overloading | A |
+| 6 | sensor_failure | A |
+| 7 | bearing_wear→overloading | B (compound) |
+| 8 | cavitation→seal_failure | B (compound) |
+| 9 | impeller_imbalance→bearing_wear | B (compound) |
+| 10 | seal_failure→cavitation | B (compound) |
+| 11 | impeller_imbalance→cavitation | B (compound) |
+| 12 | bearing_wear_MotSV_masked | C (masked) |
+| 13 | cavitation_PresSV_masked | C (masked) |
+| 14 | overloading_TempSV_masked | C (masked) |
+| 15 | impeller_imbalance_PmpSV_masked | C (masked) |
+| 16 | cavitation_intermittent | D (severity variant) |
+| 17 | seal_failure_fast | D (severity variant) |
+| 18 | overloading_cyclic | D (severity variant) |
+| 19 | sensor_failure_2ch_thermal | E (multi-sensor) |
+| 20 | sensor_failure_2ch_pumpside | E (multi-sensor) |
+
+**Always load label map from `fault_rules_v3.json` — NEVER hardcode label strings.**
 
 ---
 
 ## Architecture
 
-### Multi-Label Design (Bias 4 Fix)
+### Single-Label Design Decision (Final)
+
+```
+WHY SINGLE-LABEL (not multi-label):
+
+Compound chain sequences (labels 7–11) are assigned UNIQUE INTEGER LABELS.
+bearing_wear→overloading = label 7 (not [label 1, label 5] simultaneously).
+
+Reasoning:
+  1. The compound chain is a DISTINCT pattern — temporal ordering of two signals
+     is fundamentally different from two random co-occurring faults.
+  2. A single integer label keeps M7 as a standard 21-way XGBoost classifier.
+     No MultiOutputClassifier, no label binarization, no calibration mismatch.
+  3. The compound interpretation (Primary → Secondary) lives in M10 API
+     label-to-display mapping, NOT in the classifier architecture.
+  4. SHAP over 21 scalar outputs is interpretable per class.
+     SHAP over 7 binary outputs with interaction flags is fragile.
+
+M10 API maps: label_int 7 → {"primary": "bearing_wear", "secondary": "overloading",
+                              "compound": true, "causal_chain": true}
+```
 
 ```python
-# WHY MULTI-LABEL:
-# Real pump faults cascade. One fault generates another.
-# A model that outputs ONE label is wrong when TWO are simultaneously active.
-# bearing_wear + seal_failure compound sequence:
-#   → must output [bearing_wear: 0.87, seal_failure: 0.61]
-#   NOT just → [bearing_wear: 0.87]
-
-from sklearn.multioutput import MultiOutputClassifier
 import xgboost as xgb
 
-# One binary XGBoost per fault class (7 classifiers)
-base_xgb = xgb.XGBClassifier(
-    objective     = 'binary:logistic',
-    device        = 'cuda',   # train on RTX 4060
-    eval_metric   = 'logloss',
-    use_label_encoder = False
+model = xgb.XGBClassifier(
+    objective          = 'multi:softprob',
+    num_class          = 21,
+    device             = 'cuda',      # RTX 4060 training
+    eval_metric        = 'mlogloss',
+    tree_method        = 'hist',
+    use_label_encoder  = False
 )
-model = MultiOutputClassifier(base_xgb, n_jobs=1)
-
-# Each classifier outputs P(fault_k=1) independently
-# Compound sequences train BOTH classifiers simultaneously
-# predict_proba returns list of 7 probability arrays
 ```
 
 ### Training Split
@@ -110,37 +139,28 @@ model = MultiOutputClassifier(base_xgb, n_jobs=1)
 ```python
 from sklearn.model_selection import train_test_split
 
-X = feature_matrix[feature_cols]           # shape (10000, 25)
-Y = label_matrix                           # shape (10000, 7)  multi-hot
+X = df[feature_cols]      # shape (~189,000, 25)
+y = df['label_int']       # shape (~189,000,)
 
-X_train, X_test, Y_train, Y_test = train_test_split(
-    X, Y,
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
     test_size    = 0.20,
-    stratify     = label_primary,          # stratify on primary label
+    stratify     = y,     # stratify on 21-class label
     random_state = 42
 )
 ```
 
-### Sample Weighting (Bias 3 Fix)
+### Sample Weighting
 
 ```python
-# WHY BOTH WEIGHTS:
-# 1. Inverse class frequency → balances underrepresented classes
-# 2. Severity weight       → early-stage sequences (hard to detect) get MORE weight
-#    Early fault (sev=0.1) → weight = 1/(0.1 + 0.1) = 5.0
-#    Severe fault (sev=1.0) → weight = 1/(1.0 + 0.1) = 0.91
-# Result: model trained HARDER on early-stage sequences
-#         which are the operationally critical cases
+# Inverse class frequency only — severity info is already in feature slopes
+import numpy as np
 
-class_freq   = Y_train.sum(axis=0) / len(Y_train)
-class_weight = 1.0 / (class_freq + 1e-6)
+class_counts = np.bincount(y_train, minlength=21)
+class_weight = 1.0 / (class_counts + 1e-6)
+class_weight /= class_weight.mean()     # normalize to unit mean
 
-# Per-sample severity weight
-sev_weight   = 1.0 / (X_train['severity'] + 0.1)
-
-# Combined per-sample weight
-sample_weight = sev_weight * class_weight[Y_train.values.argmax(axis=1)]
-sample_weight /= sample_weight.mean()     # normalize to unit mean
+sample_weight = class_weight[y_train.values]
 ```
 
 ### Hyperparameter Tuning
@@ -148,10 +168,10 @@ sample_weight /= sample_weight.mean()     # normalize to unit mean
 ```python
 import optuna
 
-# 50 trials, 5-fold stratified CV on primary label
+# 50 trials, 5-fold stratified CV on 21-class label
 # Search space:
 params = {
-    'n_estimators'     : optuna.suggest_int(100, 1000),
+    'n_estimators'     : optuna.suggest_int(200, 1500),
     'max_depth'        : optuna.suggest_int(3, 9),
     'learning_rate'    : optuna.suggest_float(0.01, 0.3, log=True),
     'subsample'        : optuna.suggest_float(0.6, 1.0),
@@ -161,258 +181,235 @@ params = {
     'reg_alpha'        : optuna.suggest_float(1e-4, 10.0, log=True),
     'reg_lambda'       : optuna.suggest_float(1e-4, 10.0, log=True),
 }
-# Objective: mean macro F1 across all 7 binary classifiers
+# Objective: macro F1 across all 21 classes
 ```
 
 ---
 
-## Progressive Confidence Output (Bias 1 Fix)
+## M7 Validation Gates — Per-Group Architecture (15 Gates)
 
-This is the output architecture that resolves the causal order uncertainty problem.
-A pressure drop at t=0 could be cavitation, seal failure, or sensor failure.
-The model must NOT hard-classify until confidence is sufficient.
-
-```python
-def classify_with_confidence(X_window, model, threshold=0.75):
-    """
-    Returns progressive output depending on confidence level.
-    """
-    proba = model.predict_proba(X_window)  # list of 7 arrays, each shape (n, 2)
-    fault_probs = {fault_names[i]: proba[i][0][1] for i in range(7)}
-
-    primary_fault = max(fault_probs, key=fault_probs.get)
-    primary_conf  = fault_probs[primary_fault]
-
-    # Secondary faults (compound) = any fault with prob > 0.30
-    secondary = {
-        k: v for k, v in fault_probs.items()
-        if v > 0.30 and k != primary_fault and k != 'normal'
-    }
-
-    if primary_conf < 0.50:
-        # Stage 1 — Low confidence: list top-3 possibilities only
-        top3 = sorted(fault_probs.items(), key=lambda x: -x[1])[:3]
-        return {
-            'stage'             : 1,
-            'message'           : 'Minor anomaly detected — multiple causes possible',
-            'top3_candidates'   : top3,
-            'action'            : 'Monitor all channels closely'
-        }
-
-    elif primary_conf < threshold:  # 0.50 – 0.75
-        # Stage 2 — Medium confidence: probable cause with secondary candidates
-        return {
-            'stage'             : 2,
-            'message'           : f'Probable fault: {primary_fault} ({primary_conf:.0%})',
-            'secondary_faults'  : secondary,
-            'action'            : 'Schedule inspection within 48h'
-        }
-
-    else:  # conf >= 0.75
-        # Stage 3 — High confidence: confirmed classification
-        return {
-            'stage'             : 3,
-            'message'           : f'CONFIRMED: {primary_fault} ({primary_conf:.0%})',
-            'secondary_faults'  : secondary,  # compound faults shown here
-            'fault_stage'       : X_window['fault_stage'],
-            'action'            : get_action(primary_fault, X_window['fault_stage'])
-        }
-
-def get_action(fault, stage):
-    urgency = {
-        'early'      : 'Schedule inspection within 72h',
-        'developing' : 'Schedule inspection within 24h',
-        'advanced'   : 'SHUTDOWN RECOMMENDED — immediate maintenance'
-    }
-    return urgency.get(stage, 'Inspect system')
-```
-
----
-
-## M6.5 Audit Findings Applied to M7
-
-### Finding 1 — Overloading (Gate 3 = 0.00%, MAE = 0.093)
+### Overall Gates
 
 ```
-Expected SHAP:
-  Rank 1 : mean_err_TempSV        (thermal dominant fault)
-  Rank 2 : err_slope_TempSV       (rising temperature trend)
-  Rank 3 : fuzzy_fault_membership (low MAE but fuzzy captures drift)
+GATE-M7-1 : Overall macro F1
+             > 0.82 across all 21 classes
+             Report single-fault (Group A) and per-group separately
+             Group B compound expected lower — document, do NOT hide
 
-Physics: ONLY Temp.SV and Mot.TV channels are elevated in overloading.
-XGBoost must exploit thermal features — NOT vibration features.
-
-SHAP PHYSICS FAIL if:
-  mean_err_MotSV or mean_err_PmpSV ranks ABOVE mean_err_TempSV for overloading
-  → model confusing overloading with vibration fault
-  → will misclassify overloading in high-ambient-temperature installations
+GATE-M7-2 : No single class F1 below floor
+             All 21 classes F1 > 0.70
+             If any class < 0.70 → BLOCK M8 until investigated
 ```
 
-### Finding 2 — Seal Failure (Gate 3 = 29.17%, MAE = 0.196)
+### Group A — Single-Source Gates
 
 ```
-Expected SHAP:
-  Rank 1 : err_slope_PresSV (NEGATIVE slope)  (monotonic pressure decline)
-  Rank 2 : thermal_decoupling_flag             (r = -0.013 confirmed M5)
-  Rank 3 : pres_monotonic_flag
+GATE-M7-3 : Cavitation F1 > 0.88
+             Safety-critical — hydraulic shock. MAE 6.1× threshold.
+             Missed cavitation = impeller pitting within 60–180s of onset.
 
-Key distinction from cavitation:
-  Cavitation  → kurtosis HIGH (chaotic pressure) + thermal decoupling MODERATE
-  Seal failure → kurtosis LOW  (monotonic decline) + thermal decoupling STRONG
+GATE-M7-4 : Sensor failure F1 > 0.90
+             Single-channel isolated anomaly. Easiest class.
+             Fail = masked_channel_flag or multi_sensor_anomaly_count corrupted.
 
-SHAP PHYSICS FAIL if:
-  max_err_PresSV (spike feature) ranks ABOVE err_slope_PresSV for seal_failure
-  → model confusing seal failure with cavitation
-  → seal failure missed until catastrophic pressure loss
-```
+GATE-M7-5 : Seal–cavitation confusion rate < 5%
+             Both are pressure faults — highest-risk confusion pair in deployment.
+             If > 5%: verify kurtosis_PmpSV and err_slope_PresSV computed correctly.
 
-### Finding 3 — Bearing Seam Discontinuity (5.75% flagged sequences)
-
-```
-err_onset_lag must discriminate bearing_wear from impeller_imbalance:
-  Bearing wear    → gradual onset → err_onset_lag HIGH (fault develops slowly)
-  Impeller imbal  → immediate onset → err_onset_lag LOW (instantaneous imbalance)
-
-Verification:
-  err_onset_lag must reference t=0 of the 200-step sequence
-  NOT t=49–50 (the seam between spike seed and M5 physics continuation)
-  If computed relative to seam → bearing onset_lag = 0 always → useless feature
-```
-
-### Finding 4 — Fisher Rank 1 = PmpSV_mean
-
-```
-mean_err_PmpSV → expected SHAP rank 1 for: bearing_wear, cavitation, impeller_imbalance
-Mot_SV features → expected top-3 for bearing_wear (vibration propagation motor-side)
-
-Fisher rank 1 confirms Pmp.SV is the dominant fault discriminator for vibration classes.
-If XGBoost SHAP contradicts Fisher rank → M6.5 feature extraction has a bug.
-→ Investigate before proceeding to M8.
-```
-
-### Finding 5 — Cavitation (MAE = 0.675, always acute)
-
-```
-Expected SHAP:
-  Rank 1 : mean_err_PmpSV          (hydraulic shock → pump vibration dominant)
-  Rank 2 : kurtosis_err_PresSV     (chaotic pressure — NOT monotonic)
-  Rank 3 : thermal_decoupling_flag (r = 0.376 weak — hydraulic not thermal)
-
-Cavitation is easiest to classify — MAE 6.1× above threshold.
-Expect F1 > 0.88 without difficulty.
-Risk: cavitation dominating overall accuracy metrics — report per-class separately.
-```
-
----
-
-## Expected SHAP Top-3 Per Fault (Full Reference Table)
-
-| Fault Class | Expected SHAP Rank 1 | Expected SHAP Rank 2 | Expected SHAP Rank 3 | Physics Basis |
-|-------------|---------------------|---------------------|---------------------|---------------|
-| cavitation | mean_err_PmpSV | kurtosis_err_PresSV | thermal_decoupling_flag | Hydraulic shock + chaotic pressure + no thermal |
-| bearing_wear | mean_err_PmpSV | err_slope_MotSV | corr_delta_PmpSV_PresSV | Vibration propagation + gradual rise + coupling shift |
-| seal_failure | err_slope_PresSV | thermal_decoupling_flag | pres_monotonic_flag | Monotonic pressure decline + hydraulic fault |
-| overloading | mean_err_TempSV | err_slope_TempSV | fuzzy_fault_membership | Thermal dominant — only temperature channels elevated |
-| impeller_imbalance | mean_err_PmpSV | err_auc_primary | err_onset_lag (LOW) | Immediate high-energy BPF vibration |
-| sensor_failure | max_err (one channel) | all others ≈00 | compound_interaction_flag ≈00 | Single channel isolated flatline/spike |
-| normal | fuzzy_fault_membership (near 0) | all mean_err near 0 | — | No fault signal |
-| **COMPOUND: bearing+seal** | compound_interaction_flag | err_slope_PresSV | err_slope_MotSV | Spearman offset between Mot.SV and Pres.SV errors at causal_lag |
-| **COMPOUND: cavitation+imbalance** | compound_interaction_flag | mean_err_PmpSV | kurtosis_err_PresSV | Hydraulic onset then BPF growth |
-
----
-
-## M7 Validation Gates (10 Gates)
-
-```
-GATE-M7-1 : Overall accuracy
-             > 85% on test set (stratified split)
-             Report single-fault and compound-fault accuracy SEPARATELY
-             Compound accuracy expected lower — document, do not hide
-
-GATE-M7-2 : Per-class F1 (all 7 primary classes)
-             > 0.80 for ALL classes
-             Document any class below 0.80 — investigate before M8
-
-GATE-M7-3 : Cavitation F1
-             > 0.88 (safety-critical — hydraulic shock)
-             Missed cavitation = impeller pitting within 60–180s of onset
-
-GATE-M7-4 : Sensor failure F1
-             > 0.92 (single-channel flatline — easiest class)
-             Fail = M6.5 compound_interaction_flag corrupted single-fault sequences
-
-GATE-M7-5 : SHAP physically causal
-             Top-3 features per fault class MUST match physics mapping table above
-             SHAP computed via SHAP TreeExplainer on X_test
-             Report: actual rank 1–3 features per class vs expected
-
-GATE-M7-6 : TV dominance check
-             Mot.TV or Pmp.TV must NOT appear in top-3 SHAP for:
-               bearing_wear or impeller_imbalance
-             (TV channels = placement-dependent contact thermometer)
-             (Must not dominate vibration fault classification)
-             (Will fail on installations with different casing geometry)
-
-GATE-M7-7 : Overloading SHAP thermal dominance
+GATE-M7-6 : Overloading SHAP thermal dominance
              mean_err_TempSV SHAP value > mean_err_MotSV SHAP value
-             for the overloading class specifically
-             (thermal cause must rank above vibration — Finding 1)
+             for overloading class specifically.
+             Thermal cause MUST rank above vibration.
+             Fail = model confusing overloading with mechanical fault.
+```
 
-GATE-M7-8 : Seal failure SHAP type check
-             slope/monotonic feature SHAP value > max/spike feature SHAP value
-             for the seal_failure class specifically
-             (monotonic pressure decline — NOT spike character like cavitation)
-             Distinguishes seal from cavitation (both are pressure faults)
+### Group B — Compound Chain Gates
 
-GATE-M7-9 : Bearing thermal lag SHAP order
-             err_slope_MotSV SHAP rank ABOVE mean_err_MotTV for bearing_wear
-             Physics: vibration rises 20–40 steps BEFORE thermal effect
-             FAIL = model detecting thermal consequence, not mechanical cause
-             → will misclassify on high-ambient field installations
+```
+GATE-M7-7 : Group B macro F1 > 0.72
+             Lower target than Group A — compound patterns are harder.
+             Report per-compound-class F1 individually.
 
-GATE-M7-10: Seal–cavitation confusion rate
-             < 5% of seal_failure test samples predicted as cavitation
-             < 5% of cavitation test samples predicted as seal_failure
-             (Both are pressure faults — highest risk confusion pair in deployment)
-             If > 5%: verify kurtosis_err_PresSV computed correctly in M6.5
+GATE-M7-8 : secondary_onset_lag SHAP rank 1 or 2 for ALL Group B classes
+             This is the primary discriminator between compound and single-source.
+             If secondary_onset_lag not in top-2 → M6.5r secondary_onset_lag
+             computation is wrong → BLOCK → fix M6.5r, re-run.
+
+GATE-M7-9 : secondary_channel_mae_max SHAP rank ≤4 for ALL Group B classes
+             Secondary channel contribution must be visible to the model.
+             Fail = compound sequences have inadequate secondary signal strength.
+```
+
+### Group C — Masked Fault Gates
+
+```
+GATE-M7-10 : Group C macro F1 > 0.68
+              Hardest group — primary detector absent.
+              Lower F1 target accepted but must be documented.
+
+GATE-M7-11 : masked_channel_flag SHAP rank 1 for ALL Group C classes
+              This binary flag is the primary discriminator for masked faults.
+              If not rank 1 → masked_channel_flag logic in M6.5r is broken.
+              Fail = secondary-signal path cannot be relied on in deployment.
+
+GATE-M7-12 : Hard case check — seal_failure_PresSV_drifting
+              If included: F1 for this class reported separately.
+              F1 < 0.60 → remove from training pool, add to M12 adversarial only.
+              F1 >= 0.60 → keep in pool, flag as low-confidence in M10 output.
+```
+
+### Group D — Severity Variant Gates
+
+```
+GATE-M7-13 : Group D macro F1 > 0.75
+              Variants share base fault physics but differ in progression shape.
+
+GATE-M7-14 : variant_slope_ratio SHAP in top-3 for cavitation_intermittent
+              and seal_failure_fast classes.
+              cyclic_baseline_drift SHAP in top-3 for overloading_cyclic.
+              Fail = model not exploiting progression-shape features.
+```
+
+### Group E — Multi-Sensor Failure Gates
+
+```
+GATE-M7-15 : multi_sensor_anomaly_count SHAP rank 1 for BOTH Group E classes
+              Count of simultaneously anomalous channels = primary discriminator.
+              Fail = model conflating multi-sensor failure with compound faults.
+```
+
+---
+
+## Expected SHAP Top-3 Per Group (Physics Reference Table)
+
+### Group A — Single-Source
+
+| Class | SHAP Rank 1 | SHAP Rank 2 | SHAP Rank 3 | Physics Basis |
+|-------|------------|------------|------------|---------------|
+| cavitation | `kurtosis_PmpSV` | `mae_PmpSV` | `err_slope_PresSV` (negative) | Hydraulic shock impulses + chaotic pressure |
+| bearing_wear | `mae_MotSV` | `err_slope_MotSV` | `thermal_coupling_ratio` | Paris law fatigue + motor vibration rise |
+| seal_failure | `err_slope_PresSV` | `mae_PresSV` | `thermal_coupling_ratio` (low) | Monotonic pressure decline + thermal decoupling |
+| overloading | `mean_err_TempSV` (via mae_TempSV) | `err_slope_TempSV` | `mae_MotTV` | Thermal dominant — ONLY temperature channels |
+| impeller_imbalance | `mae_PmpSV` | `cross_channel_MotSV_PmpSV` | `mae_PmpPV` | BPF broadband + coupled vibration |
+| sensor_failure | `masked_channel_flag` | `max_err_all` | `multi_sensor_anomaly_count` (=1) | Single isolated channel anomaly |
+| normal | all features near zero | `fault_group_id` = 0 | — | No fault signal |
+
+### Group B — Compound Chains
+
+| Class | SHAP Rank 1 | SHAP Rank 2 | SHAP Rank 3 | Physics Basis |
+|-------|------------|------------|------------|---------------|
+| bearing_wear→overloading | `secondary_onset_lag` | `err_slope_TempSV` | `secondary_channel_mae_max` | Temporal lag then thermal runaway |
+| cavitation→seal_failure | `secondary_onset_lag` | `mae_PmpSV` | `err_slope_PresSV` | PmpSV spikes first → PresSV decline |
+| impeller_imbalance→bearing_wear | `secondary_onset_lag` | `mae_PmpSV` | `mae_MotSV` | BPF first → MotSV exponential after lag |
+| seal_failure→cavitation | `secondary_onset_lag` | `err_slope_PresSV` | `kurtosis_PmpSV` | PresSV decline → PmpSV spikes after lag |
+| impeller_imbalance→cavitation | `secondary_onset_lag` | `mae_PmpSV` | `kurtosis_PmpSV` | BPF → NPSHa drop → bubble collapse |
+
+**SHAP FAIL condition:** If `fault_group_id` is rank 1 for ANY Group B class → label leakage.
+Investigate `fault_group_id` derivation in M6.5r before proceeding to M8.
+
+### Group C — Masked Faults
+
+| Class | SHAP Rank 1 | SHAP Rank 2 | SHAP Rank 3 | Physics Basis |
+|-------|------------|------------|------------|---------------|
+| bearing_wear_MotSV_masked | `masked_channel_flag` | `mae_MotTV` | `mae_TempSV` | MotSV absent; thermal secondary path carries signal |
+| cavitation_PresSV_masked | `masked_channel_flag` | `mae_PmpSV` | `kurtosis_PmpSV` | PresSV absent; PmpSV spikes remain |
+| overloading_TempSV_masked | `masked_channel_flag` | `mae_MotTV` | `err_slope_MotSV` (weak) | TempSV absent; MotTV r=0.997 coupling carries signal |
+| impeller_imbalance_PmpSV_masked | `masked_channel_flag` | `mae_PmpPV` | `cross_channel_MotSV_PmpSV` | PmpSV absent; PmpPV + coupling path |
+
+### Group D — Severity Variants
+
+| Class | SHAP Rank 1 | SHAP Rank 2 | SHAP Rank 3 | Physics Basis |
+|-------|------------|------------|------------|---------------|
+| cavitation_intermittent | `variant_slope_ratio` | `kurtosis_PmpSV` | `mae_PmpSV` | On-off NPSHa crossing — spike bursts appear/vanish |
+| seal_failure_fast | `err_slope_PresSV` | `variant_slope_ratio` | `mae_PresSV` | PresSV drops in ≤20 steps vs slow seal failure |
+| overloading_cyclic | `cyclic_baseline_drift` | `err_slope_TempSV` | `mae_TempSV` | Sawtooth with rising baseline — not monotonic |
+
+### Group E — Multi-Sensor Failure
+
+| Class | SHAP Rank 1 | SHAP Rank 2 | SHAP Rank 3 | Physics Basis |
+|-------|------------|------------|------------|---------------|
+| sensor_failure_2ch_thermal | `multi_sensor_anomaly_count` | `mae_MotTV` | `mae_TempSV` | Both thermal channels anomalous; vibration/pressure normal |
+| sensor_failure_2ch_pumpside | `multi_sensor_anomaly_count` | `mae_PresSV` | `mae_PmpTV` | Both pump-side sensors fail; motor-side normal |
+
+---
+
+## M6.5 Audit Findings Applied to M7 v2.0
+
+### Finding 1 — Overloading Thermal-Dominant (Gate 3 = 0.00%)
+
+```
+Observation: overloading MAE = 0.093 — sub-threshold in M4.
+M7 implication: XGBoost WILL classify overloading correctly via
+  mae_TempSV + err_slope_TempSV (Fisher rank 3+5 from M6.5 original).
+  Classification works even when anomaly detection misses it.
+
+Gate-M7-6 enforces this: mean_err_TempSV SHAP > mean_err_MotSV SHAP
+for overloading. If this fails → M6.5r thermal feature extraction is wrong.
+```
+
+### Finding 2 — Seal Failure Slow Hydraulic (Gate 3 = 29.17%)
+
+```
+M7 implication: err_slope_PresSV (negative slope over 50-step window)
+is the primary M7 discriminator for seal_failure.
+Gate-M7-5 enforces < 5% confusion with cavitation.
+Key distinction:
+  cavitation  → kurtosis HIGH (chaotic spikes) + slope erratic
+  seal_failure → kurtosis LOW (smooth decline) + slope consistently negative
+```
+
+### Finding 3 — Bearing Seam Discontinuity (94.25% coherence)
+
+```
+M7 implication: err_slope_MotSV computed over 50-step windows is robust
+to the t=49→50 seam because windows starting after step 50 see clean M5
+physics continuation. Windows crossing the seam are a minority.
+Monitor: confusion between bearing_wear (label 1) and
+bearing_wear→overloading compound (label 7) on seam-windows.
+```
+
+### Finding 5 — Cavitation Always Acute
+
+```
+Cavitation MAE = 0.675 (6.1× threshold).
+M7 F1 gate > 0.88 is conservative — expect closer to 0.95.
+Risk: cavitation dominating macro F1 and masking weaker classes.
+REPORT per-group F1 separately. Do NOT report only macro F1.
 ```
 
 ---
 
 ## Adaptive Actions After M7
 
-| M7 Result | Trigger | Action Before M8 |
-|-----------|---------|------------------|
-| Overloading F1 < 0.80 | Thermal features insufficient | Verify `err_slope_TempSV` computed over full 200 steps in M6.5 |
-| Seal–cavitation confusion > 5% | Both pressure faults | Add `onset_speed` feature: fast onset (t<10) = cavitation, slow (t>50) = seal |
-| Bearing–imbalance confusion > 5% | Both vibration faults | Verify `err_onset_lag` references t=0, not seam t=49–50 in M6.5 |
-| SHAP TV dominance detected | Low-weight channels leaking | Flag for M8: reduce Mot.TV weight 0.3 → 0.1 |
-| Gate M7-9 fails (thermal lag wrong) | Thermal over-reliance | Flag for M8: vibration channels must dominate hard constraint |
-| Gate M7-8 fails (seal SHAP type) | Slope vs spike confusion | Verify `pres_monotonic_flag` computed over full 200-step sequence in M6.5 |
-| Compound F1 < 0.70 | compound_interaction_flag not discriminating | Verify Spearman lag shift implemented correctly in M6.5 |
-| Gate M7-5 SHAP wrong for all classes | Feature matrix corrupted | Re-run M6.5 v3 entirely, check M4 inference runs on correct window size (50) |
+| M7 Result | Gate | Action Before M8 |
+|-----------|------|------------------|
+| Overloading F1 < 0.70 | G-M7-2 | Verify `err_slope_TempSV` computed over full 50-step window in M6.5r |
+| Seal–cavitation confusion > 5% | G-M7-5 | Verify `kurtosis_PmpSV` (spike char) and `err_slope_PresSV` (slope) both in features |
+| `secondary_onset_lag` not rank 1–2 for Group B | G-M7-8 | BLOCK — fix M6.5r secondary_onset_lag computation; re-run |
+| `masked_channel_flag` not rank 1 for Group C | G-M7-11 | BLOCK — fix M6.5r masked_channel_flag logic; re-run |
+| `multi_sensor_anomaly_count` not rank 1 for Group E | G-M7-15 | Check Gate G11 pass rate in M6B Step 3 — may be generation issue |
+| `fault_group_id` rank 1 for ANY class | SHAP FAIL | BLOCK — label leakage in M6.5r fault_group_id derivation |
+| Group B F1 < 0.72 | G-M7-7 | Increase compound sequences in M6B Step 1 (target 2,000 → 2,500 per class) |
+| Group C F1 < 0.68 | G-M7-10 | Increase masked sequences in M6B Step 2; verify G10 secondary signal strength |
+| Gate G-M7-12 seal hard case F1 < 0.60 | Hard case | Remove from training pool; retain in M12 adversarial config only |
+| All gates pass | — | Proceed to M8 — write M8 ready status in paste text |
 
 ---
 
 ## M7 Outputs
 
 ```
-models/xgboost_fault_classifier.json        ← cuda-trained model (train/eval only)
-models/xgboost_fault_classifier_cpu.json    ← cpu-converted for M10 Flask deployment
-outputs/M7_shap_global.png                  ← global feature importance all classes
-outputs/M7_shap_per_class/
-    M7_shap_cavitation.png
-    M7_shap_bearing_wear.png
-    M7_shap_seal_failure.png
-    M7_shap_overloading.png
-    M7_shap_impeller_imbalance.png
-    M7_shap_sensor_failure.png
-    M7_shap_compound_bearing_seal.png
-    M7_shap_compound_cavitation_imbalance.png
-outputs/M7_confusion_matrix.png             ← primary label only
-outputs/M7_confusion_matrix_compound.png    ← compound pairs only
-outputs/M7_per_class_f1.png
-outputs/M7_confidence_distribution.png      ← histogram of primary_conf per class
+models/M7_xgboost_classifier.json          ← cuda-trained (21-class)
+models/M7_xgboost_classifier_cpu.json      ← cpu-converted for M10 Flask deployment
+outputs/M7_shap_group_A.png                ← Group A beeswarm (7 classes)
+outputs/M7_shap_group_B.png                ← Group B beeswarm (5 compound classes)
+outputs/M7_shap_group_C.png                ← Group C beeswarm (4 masked classes)
+outputs/M7_shap_group_D.png                ← Group D beeswarm (3 variant classes)
+outputs/M7_shap_group_E.png                ← Group E beeswarm (2 multi-sensor classes)
+outputs/M7_confusion_matrix_21class.png    ← full 21×21 confusion matrix
+outputs/M7_confusion_matrix_group.png      ← 5×5 group-level confusion
+outputs/M7_per_class_f1.png                ← bar chart, 21 classes
+outputs/M7_per_group_f1.png                ← bar chart, 5 groups
 outputs/reports/module_07_xgboost_report.md
 ```
 
@@ -421,31 +418,38 @@ outputs/reports/module_07_xgboost_report.md
 ## M7 Paste Text Keys
 
 ```
-M7_accuracy                       : [% — gate > 85%]
-M7_accuracy_single_fault          : [% — on 8400 single-fault test rows]
-M7_accuracy_compound              : [% — on 1600 compound test rows, expected lower]
-M7_f1_normal                      : [value]
-M7_f1_cavitation                  : [value — gate > 0.88]
-M7_f1_bearing_wear                : [value]
-M7_f1_seal_failure                : [value]
-M7_f1_overloading                 : [value — document if < 0.80]
-M7_f1_impeller_imbalance          : [value]
-M7_f1_sensor_failure              : [value — gate > 0.92]
-M7_shap_rank1_cavitation          : [feature — expected mean_err_PmpSV]
-M7_shap_rank1_bearing             : [feature — expected mean_err_PmpSV]
-M7_shap_rank1_overloading         : [feature — expected mean_err_TempSV]
-M7_shap_rank1_seal_failure        : [feature — expected err_slope_PresSV]
-M7_shap_rank1_imbalance           : [feature — expected mean_err_PmpSV]
-M7_shap_rank1_sensor_failure      : [feature — expected max_err single channel]
-M7_gate_tv_dominance              : PASS/FAIL
-M7_gate_bearing_thermal_lag       : PASS/FAIL
-M7_gate_seal_cavitation_confusion : [% — gate < 5%]
-M7_gate_compound_interaction_shap : PASS/FAIL (top-3 for compound classes)
-M7_confidence_threshold           : 0.75 (locked)
-M7_stage1_pct                     : [% of test samples returning Stage 1 output]
-M7_stage3_pct                     : [% of test samples returning Stage 3 output]
-M7_all_10_gates_pass              : True/False
-Status_for_M8                     : READY/BLOCKED
+M7_input_file                        : data/synthetic/M6B_feature_matrix.csv
+M7_n_classes                         : 21
+M7_n_features                        : 25
+M7_n_windows_train                   : [fill]
+M7_n_windows_test                    : [fill]
+M7_macro_f1_all21                    : [fill — gate > 0.82]
+M7_macro_f1_group_A                  : [fill]
+M7_macro_f1_group_B                  : [fill — gate > 0.72]
+M7_macro_f1_group_C                  : [fill — gate > 0.68]
+M7_macro_f1_group_D                  : [fill — gate > 0.75]
+M7_macro_f1_group_E                  : [fill — gate > group A expected]
+M7_f1_cavitation                     : [fill — gate > 0.88]
+M7_f1_sensor_failure                 : [fill — gate > 0.90]
+M7_f1_overloading                    : [fill — document if < 0.80]
+M7_f1_seal_failure                   : [fill]
+M7_f1_bearing_wear                   : [fill]
+M7_f1_impeller_imbalance             : [fill]
+M7_shap_rank1_bearing_wear           : [fill — expected mae_MotSV]
+M7_shap_rank1_cavitation             : [fill — expected kurtosis_PmpSV]
+M7_shap_rank1_seal_failure           : [fill — expected err_slope_PresSV]
+M7_shap_rank1_overloading            : [fill — expected mae_TempSV related]
+M7_shap_rank1_compound_classes       : [fill — expected secondary_onset_lag]
+M7_shap_rank1_masked_classes         : [fill — expected masked_channel_flag]
+M7_shap_rank1_multisensor_classes    : [fill — expected multi_sensor_anomaly_count]
+M7_gate_fault_group_id_leakage       : PASS/FAIL
+M7_gate_overloading_thermal_shap     : PASS/FAIL
+M7_gate_seal_cav_confusion           : [% — gate < 5%]
+M7_gate_secondary_onset_lag_rank     : PASS/FAIL
+M7_gate_masked_channel_flag_rank     : PASS/FAIL
+M7_gate_multisensor_count_rank       : PASS/FAIL
+M7_all_15_gates_pass                 : True/False
+Status_for_M8                        : READY/BLOCKED
 ```
 
 ---
@@ -454,29 +458,30 @@ Status_for_M8                     : READY/BLOCKED
 
 ```
 UPSTREAM (required before M7):
-  M6A regenerated (Weibull severity + fault_stage + severity columns)
-  M6B complete    (1600 compound sequences + multi-hot metadata)
-  M6.5 v3 run    (10000 × 29 feature matrix with compound_interaction_flag)
-  M6.5 all gates PASS
+  M6B Step 1–3 complete — M6B_combined_sequences.pkl written
+  M6.5r all gates W1–W3, F1, D1–D3 PASS
+  M6B_feature_matrix.csv written (~189,000 × 26)
+  fault_rules_v3.json written by M6B Step 3 (LOCKED)
 
 DOWNSTREAM (M7 outputs feed into):
   M8  → M7 SHAP validation is PREREQUISITE gate before M8 starts
-  M10 → xgboost_fault_classifier_cpu.json loaded in Flask classify route
-  M10 → M7 progressive confidence output dict is Flask API response schema
+  M10 → M7_xgboost_classifier_cpu.json loaded in Flask /classify route
+  M10 → label_int 0–20 mapped to display strings via fault_rules_v3.json
+  M12 → M7 per-class F1 used as baseline for adversarial degradation test
 ```
 
 ---
 
 ## Cross-Module Invariants Relevant to M7
 
-1. XGBoost: `device='cuda'` for training, `device='cpu'` for M10 deployment
-2. Save model: `model.save_model('xgboost_fault_classifier.json')`
-3. M7 trains on `M6_feature_matrix.csv` — NEVER on raw sequences `(200, 8)`
-4. `predict_proba()` output used — NOT `predict()` — for confidence gating
+1. `device='cuda'` for XGBoost training; `device='cpu'` for M10 deployment
+2. `model.save_model('M7_xgboost_classifier.json')` — JSON format only
+3. M7 trains on `M6B_feature_matrix.csv` — NEVER on raw sequences `(200, 8)`
+4. `predict_proba()` output used — NOT `predict()` — raw probabilities to M8
 5. SHAP computed on `X_test` not `X_train` — test-set SHAP only
-6. Compound sequences included in BOTH train and test sets
-7. `fault_stage` and `severity` columns are metadata only — NOT features for XGBoost
-8. `label_vector` column is training target — parse from string to list before fitting
+6. Label strings always resolved via `fault_rules_v3.json` — NEVER hardcoded
+7. `fault_group_id` and `label_str` are metadata — NOT XGBoost features
+8. M8 governs WATCH/WARN/FAULT states — M7 outputs raw `predict_proba` only
 
 ---
 
@@ -484,11 +489,13 @@ DOWNSTREAM (M7 outputs feed into):
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.0 | 2026-04-12 | Standalone file created — split from modules_M7_M8_critical_ML.md. All bias-audit updates incorporated: multi-label, severity weighting, progressive confidence, compound SHAP gates |
+| v1.0 | 2026-04-12 | Original: 7-class multi-label, 10,000 × 29, MultiOutputClassifier |
+| v2.0 | 2026-04-15 | **FULL REWRITE**: 21-class single-label, ~189,000 × 26 windows, XGBClassifier, per-group F1 gates (A–E), SHAP per-group, M6.5r input. v1.0 is INVALID. |
 
 ---
 
-**Derived from:** `modules_M7_M8_critical_ML.md` v1.0 + bias-audit discussion 2026-04-12  
-**Next file:** `module_M8_lstm_ae_v2.md`  
-**Pump:** 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head — CIRA SACIP dataset  
-**Standard:** ISO 10816-3 vibration, ISO 13373-3 condition monitoring
+*GitHub is the ONLY source of truth for this spec.*
+*Do NOT reference any Spaces .md pathway files — all outdated.*
+*Next file to update: `module_M8_lstm_ae_v2.md`*
+*Pump: 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head — CIRA SACIP dataset*
+*Standard: ISO 10816-3 vibration, ISO 13373-3 condition monitoring*
