@@ -1,10 +1,27 @@
+# ⛔ SUPERSEDED — DO NOT USE FOR SCRIPTING
+
+> **This file is the original pre-audit M6 combined specification (v1.0, 2026-04-12).**
+> It describes M6B as 4 compound pairs × 400 sequences = 1,600 sequences (multi-hot labels)
+> and M6.5 as a 10,000 × 29 column matrix. **Both are architecturally obsolete.**
+>
+> **Current architecture (v12.0):**
+> - M6B = 21 classes (labels 0–20), ~25,000–27,000 sequences, Groups A–E, single-label
+> - M6.5r = ~189,000 rows × 26 columns (windowed), output = `M6B_feature_matrix.csv`
+> - M7 input = `M6B_feature_matrix.csv` (~189,000 × 26), 21 classes
+>
+> **Canonical source of truth:** [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md) (Part 2)
+>
+> This file is retained for historical audit trail only. **Do not reference for any script generation.**
+
+---
+
 # PumpSmart — Module M6 Complete Specification
 ## Synthetic Data Generation Pipeline: M6A → M6B → M6.5
 
 **Document version:** v1.0 — Post Bias-Audit  
 **Date:** 2026-04-12  
 **Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)  
-**Status:** M6A REGENERATION REQUIRED | M6B NEW | M6.5 SIGNIFICANT CHANGES
+**Status:** ~~M6A REGENERATION REQUIRED | M6B NEW | M6.5 SIGNIFICANT CHANGES~~ → **ALL SUPERSEDED BY v12.0**
 
 ---
 
@@ -545,8 +562,7 @@ Step 4: Verify M6.5 gates pass → Status: READY for M7
 | Version | Date | Change |
 |---------|------|--------|
 | v1.0 | 2026-04-12 | Initial document — post bias-audit architecture discussion |
-
-*Next update: After M6A regeneration run — lock new severity distribution results.*
+| SUPERSEDED | 2026-04-15 | v12.0 architecture: 21 classes, ~27k seqs, M6.5r=~189k×26. Canonical: completed_modules_M5_to_M6p5r.md |
 
 ---
 
