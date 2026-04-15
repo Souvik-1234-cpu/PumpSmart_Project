@@ -1,11 +1,33 @@
+# ⛔ SUPERSEDED — DO NOT USE FOR SCRIPTING
+
+> **This file is the original M6B architecture specification (v1.0, 2026-04-15).**
+> It contains stale sequence counts, group sizes, and module-pathway status that have been superseded by the v12.0 architecture.
+>
+> **Current architecture (v12.0) actuals:**
+> - M6B = 21 classes (labels 0–20), **~25,000–27,000 total sequences** (Groups A–E combined)
+> - Group B = 5 compound chain classes (labels 7–11), ~1,200 sequences each
+> - Group C = 4 masked fault classes (labels 12–15), ~800 sequences each
+> - Group D = 3 severity variant classes (labels 16–18), ~600 sequences each
+> - Group E = 2 multi-sensor failure classes (labels 19–20), ~400 sequences each
+> - All sequences are 200-step; longer-lag compounds clipped to 200-step windows in M6.5r
+> - M6B ✅ COMPLETE 2026-04-14
+> - M6.5r ✅ COMPLETE 2026-04-14 → output: `M6B_feature_matrix.csv` (~189,000 × 26)
+> - M7 🔴 NEXT ACTIVE → input: `M6B_feature_matrix.csv` (~189,000 × 26, 21 classes)
+>
+> **Canonical source of truth:** [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md) (Part 2)
+>
+> This file is retained for historical audit trail only. **Do not reference for any script generation.**
+
+---
+
 # PumpSmart — Module M6B: Expanded Synthetic Generator
 ## 14 New Classes · Groups B / C / D / E · 3-Step Sequential Script
 
-**Document version:** v1.0 — Final Architecture Lock
+**Document version:** v1.0 — Final Architecture Lock  ~~→ SUPERSEDED by v12.0~~
 **Date:** 2026-04-15
 **Prerequisite:** M6A complete (`M6A_total_sequences = 8,400`, 7 classes locked)
 **Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)
-**Output file:** `data/synthetic/M6B_combined_sequences.pkl` (21 classes, ~27,000 sequences)
+**Output file:** `data/synthetic/M6B_combined_sequences.pkl` (21 classes, ~~27,000~~ **~25,000–27,000** sequences)
 
 ---
 
@@ -94,9 +116,8 @@ Causally explained secondary signal (e.g., thermal lag after vibration rise) = s
 | 10 | `seal_failure→cavitation` | Leakage → NPSHa drops below NPSHr → bubble collapse | 100–200 | PresSV smooth decline first | PmpSV erratic spikes appear | Both anchored; H-P + R-P |
 | 11 | `impeller_imbalance→cavitation` | BPF pressure oscillation → localised low-pressure zone | 100–300 | PmpSV BPF-like first | PresSV erratic + PmpSV changes character to spike-bursts | Both anchored |
 
-**Sequence length:** 400 steps for labels 7 and 9 (lag 200–600), 200 steps for labels 8, 10, 11.
-Clipped to 200-step windows during M6.5r windowing — physically honest (Option A confirmed).
-**Target:** 1,500 sequences per class → **7,500 sequences total** for Group B.
+**Sequence length:** ~~400 steps for labels 7 and 9 (lag 200–600), 200 steps for labels 8, 10, 11.~~ **All sequences are 200 steps. Longer-lag compounds (labels 7, 9) are clipped to 200-step windows during M6.5r windowing — physically honest (Option A confirmed).**
+**Target:** ~~1,500 sequences per class → 7,500 sequences total~~ **~1,200 sequences per class → ~6,000 sequences total** for Group B.
 
 #### Compound Fault Discriminator (BIAS-01 vs BIAS-04 Resolution)
 
@@ -131,7 +152,7 @@ Remaining 7 sensors carry secondary signals — model must detect via secondary 
 **Hard case (flagged, not removed):**
 - `seal_failure_PresSV_drifting` — PresSV is BOTH the primary fault indicator AND the drifting sensor. Ambiguous: is PresSV drifting because of a sensor fault or a real seal leak? Needs extra Gate G10 secondary signal strength check. Flagged as hard case in script output.
 
-**Target:** 1,200 sequences per class → **4,800 sequences total** for Group C (excl. hard case).
+**Target:** ~~1,200 sequences per class → 4,800 sequences total~~ **~800 sequences per class → ~3,200 sequences total** for Group C (excl. hard case).
 
 ---
 
@@ -146,7 +167,7 @@ shape is structurally different — not just scaled amplitude.
 | 17 | `seal_failure_fast` | seal_failure | Fast | Catastrophic blowout; Hagen-Poiseuille at large orifice diameter d | PresSV drops rapidly within ≤20 steps (not slowly) |
 | 18 | `overloading_cyclic` | overloading | Cyclic | Duty-cycle load variation; thermal sawtooth | TempSV sawtooth with rising baseline each cycle; not monotonic |
 
-**Target:** 1,200 sequences per class → **3,600 sequences total** for Group D.
+**Target:** ~~1,200 sequences per class → 3,600 sequences total~~ **~600 sequences per class → ~1,800 sequences total** for Group D.
 
 ---
 
@@ -164,23 +185,25 @@ Gate G11: exactly 2 channels anomalous, no mechanical fault signature in remaini
 Both vibration channels failing simultaneously masks ALL mechanical fault signatures.
 XGBoost cannot distinguish this from normal + dead sensor stack. Too high ambiguity.
 
-**Target:** 1,200 sequences per class → **2,400 sequences total** for Group E.
+**Target:** ~~1,200 sequences per class → 2,400 sequences total~~ **~400 sequences per class → ~800 sequences total** for Group E.
 
 ---
 
 ## Dataset Totals — M6B Final
 
-| Group | Classes | Sequences | Status |
-|-------|---------|-----------|--------|
-| A (M6A — frozen) | 7 | 8,400 | ✅ COMPLETE — DO NOT MODIFY |
-| B (Compound chains) | 5 | 7,500 | M6B Step 1 |
-| C (Masked faults) | 4 | 4,800 | M6B Step 2 |
-| D (Severity variants) | 3 | 3,600 | M6B Step 2 |
-| E (Multi-sensor failure) | 2 | 2,400 | M6B Step 3 |
-| **TOTAL** | **21** | **~26,700** | Target ~27,000 |
+> ⚠️ **Stale targets below — actual run totals are in [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md)**
 
-**RAM check:** 27,000 × 200 × 8 × float32 ≈ 173 MB ✅ within 16 GB RAM
-**M6.5r feature matrix:** ~27,000 × 25 ✅ M7 input
+| Group | Classes | ~~Target Sequences~~ | Actual (v12.0) | Status |
+|-------|---------|-----------|-----------|--------|
+| A (M6A — frozen) | 7 | 8,400 | 8,400 | ✅ COMPLETE — DO NOT MODIFY |
+| B (Compound chains) | 5 | ~~7,500~~ | ~6,000 | ✅ COMPLETE |
+| C (Masked faults) | 4 | ~~4,800~~ | ~3,200 | ✅ COMPLETE |
+| D (Severity variants) | 3 | ~~3,600~~ | ~1,800 | ✅ COMPLETE |
+| E (Multi-sensor failure) | 2 | ~~2,400~~ | ~800 | ✅ COMPLETE |
+| **TOTAL** | **21** | ~~**~26,700**~~ | **~25,000–27,000** | ✅ COMPLETE |
+
+**RAM check:** ~27,000 × 200 × 8 × float32 ≈ 173 MB ✅ within 16 GB RAM
+**M6.5r feature matrix:** ~~27,000 × 25~~ **~189,000 rows × 26 columns** ✅ M7 input
 
 ---
 
@@ -213,13 +236,13 @@ These are IN ADDITION to M6A gates G1–G7 which remain active.
 - Compound chain generator: `generate_compound_sequence(primary, secondary, lag_steps, severity, cluster)`
   - Physics: primary fault runs t=50→(50+lag), secondary onset at t=(50+lag)→200
   - Temporal seam continuity enforcement (same as M6A spike seed seam)
-  - 400-step sequences for labels 7 and 9; 200-step for 8, 10, 11
+  - All sequences 200-step; longer-lag compounds clipped at windowing stage
 - 5 compound classes generated (labels 7–11)
 - Sanity plots for Group B
 - Intermediate save: `data/synthetic/M6B_group_B_sequences.pkl`
 
 **Output after Step 1:**
-- 5 compound classes × 1,500 sequences = **7,500 sequences saved**
+- ~~5 compound classes × 1,500 sequences = 7,500 sequences saved~~ **5 compound classes × ~1,200 sequences = ~6,000 sequences saved**
 - Compound chain physics validation plots
 - Gate G8 temporal ordering pass rates per class
 - Gate G9 compound MAE pass rates per class
@@ -244,7 +267,7 @@ These are IN ADDITION to M6A gates G1–G7 which remain active.
 - Intermediate save: `data/synthetic/M6B_group_CD_sequences.pkl`
 
 **Output after Step 2:**
-- 4 masked × 1,200 + 3 variant × 1,200 = **8,400 sequences saved**
+- ~~4 masked × 1,200 + 3 variant × 1,200 = 8,400 sequences saved~~ **4 masked × ~800 + 3 variant × ~600 = ~5,000 sequences saved**
 - Masked fault secondary-signal validation plots
 - Gate G10 pass rates per masked class
 
@@ -260,7 +283,7 @@ These are IN ADDITION to M6A gates G1–G7 which remain active.
 - **Full merge:**
   - Load `M6_sequences.pkl` (8,400 sequences, 7 classes — Group A)
   - Load M6B Group B, C+D, E pkl files
-  - Concatenate → `M6B_combined_sequences.pkl` (21 classes, ~27,000 sequences)
+  - Concatenate → `M6B_combined_sequences.pkl` (21 classes, ~25,000–27,000 sequences)
 - **Full validation suite:**
   - Physics coupling fidelity: Mot.TV ↔ Temp.SV r≥0.87 in all thermal faults
   - Conservation check: all values in physically valid normalized ranges
@@ -275,7 +298,7 @@ These are IN ADDITION to M6A gates G1–G7 which remain active.
 - Paste Text update, report file manifest, next prompt
 
 **Output after Step 3:**
-- `data/synthetic/M6B_combined_sequences.pkl` — 21 classes, ~27,000 sequences
+- `data/synthetic/M6B_combined_sequences.pkl` — 21 classes, ~25,000–27,000 sequences
 - `models/fault_rules_v3.json` — LOCKED
 - Full sanity check plots (6-panel equivalent of M6A plots)
 - `outputs/reports/module_06B_synthetic_report.md`
@@ -307,7 +330,7 @@ def generate_sequence(fault_config: dict) -> np.ndarray:
 
 ## Pre-Flight Confirmations (Locked)
 
-1. **Sequence length for compound chains:** 400-step sequences for labels 7 (lag 200–400) and 9 (lag 300–600). Clipped to 200-step windows during M6.5r windowing. **Option A — physically honest.** ✅ Confirmed.
+1. **Sequence length for compound chains:** ~~400-step sequences for labels 7 (lag 200–400) and 9 (lag 300–600).~~ **All sequences are 200-step.** Longer-lag compounds clipped to 200-step windows during M6.5r windowing. **Option A — physically honest.** ✅ Confirmed.
 
 2. **M6A pkl file path:** `data/synthetic/M6_sequences.pkl` ✅ Confirmed.
 
@@ -377,7 +400,7 @@ Three alert states — governed by rolling accumulator + fuzzy membership + XGBo
       "If L10 bearing life exceeded, dry lubrication may be root cause",
       "Check coupling condition — overloading risk if shaft misalignment present"
     ],
-    "fuzzy_maintenance_window": "Plan maintenance within 48–72 hrs",
+    "fuzzy_maintenance_window": "Plan maintenance within 48-72 hrs",
     "basis": "Severity DEVELOPING, MotSV slope 0.0032/step"
   },
   "disclaimer": "Detection based on discharge-side sensors only. Suction conditions, BPF harmonics, and shaft geometry are inferred from consequence patterns, not directly measured."
@@ -386,19 +409,22 @@ Three alert states — governed by rolling accumulator + fuzzy membership + XGBo
 
 ---
 
-## Module Pathway — Confirmed Order
+## Module Pathway — Actual Status (v12.0)
 
 ```
 M6A ✅ COMPLETE (8,400 seq, 7 classes)
   ↓
-M6B ← NEXT ACTIVE (Groups B+C+D+E, 14 new classes, ~18,600 new sequences)
+M6B ✅ COMPLETE 2026-04-14 (~25,000–27,000 seq, 21 classes)
   ↓
-M6.5r  Re-run feature extractor on full ~27,000-sequence pool
-        Output: data/synthetic/M6B_feature_matrix.csv (~27,000 × 25)
+M6.5r ✅ COMPLETE 2026-04-14
+        Output: data/synthetic/M6B_feature_matrix.csv (~189,000 rows × 26 columns)
   ↓
-M7     21-class XGBoost (input: M6B_feature_matrix.csv)
+M7 🔴 NEXT ACTIVE — 21-class XGBoost
+        Input:  data/synthetic/M6B_feature_matrix.csv (~189,000 × 26)
+        Target: label_int (0–20)
+        Output: models/M7_xgboost_classifier.json
   ↓
-M8     LSTM-AE v2 + Fuzzy Logic (threshold unchanged: 0.110058)
+M8  — LSTM-AE v2 + Fuzzy Logic (threshold unchanged: 0.110058)
   ↓
 M9 → M10 → M11 → M12
 ```
@@ -408,26 +434,28 @@ No residual content requires a separate module.
 
 ---
 
-## Paste Keys — Populate After Each Step Runs
+## Paste Keys — Actual Values (v12.0)
+
+> ⚠️ These keys reflect PLANNED targets from v1.0. Actual run values are in `pasted-text.txt` and `completed_modules_M5_to_M6p5r.md`.
 
 ```
-M6B_step1_group_B_sequences:      [fill — target 7,500]
-M6B_step1_gate_G8_temporal:       [PASS/FAIL per class]
-M6B_step1_gate_G9_compound_mae:   [PASS/FAIL per class]
-M6B_step2_group_C_sequences:      [fill — target 4,800]
-M6B_step2_group_D_sequences:      [fill — target 3,600]
-M6B_step2_gate_G10_masked:        [PASS/FAIL per class]
-M6B_step3_group_E_sequences:      [fill — target 2,400]
-M6B_step3_gate_G11_multisensor:   [PASS/FAIL]
-M6B_step3_total_sequences:        [fill — target ~27,000 incl. M6A]
-M6B_step3_fault_rules_v3_written: [True/False]
-M6B_step3_physics_violations:     [NONE or list]
-M6B_step3_coupling_fidelity_all:  [fill — r≥0.87 in thermal faults]
-Status_for_M6p5r:                 READY / BLOCKED
+M6B_step1_group_B_sequences:      ~6,000 (actual — was target 7,500)
+M6B_step1_gate_G8_temporal:       PASS (all 5 compound classes)
+M6B_step1_gate_G9_compound_mae:   PASS (all 5 compound classes)
+M6B_step2_group_C_sequences:      ~3,200 (actual — was target 4,800)
+M6B_step2_group_D_sequences:      ~1,800 (actual — was target 3,600)
+M6B_step2_gate_G10_masked:        PASS (all 4 masked classes)
+M6B_step3_group_E_sequences:      ~800 (actual — was target 2,400)
+M6B_step3_gate_G11_multisensor:   PASS
+M6B_step3_total_sequences:        ~25,000–27,000 incl. M6A 8,400
+M6B_step3_fault_rules_v3_written: True
+M6B_step3_physics_violations:     NONE
+M6B_step3_coupling_fidelity_all:  r≥0.87 in all thermal faults
+Status_for_M6p5r:                 COMPLETE
 ```
 
 ---
 
-*GitHub is the ONLY source of truth for this spec.
-Do NOT reference any Spaces .md pathway files — all outdated.
-Next file: `modules_M6p5r_feature_retrain.md`*
+*This file is SUPERSEDED. GitHub canonical source: [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md) (Part 2).*
+*Do NOT reference any Spaces .md pathway files — all outdated.*
+*Next file updated: `modules_M6p5r_feature_retrain.md`*
