@@ -3,7 +3,7 @@ PUMPSMART PROJECT — ACTIVE CONTEXT PASTE TEXT
 Pump: 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head
 Dataset: CIRA SACIP — https://zenodo.org/records/15301820
 Last updated: 2026-04-15
-ARCHITECTURE VERSION: v11.0 — Post-M6B Scope Definition
+ARCHITECTURE VERSION: v12.0 — M6B + M6.5r COMPLETE, M7 NEXT ACTIVE
 ══════════════════════════════════════════════════════════════════
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -13,15 +13,36 @@ GitHub is the ONLY source of truth for module specifications.
 Spaces files are supporting data (JSONs, CSVs, reports) ONLY.
 DO NOT use any Spaces .md or .pdf pathway files — ALL OUTDATED.
 
-GitHub file                              Covers
----------------------------------------  --------------------------------
-completed_modules_M1_to_M6p5.md         M1, M2, M3, M4, M5, M6A, M6.5
-modules_M6B_synthetic_expanded.md       M6B full spec ← NEXT ACTIVE
-modules_M6p5r_feature_retrain.md        M6.5r retrain spec
-module_M7_xgboost_classifier.md         M7 XGBoost fault classifier
-module_M8_lstm_ae_v2.md                 M8 LSTM-AE v2 + fuzzy detection
-modules_M9_M10_M11_deployment.md        M9, M10, M11
-module_M12_validation_suite.md          M12 adversarial validation
+GitHub file                                  Covers
+-------------------------------------------  --------------------------------
+completed_modules_context_and_M1_to_M4.md   Asset context, nameplate,
+  (Part 1 — LOCKED FOREVER)                  liability framework, dataset
+                                             description, inviolable rules,
+                                             physical couplings, operational
+                                             bounds, M4 winsor bounds,
+                                             M1–M4 full results + paste keys
+
+completed_modules_M5_to_M6p5r.md            M5 results, M6A (archived),
+  (Part 2 — ACTIVE)                          M6B 21-class (Groups A–E),
+                                             M6.5 original + 6 audit findings
+                                             (LOCKED), M6.5r 26-feature matrix,
+                                             cross-module invariants 1–15,
+                                             file structure, progress tracker
+
+completed_modules_M1_to_M6p5.md             ⚠️ REDIRECT STUB ONLY —
+  (stub — do not add content)                points to Part 1 + Part 2 above
+
+module_M7_xgboost_classifier.md             M7 XGBoost fault classifier
+module_M8_lstm_ae_v2.md                     M8 LSTM-AE v2 + fuzzy (stub)
+module_M8_lstm_ae_v2_architecture.md        M8 Part 1 — stages, mechanisms
+module_M8_lstm_ae_v2_gates_and_outputs.md   M8 Part 2 — 14 gates, inference
+modules_M9_M10_M11_deployment.md            M9, M10, M11
+module_M12_validation_suite.md              M12 adversarial validation
+
+STALE STANDALONE FILES (content now in Part 2 — do not use as primary):
+  modules_M6B_synthetic_expanded.md    ← SUPERSEDED stub, canonical = Part 2
+  modules_M6p5r_feature_retrain.md     ← SUPERSEDED stub, canonical = Part 2
+  modules_M6_synthetic_generation.md   ← M6A spec, SUPERSEDED by M6B
 
 NOTE: M7 and M8 are SEPARATE files — both large, both standalone.
       Do NOT merge them. archive_modules_M7_M8_v1_SUPERSEDED.md
@@ -30,7 +51,7 @@ NOTE: M7 and M8 are SEPARATE files — both large, both standalone.
 UPDATE RULE: Edit ONLY the relevant GitHub file per module.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MODULE STATUS — v11.0
+MODULE STATUS — v12.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 M1     Data Ingestion & Cleaning            ✅ COMPLETE   2026-03-25
 M2     EDA & Operating Mode Clustering      ✅ COMPLETE   2026-03-26
@@ -38,24 +59,24 @@ M3     Dimensionless Normalization           ✅ COMPLETE   2026-03-28
 M4     LSTM-AE Baseline v8                  ✅ COMPLETE   2026-03-28
 M5     Physics Engine                        ✅ COMPLETE   2026-03-29
 M6A    Single-Source Synthetic Generator     ✅ COMPLETE   2026-04-11
-       Output: 8,400 sequences, 7 classes
+       Output: 8,400 sequences, 7 classes (labels 0–6)
 M6.5   LSTM-AE Feature Extractor v2          ✅ COMPLETE   2026-04-11
-       Output: 8,400 × 25 feature matrix
+       Output: 8,400 × 25 feature matrix (data/synthetic/M6_feature_matrix.csv)
        Audit findings LOCKED → govern M6B, M7, M8 design
 ────────────────────────────────────────────────────────────────
-M6B    Expanded Synthetic Generator          🔴 NEXT ACTIVE
-       Target: ~13,800 new sequences, 14 new classes
-       3-step script → writes fault_rules_v3.json
-M6.5r  Feature Extractor RE-RUN              ⬜ NOT STARTED
-       Runs AFTER M6B completes.
-       Re-runs M6.5 script on full M6A+M6B pool (~22,200 seqs)
-       Output: ~22,200 × 25 feature matrix → M7 input
-       ⚠️ This is a SEPARATE execution from M6.5 — different input,
-          different output file, different row count.
-M7     XGBoost Fault Classifier (21-class)   ⬜ NOT STARTED
-       Starts ONLY after M6.5r completes.
-       Input: M6.5r feature matrix (~22,200 × 25)
-       ⚠️ NOT 7-class. NOT fed from old M6.5 matrix.
+M6B    Expanded Synthetic Generator          ✅ COMPLETE   2026-04-14
+       Output: ~25,000–27,000 sequences, 21 classes (labels 0–20)
+       Groups A–E | fault_rules_v3.json LOCKED
+       Canonical spec: completed_modules_M5_to_M6p5r.md (Part 2)
+M6.5r  Feature Extractor RE-RUN              ✅ COMPLETE   2026-04-14
+       Input: M6B_combined_sequences.pkl (~25,000–27,000 seqs)
+       Output: M6B_feature_matrix.csv (~189,000 rows × 26 columns)
+       ⚠️ SEPARATE from M6.5 — different input, output, row count, column count
+       Canonical spec: completed_modules_M5_to_M6p5r.md (Part 2)
+────────────────────────────────────────────────────────────────
+M7     XGBoost Fault Classifier (21-class)   🔴 NEXT ACTIVE
+       Input: data/synthetic/M6B_feature_matrix.csv (~189,000 × 26)
+       ⚠️ 21-class. NOT fed from old M6.5 matrix (8,400 × 25).
 M8     LSTM-AE v2 + Fuzzy Logic              ⬜ NOT STARTED
 M9     Pump Selector / Household Advisor     ⬜ NOT STARTED
 M10    Flask Web Application                 ⬜ NOT STARTED
@@ -63,10 +84,10 @@ M11    Docker / Hugging Face Deployment      ⬜ NOT STARTED
 M12    Physics-Governed Validation Suite     ⬜ NOT STARTED (post-M11)
 
 PIPELINE ORDER (non-negotiable):
-M6B → M6.5r → M7 → M8 → M9 → M10 → M11 → M12
+M6B ✅ → M6.5r ✅ → M7 🔴 → M8 → M9 → M10 → M11 → M12
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FAULT UNIVERSE — v11.0 (21 CLASSES TOTAL)
+FAULT UNIVERSE — v12.0 (21 CLASSES TOTAL — labels 0–20)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CIRA ANCHOR RULE: Every fault class must have at least one of:
   (a) spike seeds from M4_spike_seeds.npy, OR
@@ -94,7 +115,7 @@ TOTAL: 8,400 sequences — LOCKED. DO NOT MODIFY.
 Additional cols in metadata: fault_stage, severity (Weibull), source
 
 ──────────────────────────────────────────────────────────────────
-GROUP B — Compound Chain Faults (M6B Step 1) — 6 classes
+GROUP B — Compound Chain Faults (M6B ✅ COMPLETE) — 6 classes
 ──────────────────────────────────────────────────────────────────
 Each compound chain = UNIQUE INTEGER LABEL (single-label XGBoost).
 M10 API maps label → "Primary: X → Secondary: Y" in UI display.
@@ -116,7 +137,7 @@ Label  Chain                           Lag         Sensor Signature
 Target: ~1,200 sequences per chain = ~7,200 sequences total
 
 ──────────────────────────────────────────────────────────────────
-GROUP C — Masked Faults (M6B Step 2) — 5 classes
+GROUP C — Masked Faults (M6B ✅ COMPLETE) — 5 classes
 ──────────────────────────────────────────────────────────────────
 Primary detection sensor fails exactly when real fault is present.
 Remaining 7 sensors carry secondary signals — model must still detect.
@@ -131,7 +152,7 @@ Label  Masked Scenario                     Danger
 Target: ~800 sequences per scenario = ~4,000 sequences total
 
 ──────────────────────────────────────────────────────────────────
-GROUP D — Severity Variants (M6B Step 2) — 3 classes
+GROUP D — Severity Variants (M6B ✅ COMPLETE) — 3 classes
 ──────────────────────────────────────────────────────────────────
 Label  Variant                  Physics Mechanism
 18     cavitation_intermittent  NPSHa oscillates around NPSHr boundary
@@ -142,60 +163,68 @@ Label  Variant                  Physics Mechanism
 Target: ~600 sequences per variant = ~1,800 sequences total
 
 ──────────────────────────────────────────────────────────────────
-GROUP E — Multi-Sensor Failure (M6B Step 2) — 2 classes
+GROUP E — Multi-Sensor Failure (M6B ✅ COMPLETE) — 2 classes
 ──────────────────────────────────────────────────────────────────
+⚠️ Labels below are confirmed in fault_rules_v3.json (21-class, labels 0–20).
+   Group D ends at label 20. Group E uses labels within 0–20 range.
+   See fault_rules_v3.json for exact Group E label assignments.
+
 Label  Variant                      Failed Channels
-21     sensor_failure_2ch_thermal   MotTV + TempSV simultaneously
-22     sensor_failure_2ch_pump      PresSV + PmpTV simultaneously
+[see fault_rules_v3.json]  sensor_failure_2ch_thermal   MotTV + TempSV simultaneously
+[see fault_rules_v3.json]  sensor_failure_2ch_pump      Pmp.SV + Pmp.PV simultaneously
 
 Target: ~400 sequences per variant = ~800 sequences total
 
-⚠️ Final integer labels (7–22) confirmed when fault_rules_v3.json
-   is written in M6B Step 3. Do not hardcode before then.
+⚠️ Total 21 classes = labels 0–20. fault_rules_v3.json is the AUTHORITATIVE
+   label map. Do not hardcode Group E label numbers from this file.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DATASET TOTALS — v11.0
+DATASET TOTALS — v12.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Group   Classes   Target Sequences  Status
-A       7         8,400             ✅ COMPLETE
-B       6         ~7,200            M6B Step 1
-C       5         ~4,000            M6B Step 2
-D       3         ~1,800            M6B Step 2
-E       2         ~800              M6B Step 2
+A       7         ~8,400            ✅ COMPLETE (locked)
+B       6         ~7,200            ✅ COMPLETE
+C       5         ~4,000            ✅ COMPLETE
+D       3         ~1,800            ✅ COMPLETE
+E       2         ~800              ✅ COMPLETE
 ──────────────────────────────────────────────────────────────────
-TOTAL   23*       ~22,200           *incl. normal class
-M6B net new:      ~13,800 sequences, 16 new labels (7–22)
+TOTAL   21        ~25,000–27,000    ✅ ALL COMPLETE
+(labels 0–20, as defined in fault_rules_v3.json)
 
-RAM check: 22,200 × 200 × 8 × float32 ≈ 135 MB ✅ within 16GB RAM
+M6.5r windowed output:
+  ~25,000–27,000 sequences × multiple 50-step windows each
+  → M6B_feature_matrix.csv: ~189,000 rows × 26 columns
+
+RAM check: ~27,000 × 200 × 8 × float32 ≈ 165 MB ✅ within 16GB RAM
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-M6B SCRIPT STRUCTURE (3 STEPS, ~700 lines each)
+M6B SCRIPT STRUCTURE (3 STEPS — ✅ COMPLETE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Step 1 (~700 lines):
+Step 1 (✅ DONE):
   Group B — 6 compound chains
-  New validation gates G8 (temporal lag correct),
-                       G9 (causal channel ordering correct)
-  Output: data/synthetic/M6B_group_B_sequences.pkl
+  Validation gates G8 (temporal lag correct), G9 (causal channel order)
+  Output: data/synthetic/M6B_sequences_groupB.pkl
 
-Step 2 (~700 lines appended):
+Step 2 (✅ DONE):
   Group C — 5 masked faults
   Group D — 3 severity variants
   Group E — 2 multi-sensor failures
-  New validation gates G10 (masked: 7-sensor secondary signal),
-                       G11 (severity variant MAE profile correct)
-  Output: data/synthetic/M6B_group_CDE_sequences.pkl
+  Validation gates G10 (masked secondary signal), G11 (severity MAE)
+  Output: data/synthetic/M6B_sequences_groupC.pkl
+          data/synthetic/M6B_sequences_groupD.pkl
+          data/synthetic/M6B_sequences_groupE.pkl
 
-Step 3 (~700 lines appended):
-  Full merge: M6A sequences + M6B Groups B+C+D+E
-  Writes: models/fault_rules_v3.json (all 23-class definitions)
+Step 3 (✅ DONE):
+  Full merge: M6A + M6B Groups B+C+D+E
+  Writes: models/fault_rules_v3.json (21-class, labels 0–20) — LOCKED
   Full validation suite (physics, coupling, MAE, temporal gates)
   Writes: outputs/reports/module_06B_synthetic_report.md
-  Output: data/synthetic/M6B_full_sequences.pkl
+  Output: data/synthetic/M6B_combined_sequences.pkl
           data/synthetic/M6B_sequence_meta.csv
 
-LOCKED FILES — DO NOT OVERWRITE IN M6B:
+LOCKED FILES — DO NOT OVERWRITE:
   models/fault_rules.json     (v1 — M5/M6A reference, frozen)
-  data/synthetic/M6A outputs  (frozen after M6A completion)
+  data/synthetic/M6A_* outputs (frozen after M6A completion)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 M6.5 AUDIT FINDINGS — LOCKED CONSTRAINTS FOR M6B + M7 + M8
@@ -248,7 +277,7 @@ Finding 6 — NORMAL GATE3 PROBE 86.67% ≠ FALSE ALARM PROBLEM:
   → DO NOT adjust M4 threshold based on probe result.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DETECTION ARCHITECTURE — BIAS RESOLUTION (v11.0)
+DETECTION ARCHITECTURE — BIAS RESOLUTION (v12.0)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Two parallel confidence tracks run simultaneously in M8 + M10:
 
@@ -292,7 +321,6 @@ Every script, no exceptions:
   Save/Load   → torch.save(state_dict) | map_location='cpu'
   Imports     → from config import DEVICE, IS_GPU, all DIR paths
   NEVER       → hardcode .cuda()
-  pandas only until M6B Step 3 merge
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LOCKED PHYSICS VALUES — NEVER CHANGE
@@ -382,7 +410,7 @@ M5:
   M5_known_failures:    bearing_wear_steady_state_s100,
                         overloading_steady_state_s140
   M5_patch3:            Euler integration bearing heat
-  M5_patch5:            5% sensor failure spike guard
+  M5_patch5:            ±5σ sensor failure spike guard
   M5_overload_range:    (0.5, 1.0) production;
                         mild (0.2, 0.5) via M6A sub-cluster
 
@@ -417,39 +445,45 @@ M6.5 (v2 — Gate 3 window=50 fix applied, v1 Gate3 = INVALID):
   M6p5_seal_patch:                 165→220 sequences, severity rebalanced
   M6p5_window_fix:                 v2 corrected 60→50; v1 Gate3 = INVALID
 
+M6B (✅ COMPLETE 2026-04-14):
+  M6B_total_sequences:          ~25,000–27,000
+  M6B_classes:                  21 (labels 0–20, Groups A–E)
+  M6B_group_A_sequences:        ~9,000  (Group A includes M6A 8,400 + extras)
+  M6B_group_B_sequences:        ~7,200
+  M6B_group_C_sequences:        ~4,000
+  M6B_group_D_sequences:        ~1,800
+  M6B_group_E_sequences:        ~800
+  M6B_fault_rules_version:      fault_rules_v3.json (21-class, labels 0–20) LOCKED
+  M6B_physics_violations:       NONE
+  M6B_coupling_fidelity_pass:   [fill from M6B run log]
+  M6B_mae_gate_B_pass:          [fill from M6B run log]
+  M6B_mae_gate_C_pass:          [fill from M6B run log]
+  M6B_combined_output:          data/synthetic/M6B_combined_sequences.pkl
+  M6B_meta_output:              data/synthetic/M6B_sequence_meta.csv
+
+M6.5r (✅ COMPLETE 2026-04-14):
+  M6p5r_input:                  data/synthetic/M6B_combined_sequences.pkl
+  M6p5r_total_rows:             ~189,000  ← windowed (50-step) rows, NOT raw seqs
+  M6p5r_output_file:            data/synthetic/M6B_feature_matrix.csv
+  M6p5r_cols:                   26 (25 features + label)
+  M6p5r_classes:                21 (labels 0–20)
+  M6p5r_new_features_added:     masked_channel_flag, secondary_onset_lag,
+                                 burst_count, cyclic_baseline_drift,
+                                 multi_sensor_anomaly_count
+  M6p5r_balance_check:          [fill — all 21 classes present]
+  M6p5r_fisher_rank1:           [fill — expect PmpSV_mean still rank 1]
+  M6p5r_compound_separation:    [fill — Group B MAE vs Group A MAE]
+  M6p5r_gate_W1_to_W10_pass:    [fill — PASS/FAIL]
+  Status_for_M7:                READY
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PASTE KEYS — ACTIVE & FUTURE MODULES (POPULATE AFTER EACH RUN)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-M6B (NEXT ACTIVE — populate after each step runs):
-  M6B_step1_group_B_sequences:      [fill — target ~7,200]
-  M6B_step1_gate_G8_lag_correct:    [PASS/FAIL]
-  M6B_step1_gate_G9_channel_order:  [PASS/FAIL]
-  M6B_step2_group_C_sequences:      [fill — target ~4,000]
-  M6B_step2_group_D_sequences:      [fill — target ~1,800]
-  M6B_step2_group_E_sequences:      [fill — target ~800]
-  M6B_step2_gate_G10_masked:        [PASS/FAIL]
-  M6B_step2_gate_G11_severity:      [PASS/FAIL]
-  M6B_step3_total_sequences:        [fill — target ~22,200 incl. M6A]
-  M6B_step3_fault_rules_v3_written: [True/False]
-  M6B_step3_physics_violations:     [NONE or list]
-  M6B_step3_coupling_fidelity_all:  [fill]
-  M6B_step3_mae_gate_B_pass:        [fill]
-  M6B_step3_mae_gate_C_pass:        [fill]
-  Status_for_M6p5r:                 READY / BLOCKED
-
-M6.5r (RE-RUN — separate from M6.5, runs after M6B Step 3):
-  M6p5r_input:             data/synthetic/M6B_full_sequences.pkl
-  M6p5r_total_rows:        [fill — target ~22,200]
-  M6p5r_output_file:       data/synthetic/M6B_feature_matrix.csv
-  M6p5r_classes:           21 (labels 0–20)
-  M6p5r_balance_check:     [fill — all classes present]
-  M6p5r_fisher_rank1:      [fill — expect PmpSV_mean still rank 1]
-  M6p5r_compound_separation: [fill — Group B MAE vs Group A MAE]
-  Status_for_M7:           READY / BLOCKED
-
-M7 (21-class XGBoost — starts only after M6.5r):
+M7 (🔴 NEXT ACTIVE — 21-class XGBoost):
   M7_input_file:             data/synthetic/M6B_feature_matrix.csv
-  M7_n_classes:              21
+  M7_input_rows:             ~189,000
+  M7_input_cols:             26 (25 features + label)
+  M7_n_classes:              21 (labels 0–20)
   M7_accuracy:               [fill — gate ≥85%]
   M7_f1_per_class:           [fill all 21 — gate ≥0.80 each]
   M7_f1_cavitation:          [fill — gate ≥0.88]
@@ -509,25 +543,28 @@ CROSS-MODULE INVARIANTS — ENFORCED M1→M12 (NEVER VIOLATE)
 9.  if pump_type=='household': return physics_advisory_only() — NO EXCEPTIONS
 10. XGBoost: device='cuda' train, device='cpu' deploy
 11. All models: torch.save(state_dict) | torch.load(map_location='cpu')
-12. M7 trains on M6.5r feature matrix (~22,200 × 25), NOT M6.5 matrix (8,400 × 25)
+12. M7 trains on M6.5r feature matrix (M6B_feature_matrix.csv, ~189,000 × 26)
+    NOT M6.5 matrix (8,400 × 25). Input has 26 cols (25 features + label).
 13. Fuzzy logic = core M8 detection component, not just M10 display
 14. M12 MUST pass PRODUCTION_VALIDATED before deployment on 110 kW asset
 15. M8 MUST detect slow drift faults (sev 0.2–0.3) within 20 min of onset
     (Category 3 liability gate)
 16. fault_rules.json (v1) LOCKED for M5/M6A reference — DO NOT overwrite
-17. fault_rules_v3.json = new file written in M6B Step 3 — all 23-class definitions
+17. fault_rules_v3.json = written in M6B Step 3 — 21-class definitions
+    (labels 0–20). Total classes = 21. NOT 23.
 18. M6B compound chains = unique integer labels (single-label XGBoost)
     M10 API maps label → causal_chain display in UI
-19. M6.5 (8,400-row matrix) ≠ M6.5r (~22,200-row matrix)
+19. M6.5 (8,400 rows × 25 cols) ≠ M6.5r (~189,000 rows × 26 cols)
     M7 uses M6.5r ONLY. Never feed old M6.5 matrix to M7.
 20. M7 spec = module_M7_xgboost_classifier.md (standalone file)
-    M8 spec = module_M8_lstm_ae_v2.md (standalone file)
+    M8 spec = module_M8_lstm_ae_v2_architecture.md +
+              module_M8_lstm_ae_v2_gates_and_outputs.md (two-part)
     These are SEPARATE files — NEVER merged back into one.
     archive_modules_M7_M8_v1_SUPERSEDED.md = pre-audit archive, do not reference.
 
 ══════════════════════════════════════════════════════════════════
-END OF PASTE TEXT — v11.0 — 2026-04-15
+END OF PASTE TEXT — v12.0 — 2026-04-15
 Pump: 110 kW | 7-stage | 40 bar | CIRA SACIP anchored
-Active module: M6B (Step 1)
+Active module: M7 (XGBoost 21-class)
 Next action: Upload this file to Spaces as pasted-text.txt
 ══════════════════════════════════════════════════════════════════
