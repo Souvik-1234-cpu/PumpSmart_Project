@@ -437,7 +437,7 @@ M2:
   M2_optimal_k:         4
   M2_silhouette:        0.5458
   M2_window_size:       50
-  M2_stationarity:      88% ADF pass
+  M2_stationarity:      8/8 ADF pass
   M2_top_correlation:   Mot.TV↔Temp.SV r=0.9793
   M2_pca_pc1:           47.37%
   M2_pca_pc2:           32.97%
