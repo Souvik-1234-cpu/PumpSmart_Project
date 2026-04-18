@@ -1,0 +1,339 @@
+{
+  "script": "module_04_lstm_ae_baseline",
+  "version": "v8",
+  "date": "2026-03-28",
+  "anomaly_threshold": 0.110058,
+  "mean_recon_error": 0.026765,
+  "std_recon_error": 0.025972,
+  "p95_error": 0.074673,
+  "p99_error": 0.102045,
+  "separation_ratio": 4.11,
+  "best_val_loss": 0.026862,
+  "best_epoch": 141,
+  "old_threshold_v7": 0.110058,
+  "threshold_delta_pct": 0.0,
+  "winsorization_method": "cluster_conditional_mean_multiplier (v8)",
+  "winsorization_summary": {
+    "X_Pres.SV_norm": {
+      "total_clipped": 5046,
+      "per_mode_bounds": {
+        "startup": {
+          "upper": 3.000001,
+          "lower": 0.0,
+          "mult": 3.0
+        },
+        "steady_state": {
+          "upper": 5.6,
+          "lower": 0.0,
+          "mult": 5.6
+        },
+        "high_load": {
+          "upper": 2.0,
+          "lower": 0.0,
+          "mult": 2.0
+        },
+        "cooldown": {
+          "upper": 3.0,
+          "lower": 0.0,
+          "mult": 3.0
+        }
+      }
+    },
+    "X_ACR_Mot.SV_norm": {
+      "total_clipped": 767,
+      "per_mode_bounds": {
+        "startup": {
+          "upper": 6.700007,
+          "lower": 0.0,
+          "mult": 6.7
+        },
+        "steady_state": {
+          "upper": 6.7,
+          "lower": 0.0,
+          "mult": 6.7
+        },
+        "high_load": {
+          "upper": 6.7,
+          "lower": 0.0,
+          "mult": 6.7
+        },
+        "cooldown": {
+          "upper": 6.700004,
+          "lower": 0.0,
+          "mult": 6.7
+        }
+      }
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "total_clipped": 458,
+      "per_mode_bounds": {
+        "startup": {
+          "upper": 8.8,
+          "lower": 0.0,
+          "mult": 8.8
+        },
+        "steady_state": {
+          "upper": 8.8,
+          "lower": 0.0,
+          "mult": 8.8
+        },
+        "high_load": {
+          "upper": 8.8,
+          "lower": 0.0,
+          "mult": 8.8
+        },
+        "cooldown": {
+          "upper": 8.799996,
+          "lower": 0.0,
+          "mult": 8.8
+        }
+      }
+    },
+    "X_ACR_Mot.PV_norm": {
+      "total_clipped": 310,
+      "per_mode_bounds": {
+        "startup": {
+          "upper": 2.200291,
+          "lower": 0.0,
+          "mult": 2.2
+        },
+        "steady_state": {
+          "upper": 2.200114,
+          "lower": 0.0,
+          "mult": 2.2
+        },
+        "high_load": {
+          "upper": 2.199774,
+          "lower": 0.0,
+          "mult": 2.2
+        },
+        "cooldown": {
+          "upper": 2.199832,
+          "lower": 0.0,
+          "mult": 2.2
+        }
+      }
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "total_clipped": 444,
+      "per_mode_bounds": {
+        "startup": {
+          "upper": 3.199702,
+          "lower": 0.0,
+          "mult": 3.2
+        },
+        "steady_state": {
+          "upper": 2.599685,
+          "lower": 0.0,
+          "mult": 2.6
+        },
+        "high_load": {
+          "upper": 2.599891,
+          "lower": 0.0,
+          "mult": 2.6
+        },
+        "cooldown": {
+          "upper": 2.601465,
+          "lower": 0.0,
+          "mult": 2.6
+        }
+      }
+    }
+  },
+  "cluster_winsor_bounds": {
+    "X_Pres.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.030553,
+        "upper_mult": 3.0,
+        "upper": 3.000001,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.364301,
+        "upper_mult": 5.6,
+        "upper": 5.6,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.045629,
+        "upper_mult": 2.0,
+        "upper": 2.0,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 1.964287,
+        "upper_mult": 3.0,
+        "upper": 3.0,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.SV_norm": {
+      "startup": {
+        "mean": 1.000001,
+        "std": 0.362023,
+        "upper_mult": 6.7,
+        "upper": 6.700007,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.178997,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.426979,
+        "upper_mult": 6.7,
+        "upper": 6.7,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000001,
+        "std": 2.887255,
+        "upper_mult": 6.7,
+        "upper": 6.700004,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.SV_norm": {
+      "startup": {
+        "mean": 1.0,
+        "std": 1.747304,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.0,
+        "std": 0.282964,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 1.0,
+        "std": 0.173141,
+        "upper_mult": 8.8,
+        "upper": 8.8,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.0,
+        "std": 3.333269,
+        "upper_mult": 8.8,
+        "upper": 8.799996,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Mot.PV_norm": {
+      "startup": {
+        "mean": 1.000132,
+        "std": 0.321473,
+        "upper_mult": 2.2,
+        "upper": 2.200291,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 1.000052,
+        "std": 0.146505,
+        "upper_mult": 2.2,
+        "upper": 2.200114,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999897,
+        "std": 0.189407,
+        "upper_mult": 2.2,
+        "upper": 2.199774,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 0.999923,
+        "std": 0.364874,
+        "upper_mult": 2.2,
+        "upper": 2.199832,
+        "lower": 0.0
+      }
+    },
+    "X_ACR_Pmp.PV_norm": {
+      "startup": {
+        "mean": 0.999907,
+        "std": 0.460005,
+        "upper_mult": 3.2,
+        "upper": 3.199702,
+        "lower": 0.0
+      },
+      "steady_state": {
+        "mean": 0.999879,
+        "std": 0.105679,
+        "upper_mult": 2.6,
+        "upper": 2.599685,
+        "lower": 0.0
+      },
+      "high_load": {
+        "mean": 0.999958,
+        "std": 0.110954,
+        "upper_mult": 2.6,
+        "upper": 2.599891,
+        "lower": 0.0
+      },
+      "cooldown": {
+        "mean": 1.000563,
+        "std": 0.534461,
+        "upper_mult": 2.6,
+        "upper": 2.601465,
+        "lower": 0.0
+      }
+    }
+  },
+  "spike_seeds_extracted": 1044,
+  "spike_rows_excluded": 12620,
+  "spike_seeds_file": "data/synthetic/M4_spike_seeds.npy",
+  "spike_meta_file": "data/synthetic/M4_spike_seeds_meta.csv",
+  "channel_weights": {
+    "X_ACR_Mot.PV_norm": 1.5,
+    "X_ACR_Mot.SV_norm": 2.0,
+    "X_ACR_Mot.TV_norm": 0.8,
+    "X_ACR_Pmp.PV_norm": 1.5,
+    "X_ACR_Pmp.SV_norm": 2.0,
+    "X_ACR_Pmp.TV_norm": 0.8,
+    "X_Temp.SV_norm": 1.0,
+    "X_Pres.SV_norm": 2.0
+  },
+  "channels": [
+    "X_ACR_Mot.PV_norm",
+    "X_ACR_Mot.SV_norm",
+    "X_ACR_Mot.TV_norm",
+    "X_ACR_Pmp.PV_norm",
+    "X_ACR_Pmp.SV_norm",
+    "X_ACR_Pmp.TV_norm",
+    "X_Temp.SV_norm",
+    "X_Pres.SV_norm"
+  ],
+  "window_size": 50,
+  "gate_results": {
+    "GATE1_no_overfit": true,
+    "GATE2_mae_lt_006": true,
+    "GATE3_threshold_range": true,
+    "GATE4_separation_gt3": true,
+    "GATE5_false_alarms_lt1pct": true,
+    "GATE6_tv_channels_ok": true,
+    "GATE7_spike_seeds_saved": true,
+    "GATE8_val_loss_lt_005": true,
+    "GATE9_pmpPV_startup_ceiling_correct": true,
+    "GATE10_pres_cluster_ceilings_ordered": true
+  },
+  "v8_physics_fixes": {
+    "FIX_1": "Pmp.PV startup ceiling raised to 3.2x (was 2.6x global). Preserves ISO 13373-3 BPF startup harmonics.",
+    "FIX_2": "Pres.SV cluster-conditional: startup=3.0x, steady_state=5.6x, high_load=2.0x, cooldown=3.0x. Prevents Joukowsky water hammer signal destruction.",
+    "FIX_3": "pressure_transient ratio uses high_load cluster mean. Ensures M6 generates physically correct amplitude faults.",
+    "FIX_4": "cluster_winsor_bounds saved for M6 direct consumption. No downstream compensation needed."
+  },
+  "created": "2026-03-28"
+}
