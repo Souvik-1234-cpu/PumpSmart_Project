@@ -1,13 +1,13 @@
 # PumpSmart — Module M6B: Script Plan + API Design
 ## Part 2 of 2 — 3-Step Script Plan, Dispatcher, Pre-Flight, API Spec, Paste Keys
 
-**Document version:** v2.0
-**Date:** 2026-04-16
+**Document version:** v2.1
+**Date:** 2026-04-18
 **Split from:** `modules_M6B_synthetic_expanded.md` (Part 1 — fault universe, physics rules, gates)
 **Canonical source of truth:** [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md)
 
 > ⚠️ **EXECUTION STATUS:**
-> - M6B = 🔴 NEXT ACTIVE — spec locked (v14.0), script **not yet run**
+> - M6B = 🔴 NEXT ACTIVE — spec locked (v14.1), script **not yet run**
 > - M6.5r = ⬜ NOT STARTED — blocked until M6B completes
 > - M7 = ⬜ NOT STARTED — blocked until M6.5r completes
 > - **No output files exist yet.** `fault_rules_v3.json`, all `M6B_*.pkl`, `M6B_sequence_meta.csv`,
@@ -36,7 +36,13 @@
   - `secondary_onset_lag` drawn from fault-specific range per label map (Part 2A)
   - Temporal seam continuity enforcement (same as M6A spike seed seam)
   - All sequences 200-step (no variable-length sequences)
-- 6 compound classes generated (labels 7–12)
+- 6 compound classes generated (labels 7–12), canonical map:
+  - 7  = bearing_wear → overloading
+  - 8  = cavitation → seal_failure
+  - 9  = impeller_imbalance → bearing_wear
+  - 10 = seal_failure → cavitation
+  - 11 = overloading → bearing_wear
+  - 12 = impeller_imbalance → cavitation
 - Sanity plots for Group B (temporal ordering + compound MAE distribution)
 - Intermediate save: `data/synthetic/M6B_sequences_groupB.pkl`
 
@@ -56,14 +62,18 @@ Compound chain physics validation plots
 **Covers:**
 - Masked fault generator: `generate_masked_sequence(base_fault, masked_channel, severity, cluster)`
   - Physics: base fault runs normally; `masked_channel` replaced with flatline/dropout at onset_step=50
-  - Hard case flagged separately: `seal_failure_PresSV_drifting` — extra G10 secondary signal check
   - `masked_channel_flag = True` set in sequence metadata
-- 5 masked classes generated (labels 13–17)
+- 5 masked classes generated (labels 13–17), canonical map:
+  - 13 = bearing_wear + MotSV flatlined
+  - 14 = cavitation + PresSV dropout
+  - 15 = seal_failure + PresSV drifting
+  - 16 = overloading + TempSV stuck
+  - 17 = impeller_imbalance + PmpSV flatline
 - Severity variant generator: `generate_variant_sequence(base_fault, variant_type, severity, cluster)`
   - `variant_type` ∈ {`intermittent`, `fast`, `cyclic`, `gradual`}
   - Physics per variant:
     - `intermittent`: NPSHa oscillation around NPSHr → Pmp.SV spike ON/OFF; `burst_interval` from Uniform(15,30)
-    - `fast`: Hagen-Poiseuille large-Δ → Pres.SV drops in ≤20 steps
+    - `fast`: turbulent orifice discharge through enlarged effective seal leak area → Pres.SV drops in ≤20 steps
     - `cyclic`: Thermal sawtooth — load ON/OFF with RISING baseline each cycle; Spearman > 0.70 on detrended signal
     - `gradual`: Paris–Erdogan small ΔK → Mot.SV rises barely above baseline over 150+ steps
       - Weibull β=1.5, severity=0.05–0.25
@@ -104,9 +114,9 @@ Label 21 slope distribution plot (err_slope_MotSV histogram)
   - Physics: 2 channels simultaneously anomalous; 6 others stay within ±0.20
   - Gate G11: exactly 2 channels anomalous, no mechanical fault signature in remaining 6
   - `multi_sensor_anomaly_count = 2` set in metadata
-- 2 multi-sensor classes generated (labels per fault_rules_v3.json):
+- 2 multi-sensor classes generated (labels assigned in `fault_rules_v3.json`):
   - sensor_failure_2ch_thermal: Mot.TV + Temp.SV (common thermal power rail)
-  - sensor_failure_2ch_pump: **Pres.SV + Pmp.TV** (pump-side junction box moisture ingress)
+  - sensor_failure_2ch_pump: **Pmp.SV + Pmp.PV** (pump-side junction box / shared conduit path moisture ingress)
 - **Individual group save:**
   - `data/synthetic/M6B_sequences_groupE.pkl` ← ~800 Group E sequences (400 × 2)
 - **Full merge:**
@@ -180,7 +190,7 @@ def generate_sequence(fault_config: dict) -> np.ndarray:
 
 ---
 
-## Pre-Flight Confirmations (Locked — v14.0)
+## Pre-Flight Confirmations (Locked — v14.1)
 
 1. **Sequence length for all groups:** All sequences are 200 steps.
    Compound chains fit comfortably within 200 steps for all lag ranges. ✅
@@ -192,8 +202,9 @@ def generate_sequence(fault_config: dict) -> np.ndarray:
 
 4. **Group B sequences per class: 1,200** (6 compound classes). ✅
 
-5. **Label 20 sensor pair: Pres.SV + Pmp.TV** (pump-side junction box moisture ingress).
-   NOT Pmp.SV + Pmp.PV. Motor-side sensors remain normal. ✅ Confirmed.
+5. **Group E pump-side sensor pair: Pmp.SV + Pmp.PV**.
+   NOT Pres.SV + Pmp.TV. This follows the corrected common-cause physics:
+   both accelerometers can share the same pump-side junction box / conduit path. ✅ Confirmed.
 
 6. **`fault_group_id` field in metadata:** Written to `M6B_sequence_meta.csv` per row.
    Values: {0: normal, 1: single_source, 2: compound, 3: masked, 4: variant, 5: multi_sensor}.
@@ -237,7 +248,7 @@ Four-layer detection cascade — all layers must be implemented in M8/M10:
 
 ---
 
-## M10 API JSON Response Structure (Locked Design — v14.0)
+## M10 API JSON Response Structure (Locked Design — v14.1)
 
 ```json
 {
@@ -308,12 +319,12 @@ Four-layer detection cascade — all layers must be implemented in M8/M10:
 
 ---
 
-## Module Pathway — Corrected Status (v14.0)
+## Module Pathway — Corrected Status (v14.1)
 
 ```
 M6A ✅ COMPLETE (8,400 seq, 7 classes) — LOCKED
   ↓
-M6B 🔴 NEXT ACTIVE — spec locked (v14.0), script not yet run
+M6B 🔴 NEXT ACTIVE — spec locked (v14.1), script not yet run
   Target: ~26,000–28,000 seq, 22 classes (labels 0–21)
   Outputs: M6B_*.pkl, M6B_sequence_meta.csv, fault_rules_v3.json (22-class)
   ↓
@@ -371,8 +382,9 @@ Status_for_M6p5r                   : PENDING — set to READY after Step 3 passe
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.0 | 2026-04-15 | Created as Part 2 split from `modules_M6B_synthetic_expanded.md` v1.0. Script plan, dispatcher, pre-flight, API spec, module pathway, paste keys. Group B=1,500/class, Label 20=Pres.SV+Pmp.TV confirmed. |
+| v1.0 | 2026-04-15 | Created as Part 2 split from `modules_M6B_synthetic_expanded.md` v1.0. Script plan, dispatcher, pre-flight, API spec, module pathway, paste keys. |
 | v2.0 | 2026-04-16 | **v14.0 UPGRADE**: Label 21 `bearing_wear_gradual` added to Step 2 Group D (1,000 sequences, Weibull β=1.5, Gate G11-ext). Group B corrected to 6 classes (labels 7–12), 1,200/class. Group C corrected to 5 classes (labels 13–17), 800/class. Group D updated to 4 variants (labels 18–21). All sequence counts updated. Step 3 merge updated to 22-class. Module pathway: 22 classes, ~196k rows, label_int 0–21. API response: cusum_state + rolling_baseline fields added. Early warning table: TREND ALERT state added. Label 21 special case added. Paste keys: label21 slope gate + subthreshold pct added. Pre-flight confirmation 7+8 added for label 21. |
+| v2.1 | 2026-04-18 | **v14.1 PHYSICS CORRECTION**: Step 1 canonical Group B label map made explicit, including label 11 = overloading→bearing_wear and label 12 = impeller_imbalance→cavitation. Step 2 canonical Group C label map made explicit. `seal_failure_fast` wording corrected from Hagen–Poiseuille to turbulent orifice discharge through enlarged effective leak area. Step 3 Group E pump-side multi-sensor pair corrected to `Pmp.SV + Pmp.PV`. Pre-flight item 5 corrected accordingly. Execution status, API design, and module pathway aligned to v14.1. |
 
 ---
 
