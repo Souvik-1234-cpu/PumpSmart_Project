@@ -1,9 +1,9 @@
 # PumpSmart — Completed Modules Reference: M5 to M6B
 # Physics-Informed ML Digital Twin: Industrial Centrifugal Pump Health Monitoring
-# PART 2A OF 3 — M5 results + M6A results + M6B 22-class spec (v14.0)
+# PART 2A OF 3 — M5 results + M6A results + M6B 22-class spec (v14.1)
 #
 # Status: M5, M6A sections LOCKED. M6B section = SPEC ONLY — NOT YET EXECUTED.
-# Updated: 2026-04-16 | Author: Souvik
+# Updated: 2026-04-18 | Author: Souvik
 # Split from: completed_modules_M5_to_M6p5r.md (v3.0, too large)
 #
 # THIS FILE CONTAINS:
@@ -12,6 +12,9 @@
 #   - M6B 22-class expanded synthetic dataset SPEC + paste keys (🔴 NEXT ACTIVE — script not yet run)
 #   - v14.0 additions: label 21 bearing_wear_gradual, 4-layer detection architecture,
 #                      CUSUM runtime state, rolling baseline comparator
+#   - v14.1 corrections: pump-side multi-sensor pair confirmed as PmpSV+PmpPV;
+#                        Group B/C canonical map reaffirmed; seal_failure_fast
+#                        treated as rapid hydraulic discharge, not laminar pipe flow
 #
 # COMPANION FILES:
 #   completed_modules_context_and_M1_to_M4.md    → Part 1 LOCKED: context, M1–M4 results
@@ -144,7 +147,7 @@ M6A_status                : SUPERSEDED by M6B — not used in M7/M8 downstream
 ---
 
 ## ╔══════════════════════════════════════════════════╗
-## M6B — EXPANDED SYNTHETIC DATASET (22-CLASS, GROUPS A–E)  ← v14.0
+## M6B — EXPANDED SYNTHETIC DATASET (22-CLASS, GROUPS A–E)  ← v14.1
 ## Status: 🔴 NEXT ACTIVE — SPEC LOCKED, SCRIPT NOT YET RUN
 ## ╚══════════════════════════════════════════════════╝
 
@@ -169,7 +172,7 @@ M6B adds Groups B, C, D, E to the base Group A (M6A classes).
 All 22 classes will be defined in fault_rules_v3.json — written by M6B Step 3.
 ```
 
-### 22-Class Label Map — v14.0 (LOCKED — will be written to fault_rules_v3.json by M6B Step 3)
+### 22-Class Label Map — v14.1 (LOCKED — will be written to fault_rules_v3.json by M6B Step 3)
 
 | Group | Label | Class Name | Description |
 |---|---|---|---|
@@ -192,7 +195,7 @@ All 22 classes will be defined in fault_rules_v3.json — written by M6B Step 3.
 | C | 16 | overloading_TempSV_stuck | TempSV stuck — detect via MotTV (r=0.997 coupling) |
 | C | 17 | impeller_imbalance_PmpSV_flatline | PmpSV flatline — detect via PmpPV + cross-channel |
 | D | 18 | cavitation_intermittent | NPSHa oscillates around NPSHr boundary — burst pattern |
-| D | 19 | seal_failure_fast | Large-Δ PresSV drops in ≤20 steps (acute mechanical failure) |
+| D | 19 | seal_failure_fast | Rapid hydraulic discharge causes large-Δ PresSV drop in ≤20 steps |
 | D | 20 | overloading_cyclic | Thermal sawtooth: load ON/OFF + rising baseline per cycle |
 | D | 21 | bearing_wear_gradual | ← NEW v14.0. Paris law small ΔK. MotSV rises barely above baseline over 150+ steps. Primary discriminator: err_slope_MotSV. Requires CUSUM+rolling accumulator. |
 | E | [fault_rules_v3.json] | sensor_failure_2ch_thermal | MotTV + TempSV simultaneously degrade |
@@ -269,9 +272,12 @@ Label 18: cavitation_intermittent
   → Mech B slope NOT monotonic; burst_count tracker required in M8
 
 Label 19: seal_failure_fast
-  → Large-Δ PresSV drops in ≤20 steps to minimum (acute mechanical failure)
+  → Rapid hydraulic discharge through enlarged effective seal leak area
+  → PresSV drops in ≤20 steps to minimum
   → single-window MAE fires immediately → DANGER within 1–3 windows
   → Must show faster PresSV drop than standard seal_failure (Finding 2 constraint)
+  → Governing equation: Q_leak = Cd × A_orifice × sqrt(2 × ΔP / ρ)
+  → Do NOT model with Hagen–Poiseuille; seal blowout is not laminar pipe flow
 
 Label 20: overloading_cyclic
   → Thermal sawtooth: Temp.SV load ON/OFF with RISING baseline across cycles
@@ -388,7 +394,7 @@ Status_for_M6p5r              : READY / BLOCKED
 ---
 
 ## ╔══════════════════════════════════════════════════╗
-## FOUR-LAYER DETECTION ARCHITECTURE — v14.0
+## FOUR-LAYER DETECTION ARCHITECTURE — v14.1
 ## Governs M8 + M10 design. LOCKED.
 ## ╚══════════════════════════════════════════════════╝
 
@@ -453,6 +459,7 @@ Three M10 API output states:
 | v2.0 | 2026-04-15 | SPLIT into Part 1 + Part 2. Added M6B 21-class spec, M6.5r 26-feature spec, 15 invariants |
 | v3.0 | 2026-04-15 | CORRECTION: M6B/M6.5r status, Group E labels, seq counts, PENDING markers |
 | v4.0 | 2026-04-16 | **v14.0 UPGRADE**: Split into Part 2A (this file) + Part 2B (M6.5/invariants). Added label 21 bearing_wear_gradual to Group D. Classes 21→22. Sequences ~26,000–28,000. Group B corrected to 6 chains (labels 7–12). Group C corrected to 5 masked scenarios (labels 13–17). 4-layer detection architecture added (CUSUM Layer 3 + Rolling Baseline Layer 4). CUSUM rejected from feature matrix (train-serve skew). All seq counts updated to v14.0 targets. |
+| v5.0 | 2026-04-18 | **v14.1 CORRECTION**: Header/version metadata updated to v14.1. Confirmed canonical Group B and Group C label map remains unchanged from v14.0. Confirmed Group E pump-side multi-sensor pair as `PmpSV + PmpPV`. Clarified `seal_failure_fast` as rapid hydraulic discharge / orifice-flow behavior, not laminar pipe-flow wording. No completed module results changed. |
 
 ---
 
