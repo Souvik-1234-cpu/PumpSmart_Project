@@ -1,15 +1,15 @@
 # ⛔ SUPERSEDED — DO NOT USE FOR SCRIPTING
 
-> **This file is the original M6B architecture specification (v3.0, 2026-04-16).**
+> **This file is the original M6B architecture specification (v3.1, 2026-04-18).**
 > It contains the fault universe physics rules, CIRA anchor rationale, dataset targets,
 > and physics gates. The script plan has been split into a companion file.
 >
 > **⚠️ EXECUTION STATUS — READ BEFORE REFERENCING:**
-> - M6B = 🔴 NEXT ACTIVE — spec locked (v14.0), script **not yet run**, no output files exist
+> - M6B = 🔴 NEXT ACTIVE — spec locked (v14.1), script **not yet run**, no output files exist
 > - M6.5r = ⬜ NOT STARTED — blocked until M6B completes
 > - M7 = ⬜ NOT STARTED — blocked until M6.5r completes
 >
-> **Locked sequence targets (canonical — match `completed_modules_M5_to_M6p5r.md` v14.0):**
+> **Locked sequence targets (canonical — match `completed_modules_M5_to_M6p5r.md` v14.1):**
 > - Group A = 7 classes, ~1,200 each → ~8,400 total
 > - Group B = **6 compound classes, 1,200 each → ~7,200 total** (labels 7–12)
 > - Group C = **5 masked classes, 800 each → ~4,000 total** (labels 13–17)
@@ -17,8 +17,8 @@
 > - Group E = 2 multi-sensor classes, ~400 each → ~800 total
 > - **Grand total: ~26,000–28,000 sequences, 22 classes (labels 0–21)**
 >
-> **Label 20 = `sensor_failure_2ch_pumpside` = Pres.SV + Pmp.TV (pump-side junction box moisture ingress)**
-> NOT Pmp.SV + Pmp.PV — that was a previous error, now corrected everywhere.
+> **`sensor_failure_2ch_pump` = Pmp.SV + Pmp.PV** (pump-side junction box moisture ingress).
+> NOT Pres.SV + Pmp.TV — that pairing was a previous physics error and is now corrected.
 >
 > **Label 21 = `bearing_wear_gradual` (NEW v14.0)** — Paris–Erdogan slow crack propagation.
 > Sub-threshold MAE in severity < 0.15 sequences is PHYSICALLY CORRECT — do NOT raise threshold.
@@ -35,8 +35,8 @@
 # PumpSmart — Module M6B: Expanded Synthetic Generator
 ## Part 1 of 2 — Fault Universe, Physics Rules, Dataset Targets, Gates
 
-**Document version:** v3.0
-**Date:** 2026-04-16
+**Document version:** v3.1
+**Date:** 2026-04-18
 **Prerequisite:** M6A complete (`M6A_total_sequences = 8,400`, 7 classes locked)
 **Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)
 **Output file (PENDING):** `data/synthetic/M6B_combined_sequences.pkl` (~26,000–28,000 sequences, **22 classes**)
@@ -123,11 +123,11 @@ Causally explained secondary signal (e.g., thermal lag after vibration rise) = s
 | Label | Class | Primary → Secondary | Lag (steps) | Primary Signal | Secondary Signal | CIRA Anchor |
 |-------|-------|---------------------|-------------|----------------|------------------|-------------|
 | 7 | `bearing_wear+overloading` | Bearing friction → motor excess current → thermal runaway | 30–80 | Mot.SV rises first | Temp.SV + Mot.TV both rise after | Both parent faults CIRA-anchored |
-| 8 | `cavitation+seal_failure` | Joukowsky ΔP=19.1 bar shock → axial thrust → seal face blow | 30–80 | Pmp.SV spikes first | Pres.SV monotonic progressive drop | Both anchored; Joukowsky + H-P |
+| 8 | `cavitation+seal_failure` | Joukowsky ΔP=19.1 bar shock → axial thrust → seal face blow | 30–80 | Pmp.SV spikes first | Pres.SV monotonic progressive drop | Both anchored; Joukowsky + gradual hydraulic leak physics |
 | 9 | `impeller_imbalance+bearing_wear` | BPF radial load → lateral bearing fatigue crack (Paris law, ISO 281) | 30–80 | Pmp.SV BPF-like broadband first | Mot.SV exponential drift after | Both anchored; BPF + Paris law |
-| 10 | `seal_failure+cavitation` | Leakage → NPSHa drops below NPSHr → bubble collapse | 30–80 | Pres.SV smooth decline first | Pmp.SV erratic spikes appear | Both anchored; H-P + R-P |
-| 11 | `impeller_imbalance+cavitation` | BPF pressure oscillation → localised low-pressure zone | 30–80 | Pmp.SV BPF-like first | Pres.SV erratic + Pmp.SV changes character to spike-bursts | Both anchored |
-| 12 | `bearing_wear+seal_failure` | Bearing axial thrust → progressive seal face wear → leakage | 40–80 | Mot.SV rises first | Pres.SV slow monotonic drop after | Both anchored; Paris law + H-P |
+| 10 | `seal_failure+cavitation` | Leakage → NPSHa drops below NPSHr → bubble collapse | 30–80 | Pres.SV smooth decline first | Pmp.SV erratic spikes appear | Both anchored; gradual hydraulic leak + R-P |
+| 11 | `overloading+bearing_wear` | Thermal overload first, then bearing degradation accumulates | 40–80 | Temp.SV rises first | Mot.SV begins drift after | Both anchored |
+| 12 | `impeller_imbalance+cavitation` | BPF pressure oscillation → localised low-pressure zone | 30–80 | Pmp.SV BPF-like first | Pres.SV erratic + Pmp.SV changes character to spike-bursts | Both anchored |
 
 **Sequence length:** All sequences are 200 steps.
 `secondary_onset_lag` drawn from fault-specific range per label map above.
@@ -160,12 +160,9 @@ Remaining 7 sensors carry secondary signals — model must detect via secondary 
 |-------|-------|-----------|---------------|--------|----------------------|-------------|
 | 13 | `bearing_wear_MotSV_masked` | bearing_wear | Mot.SV (flatlined) | CRITICAL | Mot.TV + Temp.SV thermal secondary path only | Both anchored |
 | 14 | `cavitation_PresSV_masked` | cavitation | Pres.SV (dropout) | CRITICAL | Pmp.SV spikes alone — strongest signal | Both anchored |
-| 15 | `overloading_TempSV_masked` | overloading | Temp.SV (stuck) | HIGH | Mot.TV alone; r=0.997 coupling carries it (M5 confirmed) | Both anchored |
-| 16 | `impeller_imbalance_PmpSV_masked` | impeller_imbalance | Pmp.SV (flatlined) | HIGH | Pmp.PV + Pres.SV oscillation secondary path | Both anchored |
-| 17 | `seal_failure_MotPV_masked` | seal_failure | Mot.PV (stuck-high) | MEDIUM | Pres.SV slow drift only; weakest secondary path | Both anchored |
-
-**Hard case (flagged, not a 6th class):**
-- `seal_failure_PresSV_drifting` — Pres.SV is BOTH the primary fault indicator AND the drifting sensor. Ambiguous: is Pres.SV drifting because of a sensor fault or a real seal leak? Flagged separately in script output with extra Gate G10 secondary signal strength check. NOT a training class.
+| 15 | `seal_failure_PresSV_drifting` | seal_failure | Pres.SV (drifting) | CRITICAL | Secondary hydraulic channels only | Both anchored |
+| 16 | `overloading_TempSV_stuck` | overloading | Temp.SV (stuck) | HIGH | Mot.TV alone; r=0.997 coupling carries it (M5 confirmed) | Both anchored |
+| 17 | `impeller_imbalance_PmpSV_flatline` | impeller_imbalance | Pmp.SV (flatlined) | HIGH | Pmp.PV + cross-channel correlation change | Both anchored |
 
 **Target:** 800 sequences per class → **~4,000 sequences total** for Group C.
 Max achievable alert state = WARN (not DANGER) if secondary signal only.
@@ -181,14 +178,14 @@ shape is structurally different — not just scaled amplitude.
 | Label | Class | Base Fault | Variant Type | Physics Mechanism | Sensor Pattern |
 |-------|-------|-----------|--------------|-------------------|----------------|
 | 18 | `cavitation_intermittent` | cavitation | Intermittent | NPSHa oscillates above/below NPSHr boundary | Pmp.SV spikes appear → vanish → reappear; `burst_interval` from Uniform(15, 30) steps |
-| 19 | `seal_failure_fast` | seal_failure | Fast | Catastrophic blowout; Hagen-Poiseuille at large orifice diameter d | Pres.SV drops in ≤20 steps (not slowly) → DANGER within 1–3 windows |
+| 19 | `seal_failure_fast` | seal_failure | Fast | Catastrophic blowout; turbulent orifice discharge through enlarged effective leak area | Pres.SV drops in ≤20 steps (not slowly) → DANGER within 1–3 windows |
 | 20 | `overloading_cyclic` | overloading | Cyclic | Duty-cycle load variation; thermal sawtooth with RISING baseline | Temp.SV sawtooth + rising baseline each cycle; Spearman > 0.70 on detrended signal |
 | 21 | `bearing_wear_gradual` | bearing_wear | Gradual | **Paris–Erdogan low ΔK regime: da/dN = C·ΔKᵐ, β=1.5, sev=0.05–0.25** | Mot.SV barely above baseline; err_slope_MotSV > 0 consistently over 150+ steps; MAE < threshold for sev < 0.15 (PHYSICALLY CORRECT) |
 
 **Label 21 detailed physics:**
 ```
 Mechanism   : Paris–Erdogan law at small ΔK (early-stage bearing crack)
-              da/dN = C · ΔK^m, m=3 (steel), ΔK = 0.05–0.25 (normalized)
+              da/dN = C · ΔK^m, m=3 (steel), ΔK = 0.05–0.25 (normalized surrogate)
 CIRA anchor : Same 44 bearing-impact spike seeds as label 1 (bearing_wear)
               Amplitude attenuated by factor 0.05–0.25 per severity
 Weibull     : β=1.5, shape→long tail (chronic low-level degradation)
@@ -215,22 +212,18 @@ Gate G11: exactly 2 channels anomalous, no mechanical fault signature in remaini
 
 | Label | Class | Failed Channels | Physics Basis | Pattern |
 |-------|-------|----------------|---------------|---------|
-| 22 | `sensor_failure_2ch_thermal` | Mot.TV + Temp.SV | Common power rail failure — both temperature channels share excitation circuit | Both thermal channels anomalous; vibration + pressure remain within ±0.20 |
-| 23 | `sensor_failure_2ch_pumpside` | **Pres.SV + Pmp.TV** | **Moisture ingress to pump-side junction box** — both pump-side sensors affected; motor-side sensors (Mot.PV, Mot.SV, Mot.TV) remain normal | Pres.SV + Pmp.TV simultaneously degrade; `multi_sensor_anomaly_count = 2` |
+| [fault_rules_v3.json] | `sensor_failure_2ch_thermal` | Mot.TV + Temp.SV | Common power rail failure — both temperature channels share excitation circuit | Both thermal channels anomalous; vibration + pressure remain within ±0.20 |
+| [fault_rules_v3.json] | `sensor_failure_2ch_pump` | **Pmp.SV + Pmp.PV** | **Moisture ingress to pump-side junction box / shared conduit path for both accelerometers** | Both pump vibration channels simultaneously degrade; motor-side sensors remain normal; `multi_sensor_anomaly_count = 2` |
 
-> ⚠️ NOTE: Group E labels above are placeholder — actual label integers are assigned in
-> `fault_rules_v3.json` written by M6B Step 3. Labels 0–21 cover Groups A–D (22 classes).
-> Group E sequences carry their own label integers per fault_rules_v3.json.
-
-**Not included:** `sensor_failure_2ch_vibration` (Mot.SV + Pmp.SV) — removed post physics audit.
-Both vibration channels failing simultaneously masks ALL mechanical fault signatures.
-XGBoost cannot distinguish this from normal + dead sensor stack. Too high ambiguity.
+> ⚠️ NOTE: Group E exact label integers are assigned in
+> `fault_rules_v3.json` written by M6B Step 3.
+> Total 22 classes = labels 0–21. Do not hardcode Group E label numbers here.
 
 **Target:** ~400 sequences per class → **~800 sequences total** for Group E.
 
 ---
 
-## Dataset Totals — M6B Locked Targets (v14.0)
+## Dataset Totals — M6B Locked Targets (v14.1)
 
 > ⚠️ These are TARGETS. Actual counts populate after M6B script runs.
 > Actuals go into paste keys in `completed_modules_M5_to_M6p5r.md`.
@@ -241,8 +234,8 @@ XGBoost cannot distinguish this from normal + dead sensor stack. Too high ambigu
 | B (Compound chains) | **6** | **1,200** | **~7,200** | 7–12 | ⏳ PENDING |
 | C (Masked faults) | **5** | **800** | **~4,000** | 13–17 | ⏳ PENDING |
 | D (Severity variants) | **4** | 600 / 600 / 600 / **1,000** | **~2,800** | 18–21 | ⏳ PENDING |
-| E (Multi-sensor failure) | 2 | **~400** | **~800** | TBD | ⏳ PENDING |
-| **TOTAL** | **22+ groups** | — | **~26,000–28,000** | 0–21 + E | ⏳ PENDING |
+| E (Multi-sensor failure) | 2 | **~400** | **~800** | within 0–21 | ⏳ PENDING |
+| **TOTAL** | **22** | — | **~26,000–28,000** | 0–21 | ⏳ PENDING |
 
 ```
 RAM check: ~27,000 × 200 × 8 × float32 ≈ 173 MB ✅ within 16 GB RAM
@@ -278,9 +271,9 @@ models/M4_threshold_config.json      — threshold=0.110058 (LOCKED)
 
 ```
 NOTE: fault_rules_v3.json does NOT exist yet.
-      It will be WRITTEN by M6B Step 3 (not read).
+      It will be WRITTEN by M6B Step 3.
       Do not attempt to load it before M6B Step 3 completes.
-      It will contain ALL 22 classes (labels 0–21 + Group E labels).
+      It will contain ALL 22 classes (labels 0–21).
 ```
 
 ---
@@ -290,8 +283,9 @@ NOTE: fault_rules_v3.json does NOT exist yet.
 | Version | Date | Change |
 |---------|------|--------|
 | v1.0 | 2026-04-15 | Original monolithic M6B spec — fault universe, script plan, API design, paste keys |
-| v2.0 | 2026-04-15 | **SPLIT + CORRECTION.** Script plan, dispatcher, API design, paste keys moved to `modules_M6B_script_plan.md`. Fixes: M6B/M6.5r/M7 status corrected. Group B=1,500/class / ~7,500 total. Label 20 sensor pair corrected: Pres.SV + Pmp.TV. |
-| v3.0 | 2026-04-16 | **v14.0 UPGRADE**: 22-class everywhere. Label 21 `bearing_wear_gradual` added to Group D (Paris–Erdogan, 1,000 sequences, Gate G11-ext, CIRA anchor). Group B corrected to 6 classes (labels 7–12), 1,200/class, ~7,200 total; label 12 `bearing_wear+seal_failure` added. Group C corrected to 5 classes (labels 13–17), 800/class, ~4,000 total; label 17 `seal_failure_MotPV_masked` added. Group D labels renumbered 18–21. Group E sequence count corrected to ~400/class, ~800 total. Dataset totals table updated to v14.0. Gate G11-ext added. RAM check updated: ~196,000 rows target. |
+| v2.0 | 2026-04-15 | **SPLIT + CORRECTION.** Script plan, dispatcher, API design, paste keys moved to `modules_M6B_script_plan.md`. |
+| v3.0 | 2026-04-16 | **v14.0 UPGRADE**: 22-class everywhere. Label 21 `bearing_wear_gradual` added to Group D. Group B and Group C expanded. |
+| v3.1 | 2026-04-18 | **v14.1 PHYSICS CORRECTION**: Group B labels 11/12 corrected to canonical map. Group C labels 15/16/17 corrected to canonical map. Group E pump-side multi-sensor pair corrected to `Pmp.SV + Pmp.PV`. `seal_failure_fast` physics corrected from Hagen–Poiseuille wording to turbulent orifice discharge. Group E labels clarified as assigned within `fault_rules_v3.json` and total class count remains 22 (labels 0–21). |
 
 ---
 
