@@ -1,388 +1,451 @@
 # PumpSmart — Module M8: LSTM-AE v2 Production Anomaly Detector
-# PART 2A OF 3 — Alert Machine, Gates, Adaptive Actions
+## Part 1B of 3 — TCN-AE Mechanisms, Detection Map, Training Data
 
-**Document version:** v3.0 — 22-class M6B alignment (v14.0)
-**Date:** 2026-04-16
-**Part 1A (LSTM-AE + Fuzzy):** `module_M8_lstm_ae_v2_architecture.md`
-**Part 1B (Mechanisms):** `module_M8_lstm_ae_v2_mechanisms.md`
-**Part 2B (Outputs + Paste Keys):** `module_M8_lstm_ae_v2_outputs_and_paste.md`
-**Prerequisite:** M7 all 16 gates passed | `M7_all_16_gates_pass = True`
-**Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)
-**Status:** NOT STARTED — begins only after M7 gates confirmed
+| Field | Value |
+|-------|-------|
+| **Document version** | v2.0 — v14.2 TCN-AE mechanisms |
+| **Date** | 2026-04-19 |
+| **Part 1A (Architecture)** | `module_M8_lstm_ae_v2_architecture.md` — Level 1 LSTM-AE + Level 2 TCN-AE + Fuzzy layer |
+| **Part 2 (Gates + Outputs)** | `module_M8_lstm_ae_v2_gates_and_outputs.md` |
+| **Prerequisite** | M7 all 16 gates passed — `M7_all_16_gates_pass = True` |
+| **Asset** | 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP) |
 
-> ⚠️ READ Part 1A + Part 1B FIRST before reading this file.
-> Part 2A = alert machine + gates + adaptive actions.
-> Part 2B = outputs, paste keys, dependency chain, revision history.
+> **NOTE:** This file covers Level 2 TCN-AE mechanisms, the Glass analogy, Mech A/B/C slow drift detectors, Layer 3 CUSUM, Layer 4 Rolling Baseline, detection map, and training data composition.
+>
+> - Read **Part 1A** first for LSTM-AE architecture, TCN-AE architecture overview, channel weights, fuzzy layer, score routing rules, and adaptive threshold.
+> - Read **Part 2** for gates, alert state machine, paste keys.
 
 ---
 
-## STAGE 4 — Four-State Alert Machine
+## Detection Layer Architecture (M8 Full Stack)
+
+| Layer | Component | Covered In |
+|-------|-----------|-----------|
+| Level 1 | LSTM-AE per-window anomaly | Stage 1 + Stage 2 (Part 1A) |
+| Level 2 | TCN-AE cross-window pattern | Stage 3A: TCN mechanism *(this file)* |
+| Layer 2 — Mech A | Rolling Mean Gate | Stage 3B *(this file)* |
+| Layer 2 — Mech B | Slope Detector | Stage 3C *(this file)* |
+| Layer 2 — Mech C | Per-Channel Drift Monitor | Stage 3D *(this file)* |
+| Layer 3 | CUSUM on score_B | Stage 3E *(this file)* — label 21 primary |
+| Layer 4 | Rolling Baseline on score_A | Stage 3F *(this file)* — label 21 confirm |
+| Layer 5 | Alert State Machine | Stage 4 (Part 2) |
+| Layer 6 | Cluster-Conditional Thresholds | Stage 5 (Part 2) |
+
+> **Layers 3 and 4 are the primary detection path for label 21 (`bearing_wear_gradual`). No other fault class REQUIRES them — do NOT apply them as general detectors.**
+
+---
+
+## Liability Basis (ISO 13374 Level 3)
+
+> **Category 3 fault = progressive degradation = MODEL'S RESPONSIBILITY.**
+> Fault developing over days/weeks → per-window MAE too small for threshold. Without cross-window detection → fault missed entirely → liability exposure. M6B severity 0.2–0.3 sequences generated SPECIFICALLY to calibrate these layers.
+>
+> For label 21 (`bearing_wear_gradual`): severity 0.05–0.25 means MAE **NEVER** crosses threshold even in severe windows. Layers 3 and 4 are mandatory.
+
+---
+
+## Stage 3A — Level 2: TCN-AE Mechanism
+
+> **⭐ THIS SECTION IS NEW IN v2.0 — TCN-AE REPLACES LSTM v2**
+
+### Dilated Causal Convolution — Core Equation
 
 ```
-STATE DEFINITIONS:
-  NORMAL  : rolling_score < 2.0  AND no channel_drift_flag AND no slope trigger
-             AND cusum_bearing_gradual_flag = False
-             AND rolling_baseline_drift_flag = False
-  WATCH   : rolling_mean_200 > 0.085  OR slope trigger  OR ANY channel_drift_flag
-             OR cusum_bearing_gradual_flag = True
-             OR rolling_baseline_drift_flag = True
-  WARN    : rolling_mean_100 > 0.095  OR rolling_score in [2.0, 3.5]
-             OR (cusum_bearing_gradual_flag AND Mech_C_MotSV_slow_drift_flag)
-             OR (cusum_bearing_gradual_flag AND rolling_baseline_drift_flag)
-  DANGER  : single_window_MAE > cluster_threshold  OR rolling_score > 3.5
-             OR (cusum + rolling_baseline + Mech_C_MotSV_slow_drift all True)
+y[t] = sum(k=0 to K-1) f[k] * x[t - d*k]
 
-STATE ESCALATION:
-  NORMAL  → WATCH  : sustained low-level anomaly / drift beginning
-  WATCH   → WARN   : trend confirmed over 100+ windows
-  WARN    → DANGER : threshold crossed — immediate maintenance required
-  DANGER  → WARN   : MAE below threshold for 50+ consecutive windows
-  WARN    → WATCH  : rolling_mean_200 below 0.085 for 200+ windows
-  WATCH   → NORMAL : ALL mechanisms clear for 300+ consecutive windows
-                     AND cusum S_pos < 0.5×H AND drift_ratio < 1.05
-
-FOUR-STATE M10 UI MESSAGES:
-  NORMAL  : "System operating within normal parameters"
-  WATCH   : "Early anomaly trend — monitor closely"
-  WARN    : "Sustained anomaly — schedule maintenance"
-  DANGER  : "Fault confirmed — immediate action required"
+Where:
+  y[t]    = output at position t
+  f[k]    = filter weight at position k
+  x[t-d*k]= input at position t minus dilation*k (PAST only — causal)
+  K       = kernel size = 3
+  d       = dilation factor (1, 2, 4, 8, 16 per layer)
 ```
 
-### Fault-Specific Alert Exceptions
+> **Causal constraint:** `x[t - d*k]` uses ONLY positions ≤ t. No future leakage — valid for real-time streaming inference.
+
+### Receptive Field — Glass Analogy
+
+Each TCN layer is a "Glass" pane looking back over a different window:
+
+| Glass | Dilation | RF (windows) | RF (raw seconds) | Catches | Physics |
+|-------|----------|-------------|-----------------|---------|---------|
+| Glass 1 | d=1 | 3 | 150s | Labels 3 (cavitation), 6 (sensor_failure) | Acute hydraulic shock or instantaneous sensor death |
+| Glass 2 | d=2 | 5 | 250s | Labels 1 (bearing_wear), 2 (impeller_imbalance), 17 (masked) | Bearing Paris-law early rise, BPF pattern establishment |
+| Glass 3 | d=4 | 9 | 450s | Labels 7, 8, 12 (compound), 13, 16, 18 (masked/intermittent) | Compound fault primary-phase establishment, masked secondary path |
+| Glass 4 | d=8 | 17 | 850s | Labels 9, 10, 11 (compound), 14, 15 (masked), 20 (cyclic) | Compound fault chain transition (lag 400–800 steps), cyclic baseline drift |
+| Glass 5 | d=16 | 33 (63 full RF) | 3,150s | Label 21 (gradual bearing, 1,000 steps = 20 windows) | Paris-Erdogan low-dK crack growth — only visible at multi-week timescale |
+
+**Full receptive field across all 5 layers:**
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- CAVITATION EXCEPTION (Finding F5 — MAE = 0.675, 6.1× threshold):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  if cluster == 'startup' AND single_window_MAE > 3 × cluster_threshold:
-      alert_state = DANGER  # bypass WATCH and WARN entirely
-  Physics: cavitation is acute hydraulic shock.
-  Impeller pitting begins within 60–180s of onset.
-  DO NOT route cavitation through rolling mean accumulator.
-  Gate M8-12: ZERO cavitation DANGER alerts outside startup cluster.
+RF = 1 + (K-1) × sum(dilations) = 1 + 2 × (1+2+4+8+16) = 63 windows
+```
 
-  cavitation_intermittent (Group D label 18):
-  MAE spikes during burst windows only — drops between bursts.
-  Alert: WATCH on first burst, WARN after 3 bursts in 100 windows,
-  DANGER if burst frequency increases (slope of burst_count > 0).
-  Do NOT de-escalate to NORMAL between bursts — hold WATCH minimum.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- OVERLOADING EXCEPTION (Finding F1 — Gate 3 = 0.00%):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Primary detection = Mech C Temp.SV drift (POSITIVE Spearman > 0.70)
-  Gate M8-7 denominator = overloading validation sequences ONLY
-  Gate M8-7 numerator = sequences where Temp.SV drift fires ≤15 min
-  Single-window MAE crossing excluded from overloading TPR measurement
+### Vanishing Gradient Comparison
 
-  overloading_cyclic (Group D label 20):
-  Temp.SV shows sawtooth with RISING BASELINE — not monotonic.
-  Detection: Mech B slope of baseline_drift > 0.0002/window
-  PLUS Temp.SV Spearman > 0.70 on baseline-detrended signal.
-  Alert: WATCH on first cycle, WARN after baseline drift confirmed.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- SEAL FAILURE EXCEPTION (Finding F2 — Gate 3 = 29.17%):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Primary detection   = Mech C Pres.SV drift flag (NEGATIVE Spearman)
-  Secondary confirm   = Mech A rolling mean
-  Mild seal (0.2–0.4): Mech C fires first → Mech A confirms
-  Severe seal (0.5+) : single-window MAE also fires
-  Gate M8-9: Pres.SV drift WATCH ≤20 min for sev 0.2 sequences
-  Gate M8-10: Pres.SV drift flag fires BEFORE total MAE reaches WARN state
+| Architecture | Gradient Path at N_windows=16 | Implication |
+|-------------|------------------------------|-------------|
+| **LSTM v2** (rejected) | 0.9¹⁶ = 0.19 (19% signal remaining) | Chain onset at window 1 nearly invisible at window 16 |
+| **TCN-AE** (current) | Constant 5 layers regardless of length | 100% signal preserved at window 16 |
+| **Transformer** (rejected) | N/A — attention degrades at N=6–20 | Weights degenerate to near-uniform (1/6 each); no meaningful position weighting |
 
-  seal_failure_fast (Group D label 19):
-  Pres.SV drops in ≤20 steps — slope extremely steep.
-  Single-window MAE fires immediately — no need for rolling accumulation.
-  Alert: DANGER within 1–3 windows of onset.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- BEARING WEAR GRADUAL EXCEPTION (label 21 — Paris–Erdogan sub-threshold):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Single-window MAE NEVER crosses threshold at sev 0.05–0.25 — by design.
-  Standard rolling mean (Mech A) also WILL NOT fire — by design.
-  DO NOT treat absence of MAE crossing as model failure.
-  DO NOT raise global threshold to make label 21 invisible.
+> TCN receptive field is deterministic and physics-aligned — preferred over Transformer for this sequence length range.
 
-  Detection path (mandatory, in order):
-    Layer 3 CUSUM (Stage 3D, Part 1B)    → WATCH  [primary]
-    Layer 4 Rolling Baseline (Stage 3E)  → WATCH→WARN [confirm]
-    Mech C Mot.SV slow drift (0.65, 500w) → WARN [secondary confirm]
-    All three simultaneously              → DANGER
+### Stateful vs Geometric Memory
 
-  Alert state escalation for label 21:
-    cusum_bearing_gradual_flag only           → WATCH
-    cusum + rolling_baseline                  → WARN
-    cusum + rolling_baseline + Mech_C_slow    → DANGER
+| Property | LSTM (stateful) | TCN (geometric) |
+|----------|----------------|----------------|
+| Memory mechanism | Hidden state h_t carries memory forward | Dilation pattern creates fixed receptive field |
+| Memory decay | Exponential with sequence length | Deterministic geometric coverage (RF = 63 windows) |
+| Initialization | Careful init required, prone to vanishing gradient | No hidden state to reset or initialize |
+| Window boundaries | Reset = inter-window amnesia | Slide one window, reuse cached activations |
 
-  M10 UI note for label 21:
-    "Gradual bearing degradation detected — Paris–Erdogan regime.
-     MAE sub-threshold by design. Alert via cumulative drift analysis."
+### Rolling Buffer Architecture — Real-Time Streaming Inference
 
-  Gate M8-14-ext (detail in Part 2B):
-    ≥75% label 21 sequences → WATCH via CUSUM within 500 windows
-    ≥60% label 21 sequences → WARN via CUSUM + Layer 4 within 800 windows
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GROUP C — MASKED FAULT ALERT BEHAVIOUR (5 classes, labels 13–17):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Masked faults: primary detection channel is flatline (sensor dead).
-  Alert MUST route through secondary Mech C path.
-  Max reachable alert state = WARN if secondary signal only.
-  DANGER requires either: (a) secondary channel MAE crosses threshold,
-  OR (b) 3+ Mech C flags simultaneously active.
-  Label 17 (seal_failure_MotPV_masked): weakest secondary path (Pres.SV only).
-    Max reachable state = WARN unless Pres.SV MAE independently crosses threshold.
-    Gate M8-13 documents label 17 expected to be lowest TPR in Group C.
-  M10 UI note: "Primary sensor unavailable — detection via secondary signal"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- GROUP B — COMPOUND FAULT ALERT BEHAVIOUR (6 classes, labels 7–12):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Phase 1 (primary fault active): alert follows primary fault exception rules.
-  Phase 2 (secondary fault onset at secondary_onset_lag):
-    Additional Mech C flag fires on secondary channel → escalate alert by 1 level.
-    If already at DANGER: hold DANGER, add secondary_fault_type to output dict.
-  Expected: all 6 compound sequences reach DANGER within 200 windows.
-  Gate M8-14: Group B TPR ≥85% reaching DANGER (6 classes, labels 7–12).
+```
+At M10 inference time:
+  Maintain circular buffer: z_t_buffer of shape (63, 64)
+  On each new 50-step sensor window:
+    1. Run Level 1 LSTM-AE → get z_t (64-dim)
+    2. Append z_t to circular buffer (shift oldest out)
+    3. When buffer has >= min_windows (e.g., 3): run TCN-AE forward pass
+    4. Get score_A, score_B, score_C
+    5. Route scores to CUSUM / Rolling Baseline / XGBoost per routing rules
 
-  Label 12 (bearing_wear→seal_failure) specific:
-  Phase 1: Mot.SV drift fires (bearing primary) → WATCH
-  Phase 2: Pres.SV drift fires at secondary_onset_lag → WARN→DANGER
-  Both Mech C flags active simultaneously = highest confidence compound.
+Memory cost: 63 × 64 × float32 = 16 KB per pump — negligible
 ```
 
 ---
 
-## STAGE 5 — Cluster-Conditional Thresholds
+## Stage 3B — Mechanism A: Rolling Mean Gate (~3 minute horizon)
+
+### Computation
 
 ```
-Separate anomaly threshold per operating mode:
-  startup      : threshold_startup       > 0.110058  (wider — BPF harmonics elevate MAE)
-  steady_state : threshold_steady_state  = 0.110058  (M4 baseline — reference anchor)
-  high_load    : threshold_high_load    ≤ 0.110058  (tighter — faults caught immediately)
-  cooldown     : threshold_cooldown     ≈ 0.110058  (similar to steady_state)
-
-Calibration:
-  P99 of normal MAE distribution PER CLUSTER on full 9711-window normal pool.
-  Threshold set on REAL CIRA validation set — NOT synthetic [Bias 2 fix].
-  Startup threshold wider: accommodates BPF harmonic MAE elevation at pump start.
-  Store all four values in: models/M8_threshold_config.json
-
-WHY REAL CIRA ANCHORING MATTERS (Bias 2 fix):
-  Synthetic sequences from physics equations → a purely synthetic threshold
-  is physics-biased. Real CIRA validation anchors to actual pump behaviour:
-  manufacturing tolerances, fluid impurities, ambient conditions.
-  Prevents systematic false-alarm drift in deployment.
+rolling_mean_MAE_200 = mean(MAE, last 200 windows)
+rolling_mean_MAE_100 = mean(MAE, last 100 windows)
 ```
+
+### Thresholds (calibrated on mild-severity M6B sequences)
+
+| Condition | Alert State |
+|-----------|-------------|
+| `rolling_mean_MAE_200 > 0.085` | WATCH |
+| `rolling_mean_MAE_100 > 0.095` | WARN |
+
+**Physics basis:** 200 windows = ~3 min at 1 Hz sampling. Seal wear at severity 0.2 raises mean MAE by ~0.008 / 100 windows. Detectable in WATCH within ~10 minutes of onset.
+
+### Calibration Targets
+
+| Scenario | Target |
+|----------|--------|
+| Mild bearing sev 0.2–0.3 | WATCH fires ≤10 min of simulated onset |
+| Mild seal sev 0.2–0.3 | WATCH fires ≤15 min of simulated onset |
+| Normal pool | `rolling_mean_MAE_200` stays below 0.085 in steady_state/high_load |
+
+> **Label 21 (`bearing_wear_gradual`) — NOT detected by Mech A:** MAE never accumulates above 0.085 rolling mean at sev 0.05–0.25. Mech A will NOT fire for label 21. This is **CORRECT**. Layer 3 CUSUM (Stage 3E) is the mandatory detection path. **Do NOT lower Mech A threshold to detect label 21 — FPR will rise.**
 
 ---
 
-## M8 Production Inference Protocol (8-Step)
+## Stage 3C — Mechanism B: Slope Detector (~8 minute horizon)
+
+### Computation
 
 ```
-Step 1: Load cluster label → cluster-conditional threshold from M8_threshold_config.json
-Step 2: Run N=20 MC Dropout forward passes → mean_MAE + uncertainty_std
-Step 3: Compute fuzzy fault membership: μ_fault(mean_MAE)
-        from M8_fuzzy_config.json [lower_bound, upper_bound]
-Step 4: Update rolling accumulator (5-window): sum of last 5 μ_fault scores
-Step 5: Update Mech A: rolling mean MAE (200-window + 100-window)
-        Update Mech B: slope detector (500-window linear regression)
-Step 6: Update Mech C: per-channel Spearman drift (300-window standard)
-        Label 17: Pres.SV Spearman window=300, threshold=0.60
-        Label 21: Mot.SV Spearman window=500, threshold=0.65
-        Check flatline std < 0.001 for sensor_failure detection
-        Check multi_sensor_anomaly_count for Group E (count ≥ 2)
-Step 6B: Update Layer 3 CUSUM (Mot.SV channel error, label 21 only)
-         Update Layer 4 Rolling Baseline (short/long ratio, label 21 only)
-         [Layer 4 disabled until 5000-window burn-in complete]
-Step 7: Apply fault-specific exceptions:
-        — Cavitation (label 3):          startup + MAE > 3×threshold → DANGER immediately
-        — Cavitation_intermittent (18):  burst tracking → WATCH→WARN on burst count
-        — Overloading (label 5):         Temp.SV Spearman > 0.70 (positive) → overloading_early
-        — Overloading_cyclic (20):       baseline drift slope → WATCH→WARN
-        — Seal failure (label 4):        Pres.SV Spearman > 0.70 (negative) + thermal_decoupling
-        — Seal_fast (19):                steep Pres.SV slope → DANGER within 3 windows
-        — Bearing wear (label 1):        Mot.SV Spearman > 0.70 (positive) + coupling preserved
-        — Bearing_gradual (21):          CUSUM → WATCH; CUSUM+baseline → WARN; all 3 → DANGER
-        — Bearing→seal compound (12):    Mot.SV drift then Pres.SV drift at lag → escalate
-        — Sensor fail single (6):        channel std < 0.001 → sensor_failure
-        — Sensor fail 2ch (E-a, E-b):    multi_sensor_anomaly_count ≥ 2 → sensor_failure_2ch
-        — Group B compound (7–12):       2nd Mech C flag at secondary_onset_lag → escalate
-        — Group C masked (13–17):        max alert = WARN unless secondary MAE crosses threshold
-        — Label 17 masked:               max alert = WARN (weakest secondary path)
-Step 8: Determine alert state → output dict
-
-OUTPUT DICT (complete):
-{
-  alert_state                  : "NORMAL" / "WATCH" / "WARN" / "DANGER"
-  anomaly_flag                 : bool
-  fuzzy_membership             : float [0, 1]
-  rolling_mean_mae             : float
-  mae_slope                    : float
-  channel_drift                : {
-    "Mot.SV": bool, "Pmp.SV": bool, "Pres.SV": bool, "Temp.SV": bool,
-    "Mot.TV": bool, "Pmp.TV": bool, "Mot.PV": bool, "Pmp.PV": bool
-  }
-  cusum_bearing_gradual_flag   : bool         (label 21 Layer 3)
-  cusum_S_pos                  : float        (current accumulator value)
-  rolling_baseline_drift_flag  : bool         (label 21 Layer 4)
-  drift_ratio                  : float        (short/long baseline ratio)
-  early_fault_type             : None / "overloading_early" / "seal_failure_early" /
-                                 "bearing_wear_early" / "bearing_wear_gradual_early" /
-                                 "sensor_failure" / "sensor_failure_2ch" /
-                                 "compound_secondary_onset"
-  secondary_fault_type         : None / string
-  masked_detection             : bool
-  multi_sensor_count           : int
-  severity                     : "LOW" / "MEDIUM" / "HIGH"
-  uncertainty_std              : float
-  confidence                   : float [0, 1]
-  attention_heatmap            : array(50,)
-  cluster                      : "startup" / "steady_state" / "high_load" / "cooldown"
-}
+slope = linear_regression_slope(MAE_values, last 500 windows)
 ```
+
+### Threshold
+
+| Condition | Action |
+|-----------|--------|
+| `slope > 0.0003/window` | Escalate alert state by 1 level |
+
+**Physics basis:** Bearing degradation over 8h produces slope ~0.0001–0.0005/window. At 0.0003/window threshold: 500 windows = ~8 min to confirm trend. Never used in isolation — always combined with Mech A or Mech C.
+
+### Group D Severity Variant Implications
+
+| Label | Class | Mech B Behaviour |
+|-------|-------|-----------------|
+| 18 | `cavitation_intermittent` | Slope NOT monotonic (on-off bursts) |
+| 20 | `overloading_cyclic` | Slope of BASELINE drift, not instantaneous MAE. Use `cyclic_baseline_drift` feature from M6.5r to distinguish sawtooth from trend. |
+| 19 | `seal_failure_fast` | Slope strongly negative, fires rapidly |
+
+> **Label 21 (`bearing_wear_gradual`) — Mech B PARTIAL signal only:** `err_slope_MotSV` (the M6.5r feature) is positive and monotonic. However, MAE-based slope at 0.0003/window will NOT fire reliably for sev 0.05–0.15. Mech B may fire at sev 0.20–0.25 (later stage gradual wear). Layer 3 CUSUM (Stage 3E) is the **PRIMARY** detection mechanism for label 21. Mech B is **SECONDARY** confirmation — not relied upon for gate.
 
 ---
 
-## M8 All 15 Validation Gates
+## Stage 3D — Mechanism C: Per-Channel Drift Monitor
 
+### Computation
+
+```python
+channel_error[ch] = |reconstructed[ch] - input[ch]|   # RAW — bypasses weight matrix
+
+spearman_r[ch] = spearman_correlation(
+    channel_error[ch], time_index, last 300 consecutive windows
+)
+if spearman_r[ch] > 0.70:
+    channel_drift_flag[ch] = True
 ```
-GATE-M8-1 : TPR fault detection — Group A single-source
-             > 90% on Group A fault validation sequences
-             Report SEPARATELY per fault class — do not aggregate
-             Cavitation ~100% expected — do not let it mask other classes
-             Denominator EXCLUDES overloading mild (Gate M8-7) and seal mild (Gate M8-9)
 
-GATE-M8-2 : FPR false alarm
-             < 5% on FULL 9711-window normal pool [Finding F6]
-             NOT on 30-window probe subset — that result is INVALID
-             Measured cluster-by-cluster: report startup FPR separately
+> **⚠️ IMPLEMENTATION MANDATE:**
+> ```python
+> channel_error = abs(model_output[ch] - model_input[ch])  # BEFORE weight matrix
+> # NOT: weighted_channel_error
+> ```
+> Reason: Temp.SV weight=0.5 suppresses in MAE but Mech C needs raw signal. Pres.SV weight=2.5 would exaggerate — raw error gives honest channel signal.
 
-GATE-M8-3 : Youden’s J
-             > 0.85  (J = TPR − FPR)
-             Computed on Group A fault pool vs full normal pool
+### Channel → Fault Type Mapping
 
-GATE-M8-4 : Separation ratio
-             > 5.0×  (M4 baseline was 4.11×)
-             = mean_fault_MAE / mean_normal_MAE
-             Computed on Group A included fault population (cavitation dominated)
+**Temp.SV drift** (Spearman_r > 0.70, POSITIVE trend):
+- → `overloading_early` flag
+- Finding F1 — **PRIMARY and ONLY** reliable detection path for overloading
+- Physics: overloading = motor overheating → Temp.SV\* rises monotonically
+- Gate M8-7: overloading TPR ≥80% measured via THIS flag ONLY
+- Also fires for: `overloading_cyclic` (label 20) — Mech B slope of baseline drift used to distinguish cyclic from sustained overload
 
-GATE-M8-5 : False alarms absolute count
-             ≤8 windows on normal validation pool
-             (same standard as M4 — 0.55% of 1457 val windows)
+**Pres.SV drift** (Spearman_r > 0.70, NEGATIVE slope):
+- → `seal_failure_early` flag
+- Finding F2 — **PRIMARY** detection path for mild seal failure
+- Physics: seal failure = progressive pressure loss → Pres.SV\* falls
+- Cross-check: `thermal_decoupling` must ALSO be True simultaneously
+- Gate M8-9: WATCH fires ≤20 min via this flag
+- Gate M8-10: This flag fires BEFORE total MAE reaches WARN level
+- Also fires for: `cavitation->seal_failure` (label 8) — Pres.SV drift begins AFTER `secondary_onset_lag` timesteps
 
-GATE-M8-6 : Fuzzy boundaries valid
-             lower_bound < upper_bound
-             lower_bound in [0.07, 0.09]
-             upper_bound in [0.15, 0.50]
-             Transition zone width ≥0.05
-             If width < 0.05 → selective exclusion not working → audit
+**Mot.SV drift** (Spearman_r > 0.70, POSITIVE trend):
+- → `bearing_wear_early` flag
+- Physics: bearing degradation → Mot.SV\* rises before Mot.TV (20–40s lag)
+- Thermal coupling must ALSO be preserved (r > 0.85) simultaneously
+- Both: Mot.SV drift + thermal coupling preserved = bearing confirmed
+- Also fires for: `impeller_imbalance->bearing_wear` (label 9) — Mot.SV drift appears at `secondary_onset_lag` after PmpSV initial spike
+- Also fires for: `bearing_wear->overloading` (label 7) — Mot.SV drift (primary) precedes Temp.SV rise (secondary) by lag steps
 
-GATE-M8-7 : Overloading detection via Mech C ONLY
-             ≥80% TPR on mild overloading sequences (sev 0.2–0.5)
-             via Temp.SV Spearman drift flag within ≤15 min [Finding F1]
-             Applies to overloading (label 5) and overloading_cyclic (label 20)
-             Document if < 80% — do NOT raise global threshold to compensate
+**Mot.SV VERY SLOW drift** (Spearman_r > 0.65, POSITIVE, window=500):
+- → `bearing_wear_gradual_early` flag (label 21 SPECIFIC)
+- Finding F7 — **PRIMARY** Mech C path for label 21
+- Physics: Paris-Erdogan low-dK regime — crack growth rate sub-critical
+- Mot.SV\* rises at ~0.002–0.005 per 100 windows (vs 0.01–0.03 for standard BW)
+- LOWER Spearman threshold (0.65 not 0.70) — signal is very weak
+- LONGER window (500 not 300) — need more data to accumulate trend
+- Layer 3 CUSUM (Stage 3E) fires BEFORE this flag at typical severities — this flag is CONFIRMATION, not primary
+- **DO NOT apply 500-window Spearman to other fault classes**
 
-GATE-M8-8 : Attention seam check
-             seam_ratio = mean_attention(t=49,50) / mean_attention(t=10,40)
-             Gate: seam_ratio < 1.0 for bearing_wear sequences [Finding F3]
-             FAIL action: add gradient penalty at t=49–50, retrain M8
+**Single channel flatline:**
+- `std(channel_error[ch], last 100 windows) < 0.001` → `sensor_failure` flag
+- Physics: dead sensor → value locked → reconstruction error constant → std collapses
+- Group E (multi-sensor): TWO channels flatline simultaneously → `multi_sensor_anomaly_count = 2` → `sensor_failure_2ch` variant
 
-GATE-M8-9 : Slow drift seal detection
-             WATCH fires ≤20 min for seal_failure (label 4) sev 0.2 sequences
-             Via Pres.SV Spearman drift (NEGATIVE) [Finding F2]
-             thermal_decoupling_flag must ALSO be True simultaneously
+### Group C — Masked Fault Detection via Secondary Path (5 classes)
 
-GATE-M8-10 : Pres.SV drift fires first
-             For seal_failure mild sequences (label 4):
-             timestep(Pres.SV drift flag) < timestep(WARN state) [Finding F2]
+When primary fault channel is flatline (`masked_channel_flag = True`):
 
-GATE-M8-11 : Thermal lag validation
-             Peak Mot.SV reconstruction error precedes peak Mot.TV error
-             by 20–40 timesteps for bearing_wear sequences
-             [Physics: heat conduction lag — M2 r=0.9793 + M5 Euler integration]
-             FAIL = model detecting thermal consequence, not mechanical cause
+| Label | Class | Secondary Detection Path | Notes |
+|-------|-------|--------------------------|-------|
+| 13 | `bearing_wear_MotSV_masked` | Mech C: Mot.TV + Temp.SV drift | — |
+| 14 | `cavitation_PresSV_masked` | Mech C: Pmp.SV kurtosis bursts | — |
+| 15 | `seal_failure_PresSV_drifting` | Mech C: secondary hydraulic channels | — |
+| 16 | `overloading_TempSV_stuck` | Mech C: Mot.TV (r=0.997 coupling) | — |
+| 17 | `impeller_imbalance_PmpSV_flatline` | Mech C: Pmp.PV + cross-channel | Spearman_r threshold lowered to 0.60 (weaker signal) |
 
-GATE-M8-12 : Cavitation cluster exclusivity
-             ZERO cavitation DANGER alerts on steady_state or high_load
-             in normal validation pool [Finding F5]
-             FAIL → audit M6B cluster assignment
-
-GATE-M8-13 : Group C masked fault TPR (5 classes, labels 13–17)
-             ≥65% TPR on ALL Group C sequences via secondary Mech C path
-             Report per masked-class F1 individually:
-               bearing_wear_MotSV_masked (13)  : target ≥65%
-               cavitation_PresSV_masked (14)   : target ≥65%
-               overloading_TempSV_masked (15)  : target ≥65%
-               impeller_PmpSV_masked (16)      : target ≥65%
-               seal_failure_MotPV_masked (17)  : target ≥50% (weakest — Pres.SV only)
-             FAIL on any class < 50% → BLOCK → verify M6B Gate G10 secondary signal
-
-GATE-M8-14 : Group B, D, E TPR (22-class aligned)
-             Group B (labels 7–12, 6 compound classes) : ≥85% reaching DANGER
-               Report each compound class separately
-               Label 12 (bearing→seal): Mot.SV then Pres.SV drift → DANGER expected
-             Group D (labels 18–20, 3 variant classes)  : ≥78% correct alert path
-               Label 18 cavitation_intermittent : burst tracking → WATCH+
-               Label 19 seal_failure_fast        : DANGER within 3 windows
-               Label 20 overloading_cyclic       : WATCH via baseline drift Mech B+C
-             Group E (E-a, E-b, 2 multi-sensor)  : ≥88% multi_sensor_count=2 detected
-             Report each group separately — do NOT aggregate
-             FAIL on any group → document in paste text, flag for M12 adversarial
-
-GATE-M8-14-ext : Label 21 (bearing_wear_gradual) CUSUM + Layer 4 detection
-             Full spec in Part 2B (`module_M8_lstm_ae_v2_outputs_and_paste.md`)
-             Gate targets:
-               ≥75% label 21 sequences → WATCH via CUSUM within 500 windows
-               ≥60% label 21 sequences → WARN via CUSUM+Layer4 within 800 windows
-             FAIL → retune CUSUM H and k on label 21 mild calibration subset
-             DO NOT raise MAE threshold to fix this gate — CUSUM params only
-```
+> Gate M8-13 covers all 5 Group C classes. Label 17 expected weakest.
 
 ---
 
-## Adaptive Actions After M8
+## Stage 3E — Layer 3: CUSUM on score_B (label 21 primary detector)
 
-| M8 Result | Gate | Adaptive Action |
-|-----------|------|-----------------|
-| Overloading TPR < 80% | M8-7 | Lower Spearman threshold 0.70→0.65 for Temp.SV ONLY. Re-validate FPR impact |
-| Seal WATCH > 20 min | M8-9 | Shorten Mech C window 300→200 for Pres.SV ONLY |
-| FPR > 5% at startup | M8-2 | Raise startup cluster threshold ONLY — never global threshold |
-| Separation ratio < 5.0× | M8-4 | Audit normal pool, remove near-fault windows, retrain |
-| Attention seam ratio > 1.0 | M8-8 | Add gradient penalty at t=49–50. Retrain M8 |
-| Gate M8-11 fails (thermal lag) | M8-11 | Reduce Mot.TV weight 0.3→0.1. Force vibration-first detection. Retrain |
-| Gate M8-12 fails (cavitation in high_load) | M8-12 | Audit M6B cluster assignment — startup seed mis-labeling |
-| Gate M8-13 fails any class < 50% | M8-13 | Verify M6B Gate G10 secondary signal. Increase masked sequences 1200→2000 |
-| Label 17 TPR < 40% | M8-13 | Lower Spearman threshold to 0.55 for Pres.SV (label 17 only). Document in paste text |
-| Group B TPR < 85% | M8-14 | Increase compound sequences in M6B Step 1. Verify secondary_onset_lag in M6.5r |
-| Label 12 not reaching DANGER | M8-14 | Verify bearing→seal causal lag in M6B. Check Mot.SV + Pres.SV both active |
-| Group D label 18 burst miss | M8-14 | Implement burst_count tracker in Step 7 inference |
-| Group D label 20 cyclic miss | M8-14 | Implement baseline_detrend in Mech B for cyclic signal |
-| Group E multi-sensor miss | M8-14 | Verify multi_sensor_anomaly_count in M6.5r Gate D3 |
-| Label 21 CUSUM < 75% WATCH | M8-14-ext | Retune CUSUM H: lower toward 4×sigma. Re-run on label 21 mild subset |
-| Label 21 Layer 4 < 60% WARN | M8-14-ext | Shorten baseline_long window 5000→3000. Retune drift_ratio threshold |
-| Energy conservation fail | M8-13 | Add L2 regularization on 64-dim bottleneck, retrain |
-| All 15 gates pass | — | Proceed to Part 2B for outputs + paste text, then to M9 |
+> **SCOPE:** Label 21 (`bearing_wear_gradual`) PRIMARY detection. Operates on `score_B` (drift slope from TCN-AE) — NOT raw MAE. (`score_B → CUSUM only` — Invariant 19)
+
+### Physics Basis
+
+Paris-Erdogan law: `da/dN = C*(dK)^m`. At low dK (sub-critical regime): crack growth is sub-threshold per cycle. Per-window MAE never crosses threshold at sev 0.05–0.15. But `score_B` (drift slope) is consistently positive — direction is monotonic. CUSUM detects cumulative directional deviation — not magnitude. This is EXACTLY what sub-threshold progressive degradation looks like.
+
+### Computation
+
+```
+target  = mean(normal_pool_score_B)          # computed from CIRA normal pool
+k       = 0.5 × sigma(normal_pool_score_B)  # allowance = half std dev
+S_pos   = 0                                  # accumulator
+
+for each new window w:
+    b_w   = score_B[w]                       # drift slope from TCN-AE
+    S_pos = max(0, S_pos + (b_w - target - k))
+    if S_pos > H:
+        fire cusum_bearing_gradual_flag = True
+        emit WATCH alert
+```
+
+**Threshold H calibration:**
+- Target: fires within 300–500 windows (~5–8 min) for sev 0.10 sequences
+- Does NOT fire for 500 consecutive normal pool windows
+- Start with `H = 5 × sigma(normal_pool_score_B)`
+- Tune on M6B label 21 mild sequences
+
+### Reset Policy
+
+Reset `S_pos = 0` only if 100 consecutive windows give `b_w < target`. Prevents false reset on brief normal interludes within gradual wear.
+
+### Integration with Alert State Machine
+
+| Condition | Alert State |
+|-----------|-------------|
+| `cusum_bearing_gradual_flag = True` | WATCH |
+| `cusum_bearing_gradual_flag` + Mech C Mot.SV slow drift flag | WARN |
+| `cusum_bearing_gradual_flag` + Layer 4 rolling baseline flag | WARN |
+| All three simultaneously (CUSUM + rolling baseline + Mech C slow drift) | **DANGER** (escalate, do not wait for MAE threshold) |
 
 ---
 
-## Cross-Module Invariants Relevant to M8
+## Stage 3F — Layer 4: Rolling Baseline on score_A (label 21 confirm)
 
-1. Models saved: `torch.save(state_dict)` | Loaded: `map_location='cpu'` for M10
-2. Normalization baselines LOCKED at `M3_normalization_config.json`
-3. M4 threshold `0.110058` is starting reference — M8 produces its own cluster-conditional thresholds
-4. Channel weights INCREASED vs M4 — Fisher-validated from M6.5
-5. Faults NEVER in training pool — LSTM-AE is anomaly detector only
-6. Mech C operates on RAW channel errors — bypasses weight matrix by design
-7. Threshold calibrated on REAL CIRA validation set — not synthetic
-8. All M6B Groups (A–E, 22 classes) in fault validation pool only — never in training
-9. Cavitation gate: startup cluster only — any cavitation DANGER outside startup = FAIL
-10. `if pump_type == 'household': return physics_advisory_only()` — NO EXCEPTIONS
-11. Label strings always resolved via `fault_rules_v3.json` — NEVER hardcoded
-12. Group C masked fault max alert = WARN unless secondary MAE crosses threshold
-13. Label 17 max alert = WARN (weakest secondary path — Pres.SV only)
-14. Group B compound: 2nd Mech C flag fires at secondary_onset_lag — not before
-15. M8 outputs raw alert_state dict — M10 handles all UI display formatting
-16. Layer 3 CUSUM + Layer 4 Rolling Baseline = label 21 ONLY — do NOT apply broadly
-17. Layer 4 disabled during burn-in (≤5000 windows) — CUSUM only during burn-in
-18. Label 21 sub-threshold MAE = design behaviour — DO NOT raise threshold to fix
+> **SCOPE:** Label 21 (`bearing_wear_gradual`) SECONDARY confirmation. Operates on `score_A` (severity from TCN-AE) — NOT raw MAE. (`score_A → Rolling Baseline only` — Invariant 19)
+
+### Physics Basis
+
+Bearing degradation over days → the BASELINE of `score_A` drifts up. Even if each individual window looks near-normal, the 6hr mean is higher than the 24hr mean. This is the hallmark of Paris-Erdogan slow accumulation.
+
+### Computation
+
+```
+Adaptive threshold: theta_t = mu_rolling(6hr) + 3*sigma_rolling(6hr)
+Update interval: every 50 seconds in M10 runtime
+
+baseline_short = mean(score_A, last 6 hours of operation)
+baseline_long  = mean(score_A, last 24 hours of operation)
+drift_ratio    = baseline_short / baseline_long
+
+if drift_ratio > 1.10:
+    fire rolling_baseline_drift_flag = True
+    emit WATCH (if not already in WATCH from CUSUM)
+if drift_ratio > 1.25:
+    escalate to WARN
+```
+
+### Calibration Targets
+
+| Scenario | Target |
+|----------|--------|
+| Normal pool | `drift_ratio` stays in [0.95, 1.05] for 95% of windows |
+| Label 21 sev 0.10 | `drift_ratio` crosses 1.10 within 800–1,200 windows |
+| Label 21 sev 0.20 | `drift_ratio` crosses 1.25 within 600–900 windows |
+
+> **NOTE:** Layer 4 requires minimum 5,000 windows of operational history. Do NOT activate at machine startup — enable after burn-in = 5,000 windows. Use CUSUM only during burn-in period.
+
+### Integration
+
+| Condition | Alert State |
+|-----------|-------------|
+| `rolling_baseline_drift_flag` alone | WATCH (soft alert, low confidence) |
+| `rolling_baseline_drift_flag` + `cusum_bearing_gradual_flag` | WARN (high confidence) |
+| All three (CUSUM + rolling baseline + Mech C slow drift) | **DANGER** |
+
+**Two-speed adaptation rationale (why both Layer 3 and Layer 4 are needed):**
+
+- **Fast (Layer 4, 6hr rolling):** Adapts to operating-point shifts (load changes). Prevents false alarms when pump load changes shift normal `score_A` baseline.
+- **Slow (Layer 3, CUSUM weeks):** Detects secular drift immune to baseline creep. CUSUM on `score_B` (rate) is orthogonal to `score_A` (level). Operating point shift changes `score_A` level but NOT `score_B` slope. Therefore CUSUM on `score_B` is immune to load changes.
+- **Together:** Layer 4 handles level noise, Layer 3 handles drift signal.
+
+---
+
+## M8 Detection Coverage Map (22 Fault Classes)
+
+| Fault | Label | Level 1 (MAE+Fuzzy) | Mech A (Rolling) | Mech B (Slope) | Mech C (Per-Ch) | Layer 3 (CUSUM) | Layer 4 (Baseline) | TCN Glass |
+|-------|-------|---------------------|-----------------|----------------|-----------------|-----------------|-------------------|-----------|
+| normal | 0 | below threshold | stable | flat | flat | S=0 | ratio~1.0 | — |
+| bearing_wear sev 0.8 | 1 | DANGER | yes | yes | Mot.SV drift | — | — | 2–3 |
+| bearing_wear sev 0.2 | 1 | MAE~0.098 sub-threshold | WATCH ~10min | ~8min | Mot.SV drift | — | — | 2–3 |
+| impeller_imbalance | 2 | yes | yes | yes | Pmp.SV | — | — | 1–2 |
+| cavitation severe | 3 | DANGER (bypass) | bypassed | bypassed | Pres.SV | — | — | 1 |
+| seal_failure slow | 4 | 29% windows | WATCH ~15min | yes | Pres.SV PRIMARY | — | — | 2–3 |
+| overloading mild | 5 | MAE~0.093 sub-threshold | slow | yes | Temp.SV PRIMARY | — | — | 2–3 |
+| sensor_failure | 6 | DANGER MAE~0.170 | yes | yes | flatline std<0.001 | — | — | 1 |
+| bearing_wear->overloading | 7 | both channels | yes | yes | Mot.SV then Temp.SV | — | — | 3–4 |
+| cavitation->seal_failure | 8 | Pmp.SV dominant | yes | yes | Pmp.SV+Pres.SV | — | — | 3–4 |
+| impeller->bearing_wear | 9 | yes | yes | yes | Pmp.SV then Mot.SV | — | — | 4 |
+| seal_failure->cavitation | 10 | yes | yes | yes | Pres.SV then Pmp.SV | — | — | 4–5 |
+| overloading->bearing_wear | 11 | yes | yes | yes | Temp.SV then Mot.SV | — | — | 4–5 |
+| impeller->cavitation | 12 | yes | yes | yes | Pmp.SV kurtosis | — | — | 3 |
+| bearing_wear_MotSV_masked | 13 | MotSV absent | secondary | yes | Mot.TV+Temp.SV | — | — | 2–3 |
+| cavitation_PresSV_masked | 14 | PresSV absent | Pmp.SV | yes | Pmp.SV kurtosis | — | — | 1–2 |
+| seal_fail_PresSV_drifting | 15 | PresSV drifting | slow | yes | secondary hydraulic | — | — | 3–4 |
+| overloading_TempSV_stuck | 16 | TempSV absent | no | yes | Mot.TV r=0.997 | — | — | 2–3 |
+| impeller_PmpSV_flatline | 17 | PmpSV absent | PmpPV | yes | Pmp.PV+cross-ch (0.60) | — | — | 2 |
+| cavitation_intermittent | 18 | burst windows | not monotonic | no | Pmp.SV bursts | — | — | 2–3 |
+| seal_failure_fast | 19 | high MAE quickly | rapid | yes | Pres.SV sharp drop | — | — | 1 |
+| overloading_cyclic | 20 | sawtooth | ambiguous | baseline drift | Temp.SV cyclic | — | — | 3–4 |
+| **bearing_wear_gradual (\*)** | **21** | **SUB-THRESHOLD (correct)** | **NO** | partial sev≥0.20 | Mot.SV slow (0.65, 500w) | **PRIMARY** | **CONFIRM** | **5** |
+| sensor_failure_2ch_thermal | E-a | additive MAE | yes | yes | 2× flatline Mot.TV+Temp.SV | — | — | 1 |
+| sensor_failure_2ch_pump | E-b | additive MAE | yes | yes | 2× flatline Pmp.SV+Pmp.PV | — | — | 1 |
+
+> **(\*) Label 21 is the ONLY class using Layer 3 + Layer 4.** Both are mandatory for Gate M8-14-ext. Level 1 SUB-THRESHOLD for label 21 is **PHYSICALLY CORRECT** — NOT a model failure.
+
+---
+
+## M8 Training Data Composition
+
+### Normal Training Pool (model learns ONLY normal — faults never appear in training)
+
+| Source | Windows | Share |
+|--------|---------|-------|
+| Real CIRA normal (M3 normalized) | 9,711 windows | ~30% |
+| Synthetic normal (M6B Type-A) | from ~2,000 normal sequences windowed | ~70% |
+| **Total normal training pool** | **~33,000 windows (approx)** | — |
+
+> **BIAS 2 RATIONALE — WHY 30:70 REAL:SYNTHETIC:**
+> Pure synthetic training → model learns only physics-idealized normal patterns → too sensitive to real-world deviations → elevated FPR in field. 30% real CIRA anchors the model to actual pump behaviour: manufacturing tolerances, sensor placement variation, ambient noise. 70% synthetic provides coverage of all 4 operating modes with controlled severity distribution (Weibull-skewed from M6B).
+
+Cluster distribution maintained: startup 42.3%, cooldown 22.8%, etc.
+
+### Validation Only — Fault Sequences (never in training)
+
+All M6B fault sequences (Groups A–E, 22 classes) → windowed → validation pool.
+
+| Subset | Purpose |
+|--------|---------|
+| All M6B fault sequences | Calibrate thresholds + fuzzy bounds + measure TPR/FPR + gate checks |
+| Severity 0.2–0.3 subset | Calibrate Mech A/B/C rolling thresholds |
+| Group B compound (labels 7–12) | Verify both fault channels produce high MAE |
+| Group C masked (labels 13–17) | Verify secondary detection path fires |
+| Group D variants (labels 18–20) | Verify detection character matches variant type |
+| Label 21 mild (sev 0.05–0.15) | Calibrate CUSUM threshold H and rolling baseline |
+| Label 21 moderate (sev 0.15–0.25) | Verify Layer 4 `drift_ratio` crosses 1.10 |
+| Group E multi-sensor | Verify multi-channel flatline detection |
+
+> **WHY FAULTS NEVER IN TRAINING:** LSTM-AE is anomaly detector, NOT classifier. Training on faults = model learns to reconstruct faults as normal = complete failure of the anomaly detection purpose. Faults only appear in validation to calibrate the boundary.
+
+### z_t Sequence Inputs for Level 2 (TCN-AE)
+
+All M6B sequences windowed by Level 1 → z_t sequences per group:
+
+```
+z_t_sequences_groupA_normal.pkl  → Level 2 normal pool training
+z_t_sequences_groupA_faults.pkl  → Level 2 fault validation
+z_t_sequences_groupB.pkl         → compound chain validation (score_C key)
+z_t_sequences_groupC.pkl         → masked fault validation
+z_t_sequences_groupD.pkl         → severity variant validation (score_B key for label 21)
+z_t_sequences_groupE.pkl         → multi-sensor validation
+```
+
+> **Raw sensor data NEVER enters Level 2 directly.** (Invariant 16)
+
+### Mech C Calibration Subset
+
+Use ONLY mild severity (sev 0.2–0.4) sequences for Mech C tuning.
+
+| Target | Condition |
+|--------|-----------|
+| ≥80% mild overloading sequences | Temp.SV drift fires ≤15 min (Spearman threshold 0.70) |
+| ≥80% mild seal sequences | Pres.SV drift fires ≤20 min (Spearman threshold 0.70) |
+| ≥60% label 17 sequences | Pmp.PV drift fires ≤25 min (Spearman threshold 0.65) |
+| ≥70% label 21 sev≥0.10 sequences | Slow drift fires ≤20 min (Spearman 0.65, window=500) |
+
+### Label 21 CUSUM Calibration Subset
+
+Use ONLY label 21 mild (sev 0.05–0.15) for CUSUM H tuning.
+- Target: CUSUM fires within 300–500 windows for sev 0.10
+- Normal pool: `S_pos` stays below H for 500 consecutive normal windows
+- Adjust `k` and `H` until both conditions simultaneously satisfied
 
 ---
 
@@ -390,15 +453,16 @@ GATE-M8-14-ext : Label 21 (bearing_wear_gradual) CUSUM + Layer 4 detection
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.0 | 2026-04-12 | Original monolithic — 13 gates |
-| v2.0 | 2026-04-15 | Split Part 1+2. 13→14 gates. Group B/D/E exceptions added to Stage 4. Output dict extended. 35 paste keys. |
-| v3.0 | 2026-04-16 | **v14.0 UPGRADE + FURTHER SPLIT**: This file = Part 2A (alert machine + gates + adaptive actions). Paste keys + outputs + dependency chain → `module_M8_lstm_ae_v2_outputs_and_paste.md` (Part 2B). M7 prerequisite 15→16 gates. 22-class. Stage 4 state machine: CUSUM + rolling baseline flags added to NORMAL/WATCH/WARN/DANGER conditions; WATCH→NORMAL requires cusum + drift_ratio clear. Alert exceptions: label 21 block added (Paris–Erdogan, 3-layer escalation, M10 UI note); Group C updated to 5 classes labels 13–17, label 17 weakest path noted; Group B updated to 6 classes labels 7–12, label 12 specific behaviour added; overloading cyclic label 18→20; seal fast label 17→19; cavitation intermittent label 16→18. Inference protocol Step 6B added (CUSUM + Layer 4 updates); Step 7 label refs corrected; output dict: cusum_bearing_gradual_flag, cusum_S_pos, rolling_baseline_drift_flag, drift_ratio, bearing_wear_gradual_early added. 14→15 gates: Gate M8-13 updated to 5 classes labels 13–17 with label 17 floor=50%; Gate M8-14 updated to 6+3+2 classes with label 12 specific note; Gate M8-14-ext added (stub + targets, detail in Part 2B). Adaptive actions: label 17 action, label 12 action, label 21 CUSUM/Layer4 retuning actions. Invariants: 14→18, label 21 + Layer 3/4 invariants added. |
+| v1.0 | 2026-04-16 | NEW FILE (v14.0 split). Stage 3 Mech A/B/C + detection map + training data. Stage 3D CUSUM Layer 3 (label 21 primary). Stage 3E Rolling Baseline Layer 4. Detection map expanded to 24 rows. Group C 5 classes. |
+| v2.0 | 2026-04-19 | v14.2 TCN-AE MECHANISMS: Stage 3A added (TCN dilated causal convolution equation). Glass analogy added (5 panes, d=1/2/4/8/16, RF per pane). Full receptive field: 63 windows = 3,150 raw seconds. Vanishing gradient comparison: LSTM 0.9¹⁶=0.19 vs TCN constant 5 layers. Transformer rejection rationale: N_windows=6–20 too short for attention. Stateful vs geometric memory distinction added. Rolling buffer architecture for real-time streaming added. Layer 3 CUSUM: now operates on score_B (not raw MAE) per Invariant 19. Layer 4 Rolling Baseline: now operates on score_A per Invariant 19. Two-speed adaptation rationale: why Layer 3 and Layer 4 are orthogonal. z_t sequence inputs section added to training data. Detection map: TCN Glass column added, score routing reflected. Stage numbering updated: 3E (CUSUM) and 3F (Rolling Baseline). |
 
 ---
 
-*GitHub is the ONLY source of truth for this spec.*
-*Part 1A: `module_M8_lstm_ae_v2_architecture.md`*
-*Part 1B: `module_M8_lstm_ae_v2_mechanisms.md`*
-*Part 2B: `module_M8_lstm_ae_v2_outputs_and_paste.md`*
-*Pump: 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head — CIRA SACIP dataset*
-*Standard: ISO 10816-3 vibration, ISO 13373-3 condition monitoring*
+> **GitHub is the ONLY source of truth for this spec.**
+>
+> - Part 1A (Architecture): `module_M8_lstm_ae_v2_architecture.md`
+> - Part 2 (Gates + Outputs): `module_M8_lstm_ae_v2_gates_and_outputs.md`
+>
+> **Pump:** 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head — CIRA SACIP dataset
+> **Standard:** ISO 10816-3 vibration, ISO 13373-3 condition monitoring
+> **Canonical source of truth:** `pasted-text.txt` (v14.2, 2026-04-19)
