@@ -1,571 +1,498 @@
-# ⛔ SUPERSEDED — DO NOT USE FOR SCRIPTING
+# PumpSmart — M6: Synthetic Dataset Generation
+## Physics-Informed Synthetic Fault Sequences
 
-> **This file is the original pre-audit M6 combined specification (v1.0, 2026-04-12).**
-> It describes M6B as 4 compound pairs × 400 sequences = 1,600 sequences (multi-hot labels)
-> and M6.5 as a 10,000 × 29 column matrix. **Both are architecturally obsolete.**
+| Field | Value |
+|-------|-------|
+| **Document version** | v3.0 — Architecture v14.2 (TCN-AE Level 2 + 22-class fault universe) |
+| **Date** | 2026-04-23 |
+| **Supersedes** | v2.0 (arch v14.0, 7-class, 8,400 sequences, 200-step uniform) |
+
+---
+
+> ⚠️ **STATUS: PARTIALLY SUPERSEDED BY M6B**
 >
-> **Current architecture (v12.0):**
-> - M6B = 21 classes (labels 0–20), ~25,000–27,000 sequences, Groups A–E, single-label
-> - M6.5r = ~189,000 rows × 26 columns (windowed), output = `M6B_feature_matrix.csv`
-> - M7 input = `M6B_feature_matrix.csv` (~189,000 × 26), 21 classes
+> - M6A Group A Labels **0, 2, 3, 6** (normal, impeller_imbalance, sensor_failure) → **VALID** — no rerun required
+> - M6A Group A Labels **1, 4, 5** (bearing_wear, seal_failure, overloading) → **RERUN REQUIRED** in M6B Step 0
+>   - Reason: sequence lengths corrected (250/400/300 steps)
+>   - Original 200-step versions must **NOT** be used downstream
+> - M6.5 feature matrix (7-class, 25 features) → **SUPERSEDED**
+>   - Replaced by M6.5r (22-class, ~35 features, zt + score_A/B/C)
+
+---
+
+### Pump Nameplate (CIRA SACIP)
+
+| Parameter | Value |
+|-----------|-------|
+| Motor shaft power | 110 kW, IEC Frame 315mm, 400V, 2-pole |
+| Speed | 2980 RPM |
+| Stages | 7 impellers (multistage centrifugal) |
+| Flow rate | 45 m³/h |
+| Total head | 450 m |
+| Max pressure | 40 bar |
+| Hydraulic kW | ~55 kW (η × ρgQH) |
+
+---
+
+## Purpose and Relationship to Other Modules
+
+- **M5 Physics Engine** encodes the causal physics of each fault type as Python functions that generate physically valid normalised time-series.
+- **M6** calls M5 to build the full labelled synthetic dataset that trains M7 (XGBoost classifier) and provides the validation set for M8 (TCN-AE Level 2).
+- **M6.5r** extracts features from all M6 sequences via M4 LSTM-AE inference, producing the ~35-feature matrix fed to M7 XGBoost. score_A, score_B, score_C from TCN-AE Level 2 are included as direct features once M8 is complete.
+- **M8 TCN-AE Level 2** is trained on zt sequences exported by M6 per group.
+
+**Relationship to M12:**
+- M6 sequences are **SEEN** by M8 during training.
+- M12 generates **COMPLETELY FRESH** sequences (parametrically different).
+- M12 is the adversarial held-out test — model must **NEVER** see M12 data before M12 validation runs.
+
+---
+
+## Inviolable Rules — Apply to Every Sequence in M6
+
+1. **Normalisation LOCKED** at `M3_normalization_config.json`. Raw sensor values NEVER enter any sequence as-is. All values are dimensionless ratios (P\*, a\*, ΔT\*).
+
+2. **Windows NEVER cross segment boundaries.** Each sequence starts from a cluster centroid — not a real segment boundary.
+
+3. **Cavitation sequences ONLY in startup cluster context.** NPSHa is marginal only at startup (P_suction = 0.43–0.85 bar).
+
+4. **Overloading sequences ONLY in steady-state cluster context.** Thermal run-in makes high-load cluster temperatures paradoxically low.
+
+5. **Seal failure:** Pres.SV\* decline is ALWAYS negative (pressure loss). Sensor drift (Label 13): Pres.SV\* drift direction context-dependent. Upward Pres.SV\* drift → sensor_drift, not seal_failure. **NEVER confused.**
+
+6. **Conservation of energy and mass** must hold in ALL sequences.
+   - No negative pressure (Pres.SV\* ≥ 0 at all timesteps)
+   - No temperature below ambient (ΔT\* ≥ −0.1 acceptable; < −0.5 = error)
+   - No SV\* > 5.0 (physical ceiling from M4 spike reference: 12.6 normalised)
+
+7. **Thermal coupling** r(Mot.TV, Temp.SV) > 0.85 in ALL bearing_wear and overloading sequences. This coupling is PRESERVED by physics (same thermal mass), not enforced artificially.
+
+8. **segment_id preserved** in all downstream dataframes through M6.
+
+---
+
+## M6A — Original 7-Class Dataset
+
+*Completed 2026-04-11. Architecture: v14.0 (pre-TCN-AE). Hybrid Path C locked 2026-04-08.*
+
+### Source Architecture — Hybrid Path C (LOCKED)
+
+- **Source 1:** Real CIRA normal windows from M3 pool (1,200 Type-A sequences)
+- **Source 2:** M4 Spike Seeds (cosine sim ≥ 0.85) — fault label onset t=0–49, M5 physics continues t=50–199
+- **Source 3:** Pure M5 Physics Synthetic — fills gaps, covers severity 0.2–1.0
+
+> **WHY SEVERITY 0.2–0.3 IS MANDATORY:** These sequences are the SPECIFIC TRAINING DATA for M8's trend accumulator. Without them, M8 learns only acute faults (sev ≥ 0.5) and misses slow drift entirely → **LIABILITY EXPOSURE**. Category 3 liability gate.
+
+---
+
+### M6A Group A — Label Table (v3.0 Corrected Lengths)
+
+| Label | Fault Type | Seq Length | Count | Source | Status |
+|-------|-----------|-----------|-------|--------|--------|
+| 0 | normal | 200 steps | 1,200 | Real CIRA M3 | ✅ VALID |
+| 1 | bearing_wear | 250 steps | 1,200 | Spike + M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — length insufficient for thermal lag physics)* |
+| 2 | impeller_imbalance | 200 steps | 1,200 | Sub-cluster M5 | ✅ VALID |
+| 3 | cavitation | 150 steps | 1,200 | Spike + M5 | ✅ VALID *(startup only — 150 steps correct; acute onset)* |
+| 4 | seal_failure | 400 steps | 1,200 | Sub-cluster M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — pressure decline too fast at 200; 400 required)* |
+| 5 | overloading | 300 steps | 1,200 | Sub-cluster M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — thermal rise physically requires 300 minimum)* |
+| 6 | sensor_failure | 150 steps | 1,200 | Physics variants | ✅ VALID *(flatline/spike/drift — 150 steps correct; hardware failure is fast)* |
+
+**TOTAL M6A: 8,400 sequences (7 classes × 1,200)**
+
+> **NOTE:** Labels 1, 4, 5 generated at 200-step in v1.0 are **INVALIDATED**. Their 200-step pkl files must NOT be used in M6.5r or M8 training. Replacement sequences are generated in M6B Step 0 at correct lengths.
+
+---
+
+### M6A Severity Distribution
+
+*Per fault class, from v2.0 audit — still valid.*
+
+| Tier | SV\* Range | Sequences | Description |
+|------|-----------|-----------|-------------|
+| Early | 1.0–1.3 | 20 | Subtle, hardest for model |
+| Active | 1.3–2.0 | 20 | Clear fault onset |
+| Severe | > 2.0 | 10 | Obvious, calibration anchor |
+
+*(×40 per cluster × variable cluster mix = 1,200 total per class)*
+
+**Severity 0.2–0.3 mandate (M8 trend accumulator training):**
+- bearing_wear: min 200 sequences at sev 0.2–0.3
+- seal_failure: min 200 sequences at sev 0.2–0.3
+- overloading: min 200 sequences at sev 0.2–0.3
+
+*(These are the sequences that WATCH state detection is trained on)*
+
+---
+
+### M6A Generation Patch — seal_failure
+
+*Applied in v2.0, still valid.*
+
+- **Root cause:** seal_failure physics produces very gradual Pres.SV\* decline. Only 165/1,200 sequences exceeded MAE threshold at v1.0 first audit.
+- Severity distribution rebalanced toward 0.4–0.7 band.
+- Final accepted: 220 sequences + padded to 1,200 with physics variants.
+- **PRIMARY detection path in M8:** Pres.SV\* per-channel drift monitor (Mech C).
+
+---
+
+## M6.5 — LSTM-AE Feature Extractor → XGBoost Bridge (v2.0 — SUPERSEDED)
+
+> **STATUS: SUPERSEDED** by M6.5r (22-class, ~35 features). Do NOT use M6.5 v2.0 feature matrix for M7 training.
+
+### M6.5 v2.0 Summary (Historical Record Only)
+
+- **Input:** 8,400 M6A sequences → M4 LSTM-AE inference
+- **Output:** `data/synthetic/M6_feature_matrix.csv` — Shape: 8,400 rows × 25 columns (24 features + label)
+- **Gate 3 fix:** window slice corrected to 50 (was 60 in v1.0 — INVALID)
+
+### M6.5 v2.0 Audit Results (Authoritative — Archived)
+
+| Class | Mean MAE | Gate 3 Pass | Interpretation |
+|-------|----------|-------------|----------------|
+| normal | 0.120 | 86.67% | Probe only (full FPR = 0.55%) |
+| bearing_wear | 0.098 | 13.33% | Mild sev near-threshold — correct |
+| impeller_imbalance | 0.103 | 30.00% | Mild sequences dominate — correct |
+| cavitation | 0.675 | 100.00% | Strongly anomalous — hydraulic shock |
+| seal_failure | 0.196 | 29.17% | Slow hydraulic — Mech C PRIMARY path |
+| overloading | 0.093 | 0.00% | Thermal-dominant — Mech C PRIMARY path |
+| sensor_failure | 0.170 | 93.33% | Single-channel flatline — clearly anom. |
+
+### Top 5 Fisher Features (v2.0)
+
+| Rank | Feature | Description |
+|------|---------|-------------|
+| 1 | PmpSV_mean | Pump vibration dominant fault channel |
+| 2 | PmpSV_std | Variance of pump vibration error |
+| 3 | TempSV_mean | Thermal drift overloading discriminator |
+| 4 | MotTV_mean | Motor temperature bearing/overloading |
+| 5 | MotTV_std | Temperature variance |
+
+> These Fisher rankings **VALIDATE** M8 channel weight direction (Pmp.SV rank 1).
+
+### M6.5 v2.0 Archived Files (Do NOT Use for Retraining)
+
+- `data/synthetic/M6_feature_matrix.csv` — 8,400 × 25
+- `outputs/reports/module_065_sequence_audit_report.md`
+- `src/module_065_sequence_audit.py` — v2 (Gate 3 fix applied)
+
+---
+
+## M6B — Expanded 22-Class Dataset (v14.2 Canonical Spec)
+
+M6B extends M6A from 7 classes to the full 22-class fault universe. M6B generates Groups B, C, D, E plus reruns M6A labels 1, 4, 5 (Step 0).
+
+### Total Dataset Post-M6B
+
+| Label Range | Count |
+|-------------|-------|
+| Labels 0, 21 | 2,000 sequences each |
+| Labels 1–12 | 1,500 sequences each |
+| Labels 13–18, 20 | 1,200 sequences each |
+| Label 19 (seal_fast) | 800 sequences |
+| Group E (2 sub-types) | 800 sequences each |
+| **TOTAL** | **~31,800 sequences** |
+| Feature matrix (M6.5r) | ~31,800 rows × ~35 features |
+
+---
+
+### Step 0 — Re-Generate M6A Labels 1, 4, 5
+
+*Required before M6B Steps 1–5.*
+
+**Purpose:** Replace invalid 200-step M6A sequences for labels 1, 4, 5 with physics-correct lengths. These 3 classes are used in compound fault chains in Groups B–D and MUST have correct lengths first.
+
+**Label 1 — bearing_wear: 250 steps**
+
+Physics basis: Thermal lag (Mot.TV lags Mot.SV by 20–40 steps) requires at least 200 steps to manifest. Severity 0.2–0.3 detection needs 250 steps for Spearman window (300 windows) to be meaningful. 200 was too short.
+
+**Label 4 — seal_failure: 400 steps**
+
+Physics basis: Pres.SV\* decline at severity 0.3 (K_seal ≈ 0.0004/step) requires 400 steps to produce a detectable Spearman correlation. At 200 steps the drift was undetectable — not even Mech C could fire.
+
+**Label 5 — overloading: 300 steps**
+
+Physics basis: Thermal overloading (K_ol ≈ 0.003–0.010/step) at mild severity (0.2–0.3) requires 300 steps for Temp.SV\* to rise detectably above noise level. 200 steps produced sub-noise rise at mild severities.
+
+**Output of Step 0:**
+
+| File | Shape |
+|------|-------|
+| `data/synthetic/M6B_groupA_rerun_label1.pkl` | 1,200 seqs × 250 × 8 |
+| `data/synthetic/M6B_groupA_rerun_label4.pkl` | 1,200 seqs × 400 × 8 |
+| `data/synthetic/M6B_groupA_rerun_label5.pkl` | 1,200 seqs × 300 × 8 |
+
+M6A labels 0, 2, 3, 6 remain at original files — no rerun.
+
+---
+
+### Group A — Single Faults (22-class Label Map, Full)
+
+| Label | Fault Name | Steps | Count | Group | TCN L2 Target |
+|-------|-----------|-------|-------|-------|---------------|
+| 0 | normal | 200 | 2,000 | A | N/A (normal) |
+| 1 | bearing_wear | 250 | 1,500 | A | dilation 1,2 |
+| 2 | impeller_imbalance | 200 | 1,500 | A | dilation 1 |
+| 3 | cavitation | 150 | 1,500 | A | dilation 1 |
+| 4 | seal_failure | 400 | 1,500 | A | dilation 2,4 |
+| 5 | overloading | 300 | 1,500 | A | dilation 2,4 |
+| 6 | sensor_failure | 150 | 1,500 | A | dilation 1 |
+| 21 | bearing_wear_gradual | 1,000 | 2,000 | A | dilation 4,8,16 *(weeks-scale liability class — Spearman + CUSUM S_n primary path)* |
+
+---
+
+### Group B — Compound Faults (Causal Pairs, Physics-Verified Lags)
+
+M6B generates compound fault sequences where Fault B starts at a physically determined lag after Fault A onset (causal cascade, not simultaneous).
+
+| Label | Fault Pair (A→B) | Steps | Count | Lag A→B | Physics Basis |
+|-------|-----------------|-------|-------|---------|---------------|
+| 7 | bearing_wear + overloading | 600 | 1,500 | ~200s | Bearing heat → thermal load |
+| 8 | cavitation + seal_failure | 550 | 1,500 | ~150s | Pressure drop → seal load |
+| 9 | impeller_imbalance + bearing_wear | 700 | 1,500 | 300–600s | Imbalance → shaft load → bearing fatigue |
+| 10 | seal_failure + cavitation | 900 | 1,500 | 400–800s | Pressure loss → NPSHa margin |
+| 11 | overloading + bearing_wear | 800 | 1,500 | 400–600s | Thermal → lubricant thin |
+| 12 | impeller_imbalance + cavitation | 450 | 1,500 | ~100s | Imbalance → pressure ripple → NPSHa |
+
+> **NOTE:** All lag values physics-verified against 110 kW, 7-stage nameplate. Lags in steps (1 step = 1 second at 1 Hz sampling). Labels 9, 10, 11 lags are ranges — not single values — because propagation timescale depends on severity and cluster context.
+
+`compound_interaction_flag`: computed in M6.5r as Spearman lag shift between the two primary fault channels. Expected HIGH in Groups B sequences. This flag is **Feature 33** in the 35-feature M6.5r matrix.
+
+---
+
+### Group C — Masked Fault Sequences (Fault Hidden by Sensor Anomaly)
+
+| Label | Description | Steps | Count | Masking Channel |
+|-------|-------------|-------|-------|----------------|
+| 13 | bearing_wear (Mot.SV masked) | 300 | 1,200 | Mot.SV → calibration drift |
+| 14 | cavitation (Pres.SV masked) | 210 | 1,200 | Pres.SV → stuck/flatline |
+| 15 | seal_failure (Pres.SV drifting) | 500 | 1,200 | Pres.SV → upward sensor drift |
+| 16 | overloading (Temp.SV stuck) | 350 | 1,200 | Temp.SV → frozen at last value |
+| 17 | impeller_imbalance (Pmp.SV flat) | 250 | 1,200 | Pmp.SV → flatline hardware |
+| 18 | cavitation + intermittent | 300 | 1,200 | Cavitation intermittent onset |
+
+> **KEY DISTINCTION for Label 15:**
+> - `seal_failure` = **NEGATIVE** Pres.SV\* drift (hydraulic loss)
+> - `sensor_drift` = **POSITIVE** Pres.SV\* drift (calibration bias)
 >
-> **Canonical source of truth:** [`completed_modules_M5_to_M6p5r.md`](./completed_modules_M5_to_M6p5r.md) (Part 2)
->
-> This file is retained for historical audit trail only. **Do not reference for any script generation.**
+> M8 must disambiguate via sign + cross-channel analysis.
 
 ---
 
-# PumpSmart — Module M6 Complete Specification
-## Synthetic Data Generation Pipeline: M6A → M6B → M6.5
+### Group D — Cyclic / Transient Fault Sequences
 
-**Document version:** v1.0 — Post Bias-Audit  
-**Date:** 2026-04-12  
-**Asset:** 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP)  
-**Status:** ~~M6A REGENERATION REQUIRED | M6B NEW | M6.5 SIGNIFICANT CHANGES~~ → **ALL SUPERSEDED BY v12.0**
-
----
-
-## Why This Document Exists
-
-After M6A was completed successfully (8400 sequences, 7.29× separation, 0 physics violations),
-a critical architecture review identified five model biases. This document captures the full
-resolution framework and revised specifications for all three M6 sub-modules.
+| Label | Description | Steps | Count | Notes |
+|-------|-------------|-------|-------|-------|
+| 19 | seal_failure_fast (acute) | 150 | 800 | Fast degradation, sev 0.8 |
+| 20 | overloading_cyclic | 600 | 1,200 | Cyclic thermal load pattern |
+| 21 | bearing_wear_gradual | 1,000 | 2,000 | Weeks-scale **(LIABILITY CLASS)** |
 
 ---
 
-## Bias Audit Summary
+### Group E — Multi-Channel Sensor Fault (2-channel Thermal + Pump)
 
-| Bias | Description | Resolution | Resolvable? |
-|------|-------------|------------|-------------|
-| **Bias 1** | Causal order hardcoded — real world has order uncertainty | Progressive confidence output (M7 + M10) | YES — M7/M10 |
-| **Bias 2** | Single pump dataset — normalization is pump-specific | Accept; normalization makes patterns relative not absolute | PARTIAL |
-| **Bias 3** | Uniform severity `[0.1, 1.0]` — over-represents catastrophic faults | Weibull-skewed severity in M6A; sample weights in M7 | YES — M6A + M7 |
-| **Bias 4** | No cross-fault contamination — real failures cascade as chain reactions | New M6B compound generator + multi-label M7 | YES — M6B + M7 |
-| **Bias 5** | Sensor failure treated independently of process faults | Pre-inference sensor validation middleware in M10 | YES — M10 |
+| Sub-type | Steps | Count | Target Channels |
+|---------|-------|-------|----------------|
+| sensor_2ch_thermal_pump | 250 | 800 | Mot.TV + Pmp.TV both anomalous (differentiates from single-channel) |
 
 ---
 
-## Fault Progression Model (Bias 1 Architecture)
+### Output Files Per Group
 
 ```
-STAGE 1 — Anomaly Detection (LSTM-AE, M8)
-──────────────────────────────────────────
-MAE crosses threshold → anomaly detected
-Model does NOT classify yet
-Output: "Minor anomaly in [channel] — multiple causes possible"
-Confidence: LOW
-
-        ↓ (few timesteps — fault propagates)
-
-STAGE 2 — Multi-hypothesis Warning
-────────────────────────────────────
-Multiple channels show correlated deviation
-Output: "Probable causes: [cavitation 42%] [seal_failure 31%] [sensor 27%]"
-Confidence: MEDIUM
-
-        ↓ (more timesteps — secondary channels confirm)
-
-STAGE 3 — Hard Classification (XGBoost, M7)
-────────────────────────────────────────────
-Secondary channels confirm causal chain
-Output: "PRIMARY: seal_failure 87% | ALSO: overloading 34%"
-Confidence: HIGH (>75% threshold)
-```
-
-This architecture is implemented via:
-- `predict_proba()` in M7 XGBoost
-- Confidence threshold (75%) in M10 Flask API
-- 4-state alert machine: NORMAL → WATCH → WARN → DANGER
-
----
-
-## Real Fault Cascade Chain (Bias 4 Physics Basis)
-
-```
-t=0    Impeller imbalance develops (BPF vibration onset)
-         ↓ radial bearing overload
-t+50   Bearing wear begins (Mot.SV rising)
-         ↓ shaft wobble → seal face misalignment
-t+120  Seal leakage begins (Pres.SV progressive drop)
-         ↓ pressure loss → motor compensates
-t+200  Overloading begins (Temp.SV drift, Mot.TV rise)
-         ↓ operator unaware
-t=CATASTROPHIC FAILURE
-```
-
-This chain reaction is the physical justification for M6B compound fault generation.
-
----
-
-## M6A — Revised Specification (REGENERATION REQUIRED)
-
-### Why Regenerate
-
-M6A metadata is missing two critical columns (`severity`, `fault_stage`) that are required
-for M7 sample weighting and M10 progressive confidence gating. Regeneration takes ~2 minutes.
-
-### Changes from Original M6A
-
-| Parameter | Original | Revised | Reason |
-|-----------|----------|---------|--------|
-| Severity distribution | `uniform(0.1, 1.0)` | Weibull `k=0.8` clipped `[0.05, 1.0]` | Bias 3 — early-stage focus |
-| Metadata columns | `seq_id, label, source, cluster` | + `severity, fault_stage` | Required for M7 + M10 |
-| Causal lag ranges | Fixed per fault type | ±20% wider | Bias 1 — order uncertainty |
-| Output shape | `(8400, 200, 8)` | `(8400, 200, 8)` — unchanged | — |
-
-### Weibull Severity Distribution
-
-```python
-# Replaces: sev = np.random.uniform(0.1, 1.0)
-sev = np.random.weibull(0.8) * 0.7
-sev = np.clip(sev, 0.05, 1.0)
-
-# Resulting distribution:
-# sev 0.05–0.30 → ~55% of sequences  (early fault — HARDEST to detect)
-# sev 0.30–0.70 → ~30% of sequences  (developing fault)
-# sev 0.70–1.00 → ~15% of sequences  (advanced fault — easiest to detect)
-```
-
-**Why early-stage focus matters:** The model's most critical job is early warning.
-Late-stage faults are obvious. Early-stage faults are when the operator needs the
-system most. Weibull distribution trains the model on proportionally more of the hard cases.
-
-### fault_stage Column Definition
-
-```python
-if   sev <= 0.30: fault_stage = "early"
-elif sev <= 0.65: fault_stage = "developing"
-else:             fault_stage = "advanced"
-```
-
-### Revised Causal Lag Ranges (±20% widened)
-
-| Fault | Original Lag | Revised Lag Range | Physics Basis |
-|-------|-------------|-------------------|---------------|
-| bearing_wear | 20–40 steps | 16–48 steps | Radial load → bearing temperature |
-| impeller_imbalance | 10–25 steps | 8–30 steps | BPF → lateral vibration |
-| seal_failure | 5–15 steps | 4–18 steps | Pres.SV onset variability |
-| cavitation | onset t=0–10 | t=0–12 steps | Startup transient timing |
-| overloading | 8–20 steps | 6–24 steps | Thermal rise lag |
-| sensor_failure | immediate | immediate ±2 steps | Laplace spike character |
-
-### M6A Output Files (Revised)
-
-```
-data/synthetic/M6_synthetic_sequences.npy    → shape (8400, 200, 8)
-data/synthetic/M6_synthetic_metadata.csv     → columns:
-    seq_id | label | severity | fault_stage | source | cluster | seed_idx
-outputs/plots/module_06a_*_sanity_plot.png
-outputs/plots/module_06a_*_mae_distribution.png
-outputs/reports/module_06a_*_report.md
-```
-
-### M6A Validation Gates (Unchanged)
-
-```
-✅ Total sequences    : 8400 / 8400
-✅ Per-class count    : 1200 each
-✅ Separation ratio   : > 5.0× (M6A v3 achieved 7.29×)
-✅ MAE gate pass      : 100% fault sequences above M4 threshold
-✅ Physics violations : 0 in 1400 audited
-```
-
-### M6A Locked Results (from v3 run — preserved as reference)
-
-```
-M6_total_sequences         : 8400
-M6_sequences_per_class     : 1200
-M6_mae_normal_mean         : 0.029345
-M6_mae_fault_mean          : 0.213966
-M6_separation_ratio        : 7.29×
-M6_mae_gate_pass_pct       : 100.0%
-M6_physics_violations      : 0 in 1400 audited
-M6_bugs_fixed              : BUG1 BUG2 BUG3 BUG4 BUG5 BUG6 BUG7
-
-Per-class MAE:
-  normal             : 0.029345
-  cavitation         : 0.432068  ← most anomalous
-  bearing_wear       : 0.228169
-  seal_failure       : 0.178987
-  overloading        : 0.148646
-  impeller_imbalance : 0.137061  ← closest to threshold
-  sensor_failure     : 0.158862
+data/synthetic/M6B_groupA_rerun_label1.pkl
+data/synthetic/M6B_groupA_rerun_label4.pkl
+data/synthetic/M6B_groupA_rerun_label5.pkl
+data/synthetic/M6B_groupB_compound.pkl
+data/synthetic/M6B_groupC_masked.pkl
+data/synthetic/M6B_groupD_cyclic.pkl
+data/synthetic/M6B_groupE_sensor2ch.pkl
+data/synthetic/zt_sequences_groupA.pkl      ← M4 sliding window zt per sequence
+data/synthetic/zt_sequences_groupB.pkl
+data/synthetic/zt_sequences_groupC.pkl
+data/synthetic/zt_sequences_groupD.pkl
+data/synthetic/zt_sequences_groupE.pkl
+data/synthetic/physics_context_strings.json ← Per-sequence physics context for M10
 ```
 
 ---
 
-## M6B — New Module: Compound Fault Generator
+## M6.5r — Updated Feature Extractor (22-Class, ~35 Features)
 
-### Purpose
+> **STATUS:** Supersedes M6.5 v2.0. Runs on ALL M6B sequences (31,800 total).
 
-Real industrial pump failures are rarely isolated single-fault events. One fault causally
-generates another. M6B generates physically causal compound fault sequences with multi-hot
-labels, enabling M7 to become a true multi-label classifier.
+- **Input:** All M6B pkl files (Groups A–E) + M6A valid files (labels 0, 2, 3, 6)
+- **Output:** `data/synthetic/M6B_feature_matrix.csv` — Shape: ~31,800 rows × ~35 columns (34 features + label)
 
-### Module Name
+### Feature Set Breakdown (~35 Features)
 
-```
-src/module_06b_compound_generator.py
-```
+**Per-Channel Statistics (8 channels × 3 stats = 24 features)**
 
-### Compound Fault Pairs — Physically Causal
+For each of 8 channels: `mean_err`, `std_err`, `slope_err`
 
-**Pair 1: impeller_imbalance + bearing_wear**
-```
-Physics:   BPF vibration → radial bearing overload → wear accumulation
-Channels:  Pmp.PV↑ + Pmp.SV↑ (imbalance onset) → Mot.SV↑ + Mot.TV↑ (bearing response)
-Causal lag: bearing signal appears 15–30 steps AFTER imbalance onset
-Multi-hot: [0, 1, 1, 0, 0, 0, 0]
-           [normal, bearing_wear, imbalance, cavitation, seal, overload, sensor]
-```
+**Cross-Channel Features (7 features)**
 
-**Pair 2: bearing_wear + seal_failure**
-```
-Physics:   Shaft wobble from worn bearing → mechanical seal face misalignment → leakage
-Channels:  Mot.SV↑ + Mot.TV↑ (bearing) → Pres.SV↓ progressive (seal leakage)
-Causal lag: seal signal appears 20–40 steps AFTER bearing onset
-Multi-hot: [0, 1, 0, 1, 0, 0, 0]
-```
+| Feature | Description |
+|---------|-------------|
+| `corr_MotTV_TempSV` | r(Mot.TV, Temp.SV) thermal coupling |
+| `corr_PmpPV_PmpSV` | r(Pmp.PV, Pmp.SV) imbalance coupling |
+| `corr_PmpPV_PresSV` | r(Pmp.PV, Pres.SV) cavitation coupling |
+| `pres_monotonic_flag` | seal_failure key feature (monotone Pres.SV decline) |
+| `pres_chaotic_flag` | cavitation key feature (chaotic Pres.SV) |
+| `thermal_decoupling_flag` | r(Mot.TV, Temp.SV) < 0.3 → hydraulic fault |
+| `compound_interaction_flag` | Spearman lag shift between primary channels |
 
-**Pair 3: seal_failure + overloading**
-```
-Physics:   Pressure loss from seal leak → motor works harder to maintain flow → thermal rise
-Channels:  Pres.SV↓ (seal) → Temp.SV↑ + Mot.TV↑ (overload response)
-Causal lag: overload signal appears 10–25 steps AFTER seal onset
-Multi-hot: [0, 0, 0, 1, 1, 0, 0]
-```
+**Zt-Derived Features (3 features)**
 
-**Pair 4: cavitation + impeller_imbalance**
-```
-Physics:   Vapour bubble collapse erosion → blade mass asymmetry → mechanical imbalance
-Channels:  Pres.SV erratic + Pmp.SV↑ (cavitation) → Pmp.PV oscillation grows (imbalance)
-Causal lag: imbalance signal appears 25–50 steps AFTER cavitation onset
-Multi-hot: [1, 0, 1, 0, 0, 0, 0]
-           [cavitation, bearing_wear, imbalance, seal, overload, ...]
-```
+| Feature | Description |
+|---------|-------------|
+| `mean_zt_magnitude` | Mean of Level 1 zt error vector magnitude |
+| `std_zt_magnitude` | Std of zt magnitude |
+| `zt_drift_slope` | Slope of zt over N_windows |
 
-### Sequence Counts
+**TCN-AE Output Features (3 features — added AFTER M8 is complete)**
 
-```
-Pair 1: impeller_imbalance + bearing_wear  → 400 sequences
-Pair 2: bearing_wear + seal_failure        → 400 sequences
-Pair 3: seal_failure + overloading         → 400 sequences
-Pair 4: cavitation + impeller_imbalance    → 400 sequences
-─────────────────────────────────────────────────────────
-TOTAL                                      → 1600 sequences
-```
+| Feature | Description |
+|---------|-------------|
+| `score_A` | TCN-AE severity score |
+| `score_B` | TCN-AE drift slope score (CUSUM input) |
+| `score_C` | TCN-AE chain transition score (compound detection) |
 
-### M6B Output Files
+> **NOTE:** score_A/B/C = None until TCN-AE (M8) is trained. XGBoost M7 trains with reduced 32-feature set initially. Full 35-feature retraining occurs after M8 completion.
+
+**Causal Ordering Feature (1 feature)**
+
+| Feature | Description |
+|---------|-------------|
+| `onset_order` | Which channel's MAE first exceeded 0.5× baseline, at which window index (encodes causal sequence) |
+
+### Output Files
 
 ```
-data/synthetic/M6B_compound_sequences.npy    → shape (1600, 200, 8)
-data/synthetic/M6B_compound_metadata.csv     → columns:
-    seq_id | primary_fault | secondary_fault | causal_lag |
-    severity | fault_stage | label_vector (multi-hot string) |
-    source | cluster
-outputs/plots/module_06b_*_compound_sanity_plot.png
-outputs/reports/module_06b_*_report.md
-```
-
-### M6B Physics Invariants
-
-All compound sequences must satisfy:
-1. Primary fault channel deviates first (causal_lag enforced)
-2. Secondary fault channel onset occurs AT causal_lag ± 5 steps
-3. Physical couplings from M2 preserved per fault type
-4. No negative pressure, no temperature below cluster minimum
-5. Conservation of energy: thermal rise proportional to mechanical dissipation
-6. All compound sequences MUST exceed M4 threshold (0.110058) when passed through LSTM-AE
-7. No cross-cluster contamination (cavitation ONLY in startup cluster)
-
-### M6B Validation Gates
-
-```
-✅ Compound pairs     : 4 × 400 = 1600 sequences
-✅ Causal lag check   : secondary onset at primary_onset + causal_lag ± 5 steps
-✅ MAE gate           : 100% compound sequences above M4 threshold
-✅ Physics violations : 0 in all audited
-✅ Multi-hot encoding : no all-zero rows, no single-class compound rows
-```
-
-### M6B Paste Text Keys
-
-```
-M6B_total_compound_sequences : 1600
-M6B_pair1_count              : 400
-M6B_pair2_count              : 400
-M6B_pair3_count              : 400
-M6B_pair4_count              : 400
-M6B_mae_gate_pass_pct        : target 100%
-M6B_physics_violations       : target 0
-M6B_causal_lag_verified      : True/False
-Status_for_M6.5              : READY / NEEDS REVIEW
+data/synthetic/M6B_feature_matrix.csv     — full 35-feature, 31,800 rows
+outputs/reports/module_065r_audit_report.md
+src/module_065r_feature_retrain.py
 ```
 
 ---
 
-## M6.5 — Revised Specification: LSTM-AE Feature Extractor + XGBoost Bridge
+## Validation Gates — M6B
 
-### Why M6.5 Exists
+*Must ALL pass before M7 training.*
 
-XGBoost cannot consume raw time-series sequences of shape `(200, 8)`. Flattening
-destroys temporal ordering and creates a 1600-dim sparse feature space. M6.5 solves
-this by running all sequences through the M4 LSTM-AE (inference only) and extracting
-24 statistical features from the reconstruction error array — one static row per sequence.
-XGBoost then trains on static tabular rows where every feature carries temporal meaning.
+| Gate | Description |
+|------|-------------|
+| GATE-1 | Label distribution matches targets: Labels 0,21 = 2,000 each; Labels 1–12 = 1,500 each; Labels 13–18,20 = 1,200 each; Label 19 = 800; Group E = 800 each |
+| GATE-2 | Group A — all channels in [−0.1, 1.1] normalised range throughout |
+| GATE-3 | Group B — MAE vs cluster centroid progressively increases: t=0 to lag: MAE < 0.10 / t=lag to lag+T: MAE ∈ [0.10, 0.40] / t=lag+T+: MAE > 0.40 |
+| GATE-4 | Group C — seal_failure (Label 15) Pres.SV\* drift direction **NEGATIVE**; sensor_drift — Pres.SV\* drift direction **POSITIVE**. THESE MUST NOT BE CONFUSED in generation |
+| GATE-5 | Thermal coupling preservation: bearing_wear r(Mot.TV, Mot.SV) > 0.85 per seq; overloading r(Mot.TV, Temp.SV) > 0.90 per seq; cavitation r(Mot.TV, Temp.SV) < 0.5 (decoupled — expected) |
+| GATE-6 | Temporal coherence (dX/dt continuity): each class pass rate target > 90%. Cavitation exception: 91% acceptable (hydraulic shock = non-smooth) |
+| GATE-7 | No negative pressure, no T\* < −0.5, no SV\* > 5.0 |
+| GATE-8 | `zt_sequences_groupX.pkl` files all written and loadable. Shape check: (N_sequences, N_windows, 64+8) per group |
+| GATE-9 | `onset_order` feature non-null for all Group B compound sequences. Confirms causal ordering captured |
+| GATE-10 | `physics_context_strings.json` written with entry for all 22 labels. Each entry contains: `what`, `why`, `sensor_signature`, `timeline`, `recommended_action`, `if_ignored`, `model_limitation` |
 
-### What Changes in M6.5 (vs v2 completed)
+---
 
-| Item | v2 (completed) | v1.1 (revised) |
-|------|----------------|----------------|
-| Input sequences | 8400 from M6A | 10000 from M6A + M6B |
-| Output rows | 8400 | 10000 |
-| Label column | single integer (0–6) | single integer + `label_vector` (multi-hot) |
-| New columns | — | `is_compound`, `fault_stage`, `severity` |
-| New feature | — | `compound_interaction_flag` (feature 25) |
-| Output CSV | 8400 × 25 | 10000 × 29 |
+## Detection Path Summary (Per Class)
 
-### Complete Feature List (25 Features)
+*Informs M8 channel weight decisions.*
 
-**Per-channel mean reconstruction error — 8 features**
-```
-mean_err_MotPV, mean_err_MotSV, mean_err_MotTV,
-mean_err_PmpPV, mean_err_PmpSV, mean_err_PmpTV,
-mean_err_TempSV, mean_err_PresSV
-```
+| Label | Class | Primary M8 Path | Notes |
+|-------|-------|----------------|-------|
+| 0 | normal | N/A | Baseline |
+| 1 | bearing_wear | Mech C Mot.SV\* Spearman | + thermal lag |
+| 2 | impeller_imbalance | Single-window Pmp.SV\* | Fast onset |
+| 3 | cavitation | Single-window DANGER bypass | Startup only |
+| 4 | seal_failure | Mech C Pres.SV\* Spearman | NEGATIVE drift |
+| 5 | overloading | Mech C Temp.SV\* Spearman | Steady-state only |
+| 6 | sensor_failure | Channel std collapse flag | 1 channel only |
+| 7 | bearing+overloading | Dual Mech C | Mot.SV + Temp.SV |
+| 8 | cavitation+seal | DANGER → Pres.SV decline | Cascade |
+| 9 | imbalance+bearing | Pmp.SV → Mot.SV lag | Shaft coupling |
+| 10 | seal+cavitation | Pres.SV → NPSHa margin | 900-step sequence |
+| 11 | overloading+bearing | Temp.SV → lubricant | Thermal cascade |
+| 12 | imbalance+cavitation | Pmp.SV ripple → pressure | Fast compound |
+| 13–18 | Masked variants | Cross-channel disambiguation | Sign direction key |
+| 19 | seal_failure_fast | Single-window WARN/DANGER | sev 0.8 |
+| 20 | overloading_cyclic | Mech C Temp.SV + CUSUM | Cyclic pattern |
+| 21 | bearing_wear_gradual | CUSUM S_n(score_B) PRIMARY | **LIABILITY class** |
 
-**Per-channel max reconstruction error — 8 features**
-```
-max_err_MotSV, max_err_PmpSV, max_err_PresSV,
-max_err_MotTV, max_err_PmpTV, max_err_TempSV,
-max_err_MotPV, max_err_PmpPV
-```
+---
 
-**Temporal evolution features — 5 features**
-```
-error_onset_lag      : timestep where error first crosses 2× normal baseline
-err_slope_primary    : rate of error growth on highest-error channel
-err_auc_primary      : area under error curve (fault energy proxy)
-kurtosis_err_PmpSV   : spike character of pump vibration error
-kurtosis_err_PresSV  : spike character of pressure error
-```
+## Paste Text — M6 Module Status (v3.0 — Architecture v14.2)
 
-**Cross-channel features — 2 features**
-```
-corr_delta_PmpSV_PresSV    : change in Pmp.SV↔Pres.SV correlation vs normal baseline
-thermal_decoupling_flag    : 1 if Mot.TV error < 0.05 (hydraulic fault indicator)
-```
+| Key | Value |
+|-----|-------|
+| `M6A_status` | PARTIALLY SUPERSEDED BY M6B |
+| `M6A_valid_labels` | 0, 2, 3, 6 (normal, imbalance, cavitation, sensor) |
+| `M6A_rerun_labels` | 1, 4, 5 (bearing, seal, overloading) — IN M6B Step 0 |
+| `M6A_sequence_count` | 8,400 (7 classes × 1,200) — historical |
+| `M6B_total_sequences` | ~31,800 |
+| `M6B_label_count` | 22 classes |
+| `M6B_feature_matrix_shape` | ~31,800 rows × ~35 features (M6.5r) |
+| `M6B_groups` | A (single) + B (compound) + C (masked) + D (cyclic) + E (sensor2ch) |
+| `M6A_labels_1_4_5_status` | RERUN REQUIRED at 250/400/300 steps respectively |
+| `M6_label21_count` | 2,000 sequences at 1,000 steps (weeks-scale LIABILITY) |
+| `M6_zt_export` | zt_sequences_groupA/B/C/D/E.pkl (one per group) |
+| `M6_physics_context_export` | physics_context_strings.json (22 entries) |
+| `M6_onset_order_feature` | added in M6.5r — causal ordering per compound sequence |
+| `M6_score_ABC_status` | score_A/B/C = None until M8 TCN-AE complete; Full 35-feature matrix available post-M8 |
+| `M6_seal_direction_rule` | seal_failure = NEGATIVE Pres.SV\* drift **(LOCKED)**; sensor_drift = POSITIVE Pres.SV\* drift **(LOCKED)** |
+| `M6_GroupB_lag_Label9` | 300–600 steps (physics-verified range) |
+| `M6_GroupB_lag_Label10` | 400–800 steps (physics-verified range) |
+| `M6_GroupB_lag_Label11` | 400–600 steps (physics-verified range) |
+| `M6_gate_status` | GATES 1–10 must pass before M7 training |
+| `Status for M7` | READY after M6B Step 0 + Gates 1–7 pass (score_A/B/C = None for initial M7 training) |
 
-**Fuzzy fault membership — 1 feature**
-```
-fuzzy_fault_membership : soft score [0.0, 1.0]
-  0.0 = clearly normal
-  1.0 = clearly fault
-  Transition zone calibrated from M4: P95(normal MAE) to P5(fault MAE)
-```
+---
 
-**NEW: Compound interaction feature — 1 feature**
-```
-compound_interaction_flag :
-  For single-fault sequences → 0.0
-  For compound sequences → Spearman r of (err_primary_channel, err_secondary_channel)
-                           shifted by causal_lag
-  Physics: if bearing_wear + seal_failure compound,
-           Mot.SV error and Pres.SV error should be
-           temporally offset by causal_lag steps
-           High positive r → confirmed compound causal relationship
-```
+## File Manifest
 
-### M6.5 Output Schema
-
-```
-M6_feature_matrix.csv — 10000 rows × 29 columns
-
-Columns:
-  [0–7]   mean_err_* per channel          (8 features)
-  [8–15]  max_err_* per channel           (8 features)
-  [16–20] temporal evolution features     (5 features)
-  [21–22] cross-channel features          (2 features)
-  [23]    fuzzy_fault_membership          (1 feature)
-  [24]    compound_interaction_flag       (1 feature)  ← NEW
-  [25]    label                           (int 0–6, primary fault)
-  [26]    label_vector                    (str "[0,1,1,0,0,0,0]", multi-hot)
-  [27]    is_compound                     (bool)
-  [28]    fault_stage                     (str: early/developing/advanced)
-  [28]    severity                        (float)
-```
-
-### M6.5 Locked Audit Results (v2 — authoritative, still valid for M6A portion)
+### GitHub Push (This File)
 
 ```
-Gate 3 MAE Threshold Check (window=50, threshold=0.110058):
-
-Class              Mean MAE   Gate 3 Pass   Interpretation
-─────────────────────────────────────────────────────────
-normal             0.1202     86.67%        Probe only — full val FPR 0.55% ✅
-bearing_wear       0.0979     13.33%        Mild-sev near-threshold — trend calibration ✅
-impeller_imbalance 0.1031     30.00%        Mild sequences dominate — correct ✅
-cavitation         0.6747     100.00%       Strongly anomalous — hydraulic shock ✅
-seal_failure       0.1961     29.17%        Slow hydraulic fault — Mech C primary path ✅
-overloading        0.0930     0.00%         Thermal-dominant — Mech C primary path ✅
-sensor_failure     0.1696     93.33%        Single-channel flatline clearly anomalous ✅
-
-Top 5 Fisher Discriminant Features:
-  Rank 1: mean_err_PmpSV     (pump vibration — dominant fault channel)
-  Rank 2: std_err_PmpSV      (variance of pump vibration error)
-  Rank 3: mean_err_TempSV    (thermal drift — overloading discriminator)
-  Rank 4: mean_err_MotTV     (motor temperature — bearing/overloading)
-  Rank 5: std_err_MotTV      (temperature variance)
+docs/modules_M6_synthetic_generation.md    ← THIS FILE (v3.0)
 ```
 
-**Key finding:** Overloading (Gate 3 pass = 0%) and seal_failure (29.17%) are
-**thermal-dominant** and **hydraulic-slow** respectively. Their PRIMARY detection
-path in M8 is Mechanism C (per-channel drift monitor), NOT single-window threshold.
-M7 XGBoost still classifies them correctly via `mean_err_TempSV` (rank 3).
-
-### M6.5 Validation Gates (Revised)
+### Data Files (Generated by Scripts — Not Pushed to GitHub)
 
 ```
-✅ Dataset shape    : (10000, 29)          [was (8400, 25)]
-✅ NaN count        : 0
-✅ Inf count        : 0
-✅ Class balance    : 1200 per single-fault class (×7) + 400 per compound pair (×4)
-✅ compound_flag    : is_compound=True for all 1600 M6B rows
-✅ fuzzy_mean_normal: < 0.15 (near 0)
-✅ fuzzy_mean_fault : > 0.70 (near 1)
-✅ compound_interaction_flag: > 0.5 for confirmed compound pairs
-✅ Fisher rank 1    : must be a PmpSV or vibration channel feature
+data/synthetic/M6B_groupA_rerun_label1.pkl
+data/synthetic/M6B_groupA_rerun_label4.pkl
+data/synthetic/M6B_groupA_rerun_label5.pkl
+data/synthetic/M6B_groupB_compound.pkl
+data/synthetic/M6B_groupC_masked.pkl
+data/synthetic/M6B_groupD_cyclic.pkl
+data/synthetic/M6B_groupE_sensor2ch.pkl
+data/synthetic/zt_sequences_groupA/B/C/D/E.pkl
+data/synthetic/M6B_feature_matrix.csv
+data/synthetic/physics_context_strings.json
 ```
 
-### M6.5 Output Files
+### Reports (GitHub Push After Run)
 
 ```
-data/synthetic/M6_feature_matrix.csv         → 10000 rows × 29 columns
-outputs/plots/module_065_feature_distributions.png
-outputs/plots/module_065_fuzzy_membership_dist.png
-outputs/plots/module_065_compound_interaction_dist.png
-outputs/reports/module_065_sequence_audit_report.md
+outputs/reports/module_065r_audit_report.md
+outputs/reports/module_06B_generation_report.md
 ```
 
-### M6.5 Paste Text Keys
+### Locked Files (Do NOT Modify)
 
 ```
-M6p5_feature_matrix_rows         : 10000
-M6p5_features_per_row            : 25 (+ 4 metadata cols)
-M6p5_compound_rows               : 1600
-M6p5_single_fault_rows           : 8400
-M6p5_fuzzy_mean_normal           : target < 0.15
-M6p5_fuzzy_mean_fault            : target > 0.70
-M6p5_compound_interaction_mean   : target > 0.50 for compound seqs
-M6p5_fisher_rank1_feature        : must be PmpSV channel
-M6p5_top_discriminating_feature  : feature with highest class separation
-Status_for_M7                    : READY / NEEDS REVIEW
+data/synthetic/M6_feature_matrix.csv      ← M6.5 v2.0 (archived, superseded)
+models/M3_normalization_config.json       ← Normalisation baselines LOCKED
+models/M4_spike_seeds_meta.csv            ← Spike seeds LOCKED
+models/M4_threshold_config.json          ← Level 1 threshold 0.110058 LOCKED
 ```
 
 ---
 
-## Total Dataset After M6A + M6B + M6.5
+## Next Prompt — Ready for M6B Step 0
 
-```
-Source          | Type          | Sequences | Shape per seq
-─────────────────────────────────────────────────────────
-M6A (revised)   | Single-fault  | 8,400     | (200, 8)
-M6B (new)       | Compound      | 1,600     | (200, 8)
-─────────────────────────────────────────────────────────
-TOTAL RAW       |               | 10,000    | —
+📦 File 13 done. Starting M6B Step 0 (Label 1/4/5 rerun).
 
-M6.5 Feature Matrix:
-  Rows    : 10,000
-  Columns : 29 (25 features + 4 metadata)
-  File    : M6_feature_matrix.csv
-  Size    : ~7 MB (well within RAM)
-```
-
-**Label distribution in feature matrix:**
-
-```
-Single-fault classes (from M6A):
-  normal             : 1200
-  cavitation         : 1200
-  bearing_wear       : 1200
-  seal_failure       : 1200
-  overloading        : 1200
-  impeller_imbalance : 1200
-  sensor_failure     : 1200
-  Subtotal           : 8400
-
-Compound classes (from M6B, multi-hot):
-  impeller_imbalance + bearing_wear  : 400
-  bearing_wear + seal_failure        : 400
-  seal_failure + overloading         : 400
-  cavitation + impeller_imbalance    : 400
-  Subtotal                           : 1600
-
-GRAND TOTAL                          : 10000
-```
-
----
-
-## Cross-Module Invariants for M6 Sub-modules
-
-These rules must hold across M6A, M6B, and M6.5 without exception:
-
-1. `segment_id` preserved — windows NEVER cross segment boundaries
-2. Normalization baselines LOCKED at `M3_normalization_config.json`
-3. Winsor ceilings LOCKED at `M4_spike_config.json` — M6A/M6B DO NOT override
-4. M4 threshold `0.110058` is the fault/normal boundary for all validation gates
-5. Physical couplings `r > 0.87` must hold in ALL synthetic sequences (per fault type)
-6. Conservation of energy and mass in all sequences
-7. Cavitation sequences ONLY in startup cluster
-8. Overloading sequences ONLY in steady-state cluster
-9. Compound sequences: secondary fault channel onset must occur AFTER causal_lag steps
-10. `severity` column present in all metadata CSVs (M6A and M6B)
-11. `fault_stage` column present in all metadata CSVs (M6A and M6B)
-12. M6.5 feature matrix must include all 10000 rows before M7 training begins
-
----
-
-## Execution Order
-
-```
-Step 1: Regenerate M6A
-        → module_06a_synthetic_generator_v4.py
-        → Outputs: M6_synthetic_sequences.npy + revised metadata
-
-Step 2: Run M6B (new)
-        → module_06b_compound_generator.py
-        → Outputs: M6B_compound_sequences.npy + M6B metadata
-
-Step 3: Run M6.5 (revised)
-        → module_065_sequence_audit.py  (v3)
-        → Input: M6A sequences + M6B sequences (combined)
-        → Output: M6_feature_matrix.csv (10000 × 29)
-
-Step 4: Verify M6.5 gates pass → Status: READY for M7
-```
-
----
-
-## What This Enables Downstream
-
-| Module | M6 Output Used | Capability Unlocked |
-|--------|---------------|---------------------|
-| M7 | `M6_feature_matrix.csv` | Multi-label XGBoost + sample weighting by severity |
-| M8 | M6A + M6B raw sequences | Compound fault reconstruction — LSTM-AE trained on real mixed signals |
-| M10 | `fault_stage` from M6.5 | Progressive confidence API (Stage 1 → Stage 3) |
-| M12 | M5 physics engine (fresh) | Adversarial validation — model never saw M12 sequences |
-
----
-
-## Document Revision History
-
-| Version | Date | Change |
-|---------|------|--------|
-| v1.0 | 2026-04-12 | Initial document — post bias-audit architecture discussion |
-| SUPERSEDED | 2026-04-15 | v12.0 architecture: 21 classes, ~27k seqs, M6.5r=~189k×26. Canonical: completed_modules_M5_to_M6p5r.md |
-
----
-
-**Pump:** 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head  
-**Dataset:** CIRA SACIP — Zenodo 15301820  
-**Standard:** ISO 10816-3 vibration, ISO 13373-3 condition monitoring
+- **Finding:** M6A labels 1, 4, 5 require rerun at 250/400/300 steps.
+- **Locked:** M6A labels 0, 2, 3, 6 valid. M6.5r supersedes M6.5 v2.
+- **Uploading:** `modules_M6_synthetic_generation.md` (v3.0).
+- **Action:** Provide M6B Step 0 complete generation script.
