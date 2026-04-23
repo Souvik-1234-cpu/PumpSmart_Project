@@ -3,15 +3,15 @@
 
 | Field | Value |
 |-------|-------|
-| **Document version** | v3.0 — Architecture v14.2 (TCN-AE Level 2 + 22-class fault universe) |
+| **Document version** | v3.1 — Architecture v14.2 (TCN-AE Level 2 + 22-class fault universe) |
 | **Date** | 2026-04-23 |
-| **Supersedes** | v2.0 (arch v14.0, 7-class, 8,400 sequences, 200-step uniform) |
+| **Supersedes** | v3.0 (conformity fixes: Label 6 count, M6.5r row count, Group E split, Group C heading, Group B lag ranges, zt Group A file split) |
 
 ---
 
 > ⚠️ **STATUS: PARTIALLY SUPERSEDED BY M6B**
 >
-> - M6A Group A Labels **0, 2, 3, 6** (normal, impeller_imbalance, sensor_failure) → **VALID** — no rerun required
+> - M6A Group A Labels **0, 2, 3, 6** (normal, impeller_imbalance, cavitation, sensor_failure) → **VALID** — no rerun required
 > - M6A Group A Labels **1, 4, 5** (bearing_wear, seal_failure, overloading) → **RERUN REQUIRED** in M6B Step 0
 >   - Reason: sequence lengths corrected (250/400/300 steps)
 >   - Original 200-step versions must **NOT** be used downstream
@@ -58,7 +58,7 @@
 
 4. **Overloading sequences ONLY in steady-state cluster context.** Thermal run-in makes high-load cluster temperatures paradoxically low.
 
-5. **Seal failure:** Pres.SV\* decline is ALWAYS negative (pressure loss). Sensor drift (Label 13): Pres.SV\* drift direction context-dependent. Upward Pres.SV\* drift → sensor_drift, not seal_failure. **NEVER confused.**
+5. **Seal failure:** Pres.SV\* decline is ALWAYS negative (pressure loss). Sensor drift (Label 15): Pres.SV\* drift direction context-dependent. Upward Pres.SV\* drift → sensor_drift, not seal_failure. **NEVER confused.**
 
 6. **Conservation of energy and mass** must hold in ALL sequences.
    - No negative pressure (Pres.SV\* ≥ 0 at all timesteps)
@@ -85,7 +85,7 @@
 
 ---
 
-### M6A Group A — Label Table (v3.0 Corrected Lengths)
+### M6A Group A — Label Table (v3.1 Corrected Lengths)
 
 | Label | Fault Type | Seq Length | Count | Source | Status |
 |-------|-----------|-----------|-------|--------|--------|
@@ -107,7 +107,7 @@
 
 *Per fault class, from v2.0 audit — still valid.*
 
-| Tier | SV\* Range | Sequences | Description |
+| Tier | SV\* Range | Sequences per cluster | Description |
 |------|-----------|-----------|-------------|
 | Early | 1.0–1.3 | 20 | Subtle, hardest for model |
 | Active | 1.3–2.0 | 20 | Clear fault onset |
@@ -190,8 +190,10 @@ M6B extends M6A from 7 classes to the full 22-class fault universe. M6B generate
 | Labels 13–18, 20 | 1,200 sequences each |
 | Label 19 (seal_fast) | 800 sequences |
 | Group E (2 sub-types) | 800 sequences each |
-| **TOTAL** | **~31,800 sequences** |
-| Feature matrix (M6.5r) | ~31,800 rows × ~35 features |
+| **TOTAL SEQUENCES** | **~31,800 sequences** |
+| **Feature matrix (M6.5r)** | **~196,000 rows × ~35 features** |
+
+> **NOTE:** The feature matrix row count (196,000) is NOT the same as the sequence count (31,800). Each sequence produces multiple feature rows — one per sliding window across the sequence length. The M6.5r output file `M6p5r_feature_matrix.csv` is 196,000 × 35.
 
 ---
 
@@ -217,9 +219,9 @@ Physics basis: Thermal overloading (K_ol ≈ 0.003–0.010/step) at mild severit
 
 | File | Shape |
 |------|-------|
-| `data/synthetic/M6B_groupA_rerun_label1.pkl` | 1,200 seqs × 250 × 8 |
-| `data/synthetic/M6B_groupA_rerun_label4.pkl` | 1,200 seqs × 400 × 8 |
-| `data/synthetic/M6B_groupA_rerun_label5.pkl` | 1,200 seqs × 300 × 8 |
+| `data/synthetic/M6B_groupA_rerun_label1.pkl` | 1,500 seqs × 250 × 8 |
+| `data/synthetic/M6B_groupA_rerun_label4.pkl` | 1,500 seqs × 400 × 8 |
+| `data/synthetic/M6B_groupA_rerun_label5.pkl` | 1,500 seqs × 300 × 8 |
 
 M6A labels 0, 2, 3, 6 remain at original files — no rerun.
 
@@ -235,8 +237,10 @@ M6A labels 0, 2, 3, 6 remain at original files — no rerun.
 | 3 | cavitation | 150 | 1,500 | A | dilation 1 |
 | 4 | seal_failure | 400 | 1,500 | A | dilation 2,4 |
 | 5 | overloading | 300 | 1,500 | A | dilation 2,4 |
-| 6 | sensor_failure | 150 | 1,500 | A | dilation 1 |
+| 6 | sensor_failure | 150 | **1,200** | A | dilation 1 |
 | 21 | bearing_wear_gradual | 1,000 | 2,000 | A | dilation 4,8,16 *(weeks-scale liability class — Spearman + CUSUM S_n primary path)* |
+
+> **NOTE — Label 6:** sensor_failure count is **1,200**, not 1,500. Hardware sensor failure has zero real-world spike seed anchoring — pure physics synthesis. Lower count reflects this reduced augmentation ceiling. All other Group A labels (1–5) are 1,500.
 
 ---
 
@@ -244,18 +248,18 @@ M6A labels 0, 2, 3, 6 remain at original files — no rerun.
 
 M6B generates compound fault sequences where Fault B starts at a physically determined lag after Fault A onset (causal cascade, not simultaneous).
 
-| Label | Fault Pair (A→B) | Steps | Count | Lag A→B | Physics Basis |
+| Label | Fault Pair (A→B) | Steps | Count | Lag A→B (range) | Physics Basis |
 |-------|-----------------|-------|-------|---------|---------------|
-| 7 | bearing_wear + overloading | 600 | 1,500 | ~200s | Bearing heat → thermal load |
-| 8 | cavitation + seal_failure | 550 | 1,500 | ~150s | Pressure drop → seal load |
-| 9 | impeller_imbalance + bearing_wear | 700 | 1,500 | 300–600s | Imbalance → shaft load → bearing fatigue |
-| 10 | seal_failure + cavitation | 900 | 1,500 | 400–800s | Pressure loss → NPSHa margin |
-| 11 | overloading + bearing_wear | 800 | 1,500 | 400–600s | Thermal → lubricant thin |
-| 12 | impeller_imbalance + cavitation | 450 | 1,500 | ~100s | Imbalance → pressure ripple → NPSHa |
+| 7 | bearing_wear + overloading | 600 | 1,500 | 200–400 steps | Bearing heat → oil viscosity drop → thermal load |
+| 8 | cavitation + seal_failure | 550 | 1,500 | 50–150 steps | Joukowsky pressure shock → axial thrust → seal face |
+| 9 | impeller_imbalance + bearing_wear | 700 | 1,500 | 300–600 steps | BPF fatigue crack growth — Paris law K accumulation |
+| 10 | seal_failure + cavitation | 900 | 1,500 | 400–800 steps | Q_leak → operating point shift → NPSHa margin loss |
+| 11 | overloading + bearing_wear | 800 | 1,500 | 400–600 steps | Thermal creep → lubricant thinning → bearing fatigue |
+| 12 | impeller_imbalance + cavitation | 450 | 1,500 | 100–300 steps | BPF pressure oscillation → low-P zone → bubble nucleation |
 
-> **NOTE:** All lag values physics-verified against 110 kW, 7-stage nameplate. Lags in steps (1 step = 1 second at 1 Hz sampling). Labels 9, 10, 11 lags are ranges — not single values — because propagation timescale depends on severity and cluster context.
+> **NOTE:** All lag values are **ranges**, not single values — propagation timescale depends on severity and cluster context. Physics-verified against 110 kW, 7-stage nameplate. Lags in steps (1 step = 1 second at 1 Hz sampling). INV-10: primary fault onset MUST precede secondary by physics-derived lag per label. **Never use blanket lag values.**
 
-`compound_interaction_flag`: computed in M6.5r as Spearman lag shift between the two primary fault channels. Expected HIGH in Groups B sequences. This flag is **Feature 33** in the 35-feature M6.5r matrix.
+`compound_interaction_flag`: computed in M6.5r as Spearman lag shift between the two primary fault channels. Expected HIGH in Group B sequences. This flag is **Feature 33** in the ~35-feature M6.5r matrix.
 
 ---
 
@@ -263,36 +267,39 @@ M6B generates compound fault sequences where Fault B starts at a physically dete
 
 | Label | Description | Steps | Count | Masking Channel |
 |-------|-------------|-------|-------|----------------|
-| 13 | bearing_wear (Mot.SV masked) | 300 | 1,200 | Mot.SV → calibration drift |
-| 14 | cavitation (Pres.SV masked) | 210 | 1,200 | Pres.SV → stuck/flatline |
+| 13 | bearing_wear (Mot.SV masked) | 300 | 1,200 | Mot.SV → calibration drift / flatline |
+| 14 | cavitation (Pres.SV masked) | 210 | 1,200 | Pres.SV → stuck / flatline |
 | 15 | seal_failure (Pres.SV drifting) | 500 | 1,200 | Pres.SV → upward sensor drift |
 | 16 | overloading (Temp.SV stuck) | 350 | 1,200 | Temp.SV → frozen at last value |
 | 17 | impeller_imbalance (Pmp.SV flat) | 250 | 1,200 | Pmp.SV → flatline hardware |
-| 18 | cavitation + intermittent | 300 | 1,200 | Cavitation intermittent onset |
 
 > **KEY DISTINCTION for Label 15:**
-> - `seal_failure` = **NEGATIVE** Pres.SV\* drift (hydraulic loss)
-> - `sensor_drift` = **POSITIVE** Pres.SV\* drift (calibration bias)
+> - `seal_failure` = **NEGATIVE** Pres.SV\* drift (hydraulic loss) **(LOCKED)**
+> - `sensor_drift` = **POSITIVE** Pres.SV\* drift (calibration bias) **(LOCKED)**
 >
-> M8 must disambiguate via sign + cross-channel analysis.
+> M8 must disambiguate via sign + cross-channel analysis. GATE-4 enforces this.
 
 ---
 
-### Group D — Cyclic / Transient Fault Sequences
+### Group D — Cyclic / Transient / Severity Variant Sequences
 
 | Label | Description | Steps | Count | Notes |
 |-------|-------------|-------|-------|-------|
-| 19 | seal_failure_fast (acute) | 150 | 800 | Fast degradation, sev 0.8 |
-| 20 | overloading_cyclic | 600 | 1,200 | Cyclic thermal load pattern |
-| 21 | bearing_wear_gradual | 1,000 | 2,000 | Weeks-scale **(LIABILITY CLASS)** |
+| 18 | cavitation_intermittent | 300 | 1,200 | 3 burst cycles: 15–30s on / 20–40s off |
+| 19 | seal_failure_fast (acute) | 150 | 800 | Fast degradation, sev 0.8 — catastrophic |
+| 20 | overloading_cyclic | 600 | 1,200 | 3 sawtooth cycles: 150s rise / 50s recovery |
+| 21 | bearing_wear_gradual | 1,000 | 2,000 | Weeks-scale **(LIABILITY CLASS)** — Paris law sev 0.05 |
 
 ---
 
-### Group E — Multi-Channel Sensor Fault (2-channel Thermal + Pump)
+### Group E — Multi-Channel Sensor Fault (2 Distinct Sub-Classes)
 
-| Sub-type | Steps | Count | Target Channels |
-|---------|-------|-------|----------------|
-| sensor_2ch_thermal_pump | 250 | 800 | Mot.TV + Pmp.TV both anomalous (differentiates from single-channel) |
+| Sub-type | Steps | Count | Target Channels | Physics Basis |
+|---------|-------|-------|----------------|---------------|
+| sensor_failure_2ch_thermal | 250 | 800 | Temp.PV + Temp.SV both anomalous | Both thermal channels degrade simultaneously — differentiates from single-channel Label 6 |
+| sensor_failure_2ch_pump | 250 | 800 | Pmp.PV + Pmp.SV both anomalous | Both pump vibration channels degrade simultaneously |
+
+> **NOTE:** These are **two distinct sub-classes** with separate label encoding and separate pkl output. They are NOT merged into a single class. Group E total = 1,600 sequences (800 × 2).
 
 ---
 
@@ -306,69 +313,64 @@ data/synthetic/M6B_groupB_compound.pkl
 data/synthetic/M6B_groupC_masked.pkl
 data/synthetic/M6B_groupD_cyclic.pkl
 data/synthetic/M6B_groupE_sensor2ch.pkl
-data/synthetic/zt_sequences_groupA.pkl      ← M4 sliding window zt per sequence
+data/synthetic/synthetic_groupA_normal.pkl       ← Group A normal sequences
+data/synthetic/synthetic_groupA_faults.pkl       ← Group A fault sequences (Labels 1–6, 21)
+data/synthetic/zt_sequences_groupA_normal.pkl    ← zt export: Group A normal
+data/synthetic/zt_sequences_groupA_faults.pkl    ← zt export: Group A faults
 data/synthetic/zt_sequences_groupB.pkl
 data/synthetic/zt_sequences_groupC.pkl
 data/synthetic/zt_sequences_groupD.pkl
 data/synthetic/zt_sequences_groupE.pkl
-data/synthetic/physics_context_strings.json ← Per-sequence physics context for M10
+data/synthetic/physics_context_strings.json      ← Per-label physics context for M10
 ```
+
+> **NOTE — Group A zt split:** Group A has a **normal / faults split** for zt export files (unlike Groups B–E which are single files). This preserves the clean separation used in M4 threshold calibration.
 
 ---
 
 ## M6.5r — Updated Feature Extractor (22-Class, ~35 Features)
 
-> **STATUS:** Supersedes M6.5 v2.0. Runs on ALL M6B sequences (31,800 total).
+> **STATUS:** Supersedes M6.5 v2.0. Runs on ALL M6B sequences (31,800 total sequences → **196,000 feature matrix rows**).
 
 - **Input:** All M6B pkl files (Groups A–E) + M6A valid files (labels 0, 2, 3, 6)
-- **Output:** `data/synthetic/M6B_feature_matrix.csv` — Shape: ~31,800 rows × ~35 columns (34 features + label)
+- **Output:** `data/synthetic/M6p5r_feature_matrix.csv` — Shape: **~196,000 rows × ~35 columns** (34 features + label)
 
 ### Feature Set Breakdown (~35 Features)
 
-**Per-Channel Statistics (8 channels × 3 stats = 24 features)**
+**Per-Channel Statistics — Old 25 Features Retained (8 channels × 3 stats ≈ 25)**
 
-For each of 8 channels: `mean_err`, `std_err`, `slope_err`
+For each of 8 channels: `mean_err` (mean MAE), `max_err` (max MAE), `err_slope` (linear slope of MAE over windows — drift indicator)
 
-**Cross-Channel Features (7 features)**
-
-| Feature | Description |
-|---------|-------------|
-| `corr_MotTV_TempSV` | r(Mot.TV, Temp.SV) thermal coupling |
-| `corr_PmpPV_PmpSV` | r(Pmp.PV, Pmp.SV) imbalance coupling |
-| `corr_PmpPV_PresSV` | r(Pmp.PV, Pres.SV) cavitation coupling |
-| `pres_monotonic_flag` | seal_failure key feature (monotone Pres.SV decline) |
-| `pres_chaotic_flag` | cavitation key feature (chaotic Pres.SV) |
-| `thermal_decoupling_flag` | r(Mot.TV, Temp.SV) < 0.3 → hydraulic fault |
-| `compound_interaction_flag` | Spearman lag shift between primary channels |
-
-**Zt-Derived Features (3 features)**
+**New 10 Features Added in v14.2**
 
 | Feature | Description |
 |---------|-------------|
-| `mean_zt_magnitude` | Mean of Level 1 zt error vector magnitude |
-| `std_zt_magnitude` | Std of zt magnitude |
-| `zt_drift_slope` | Slope of zt over N_windows |
+| `score_A` | TCN-AE severity score — feeds Level 4 Rolling Baseline |
+| `score_B` | TCN-AE drift slope score — feeds Level 3 CUSUM |
+| `score_C` | TCN-AE chain transition score — feeds XGBoost M7 |
+| `onset_order` | Which channel's MAE first exceeded 0.5× baseline, at which window index — encodes causal ordering |
+| `mean_zt_magnitude` | Mean L2 norm of zt vectors over sequence |
+| `std_zt_magnitude` | Std of L2 norm of zt vectors |
+| `zt_drift_slope` | Linear slope of zt magnitude over windows |
 
-**TCN-AE Output Features (3 features — added AFTER M8 is complete)**
+> **NOTE:** score_A/B/C = None until TCN-AE (M8) is trained. XGBoost M7 trains initially with reduced ~32-feature set. Full ~35-feature retraining occurs after M8 completion. The exact feature count resolves to ~35 — the approximation is intentional pending M8 output shape confirmation.
 
-| Feature | Description |
-|---------|-------------|
-| `score_A` | TCN-AE severity score |
-| `score_B` | TCN-AE drift slope score (CUSUM input) |
-| `score_C` | TCN-AE chain transition score (compound detection) |
+> **INVARIANT-19:** score_B → CUSUM ONLY. score_A → Rolling Baseline ONLY. score_C → XGBoost ONLY. Cross-routing any score is an architecture violation.
 
-> **NOTE:** score_A/B/C = None until TCN-AE (M8) is trained. XGBoost M7 trains with reduced 32-feature set initially. Full 35-feature retraining occurs after M8 completion.
+**Expected SHAP Feature Importance (Predicted)**
 
-**Causal Ordering Feature (1 feature)**
-
-| Feature | Description |
-|---------|-------------|
-| `onset_order` | Which channel's MAE first exceeded 0.5× baseline, at which window index (encodes causal sequence) |
+| Fault | Top Features |
+|-------|-------------|
+| Group B compound | `score_C` likely rank 1 |
+| Label 21 gradual bearing | `score_B`, `zt_drift_slope` top-3 |
+| Label 5 overloading | `mean_err_TempSV` rank 1 (unchanged from v2.0) |
+| Label 4 seal_failure | `err_slope_PresSV` top-3 (unchanged) |
+| Label 10 seal+cav chain | `score_C`, `onset_order` top-3 |
 
 ### Output Files
 
 ```
-data/synthetic/M6B_feature_matrix.csv     — full 35-feature, 31,800 rows
+data/synthetic/M6p5r_feature_matrix.csv     — ~196,000 rows × ~35 features
 outputs/reports/module_065r_audit_report.md
 src/module_065r_feature_retrain.py
 ```
@@ -381,14 +383,14 @@ src/module_065r_feature_retrain.py
 
 | Gate | Description |
 |------|-------------|
-| GATE-1 | Label distribution matches targets: Labels 0,21 = 2,000 each; Labels 1–12 = 1,500 each; Labels 13–18,20 = 1,200 each; Label 19 = 800; Group E = 800 each |
+| GATE-1 | Label distribution matches targets: Labels 0,21 = 2,000 each; Labels 1–12 = 1,500 each; Labels 13–18,20 = 1,200 each; Label 19 = 800; Group E = 800 each (2 sub-classes); Label 6 = 1,200 |
 | GATE-2 | Group A — all channels in [−0.1, 1.1] normalised range throughout |
 | GATE-3 | Group B — MAE vs cluster centroid progressively increases: t=0 to lag: MAE < 0.10 / t=lag to lag+T: MAE ∈ [0.10, 0.40] / t=lag+T+: MAE > 0.40 |
 | GATE-4 | Group C — seal_failure (Label 15) Pres.SV\* drift direction **NEGATIVE**; sensor_drift — Pres.SV\* drift direction **POSITIVE**. THESE MUST NOT BE CONFUSED in generation |
 | GATE-5 | Thermal coupling preservation: bearing_wear r(Mot.TV, Mot.SV) > 0.85 per seq; overloading r(Mot.TV, Temp.SV) > 0.90 per seq; cavitation r(Mot.TV, Temp.SV) < 0.5 (decoupled — expected) |
 | GATE-6 | Temporal coherence (dX/dt continuity): each class pass rate target > 90%. Cavitation exception: 91% acceptable (hydraulic shock = non-smooth) |
 | GATE-7 | No negative pressure, no T\* < −0.5, no SV\* > 5.0 |
-| GATE-8 | `zt_sequences_groupX.pkl` files all written and loadable. Shape check: (N_sequences, N_windows, 64+8) per group |
+| GATE-8 | `zt_sequences_groupX.pkl` files all written and loadable. Shape check: (N_sequences, N_windows, 64+8) per group. Group A: both normal and faults files present |
 | GATE-9 | `onset_order` feature non-null for all Group B compound sequences. Confirms causal ordering captured |
 | GATE-10 | `physics_context_strings.json` written with entry for all 22 labels. Each entry contains: `what`, `why`, `sensor_signature`, `timeline`, `recommended_action`, `if_ignored`, `model_limitation` |
 
@@ -413,14 +415,15 @@ src/module_065r_feature_retrain.py
 | 10 | seal+cavitation | Pres.SV → NPSHa margin | 900-step sequence |
 | 11 | overloading+bearing | Temp.SV → lubricant | Thermal cascade |
 | 12 | imbalance+cavitation | Pmp.SV ripple → pressure | Fast compound |
-| 13–18 | Masked variants | Cross-channel disambiguation | Sign direction key |
+| 13–17 | Masked variants | Cross-channel disambiguation | Sign direction key |
+| 18 | cavitation_intermittent | Burst pattern detection | 3 cycles |
 | 19 | seal_failure_fast | Single-window WARN/DANGER | sev 0.8 |
 | 20 | overloading_cyclic | Mech C Temp.SV + CUSUM | Cyclic pattern |
 | 21 | bearing_wear_gradual | CUSUM S_n(score_B) PRIMARY | **LIABILITY class** |
 
 ---
 
-## Paste Text — M6 Module Status (v3.0 — Architecture v14.2)
+## Paste Text — M6 Module Status (v3.1 — Architecture v14.2)
 
 | Key | Value |
 |-----|-------|
@@ -430,18 +433,24 @@ src/module_065r_feature_retrain.py
 | `M6A_sequence_count` | 8,400 (7 classes × 1,200) — historical |
 | `M6B_total_sequences` | ~31,800 |
 | `M6B_label_count` | 22 classes |
-| `M6B_feature_matrix_shape` | ~31,800 rows × ~35 features (M6.5r) |
-| `M6B_groups` | A (single) + B (compound) + C (masked) + D (cyclic) + E (sensor2ch) |
+| `M6B_feature_matrix_shape` | **~196,000 rows × ~35 features** (M6.5r) |
+| `M6B_groups` | A (single) + B (compound) + C (masked) + D (cyclic/severity) + E (sensor2ch) |
 | `M6A_labels_1_4_5_status` | RERUN REQUIRED at 250/400/300 steps respectively |
+| `M6_label6_count` | 1,200 sequences (NOT 1,500 — sensor_failure pure physics, no spike seed anchor) |
 | `M6_label21_count` | 2,000 sequences at 1,000 steps (weeks-scale LIABILITY) |
-| `M6_zt_export` | zt_sequences_groupA/B/C/D/E.pkl (one per group) |
+| `M6_zt_export_groupA` | zt_sequences_groupA_normal.pkl + zt_sequences_groupA_faults.pkl (SPLIT) |
+| `M6_zt_export_groupBCDE` | zt_sequences_groupB/C/D/E.pkl (one file per group) |
 | `M6_physics_context_export` | physics_context_strings.json (22 entries) |
 | `M6_onset_order_feature` | added in M6.5r — causal ordering per compound sequence |
-| `M6_score_ABC_status` | score_A/B/C = None until M8 TCN-AE complete; Full 35-feature matrix available post-M8 |
+| `M6_score_ABC_status` | score_A/B/C = None until M8 TCN-AE complete; Full ~35-feature matrix available post-M8 |
 | `M6_seal_direction_rule` | seal_failure = NEGATIVE Pres.SV\* drift **(LOCKED)**; sensor_drift = POSITIVE Pres.SV\* drift **(LOCKED)** |
+| `M6_GroupB_lag_Label7` | 200–400 steps (physics-verified range) |
+| `M6_GroupB_lag_Label8` | 50–150 steps (physics-verified range) |
 | `M6_GroupB_lag_Label9` | 300–600 steps (physics-verified range) |
 | `M6_GroupB_lag_Label10` | 400–800 steps (physics-verified range) |
 | `M6_GroupB_lag_Label11` | 400–600 steps (physics-verified range) |
+| `M6_GroupB_lag_Label12` | 100–300 steps (physics-verified range) |
+| `M6_GroupE_subclasses` | sensor_failure_2ch_thermal (Temp.PV+Temp.SV) + sensor_failure_2ch_pump (Pmp.PV+Pmp.SV) — 2 DISTINCT sub-classes, 800 each |
 | `M6_gate_status` | GATES 1–10 must pass before M7 training |
 | `Status for M7` | READY after M6B Step 0 + Gates 1–7 pass (score_A/B/C = None for initial M7 training) |
 
@@ -452,7 +461,7 @@ src/module_065r_feature_retrain.py
 ### GitHub Push (This File)
 
 ```
-docs/modules_M6_synthetic_generation.md    ← THIS FILE (v3.0)
+modules_M6_synthetic_generation.md    ← THIS FILE (v3.1)
 ```
 
 ### Data Files (Generated by Scripts — Not Pushed to GitHub)
@@ -465,8 +474,15 @@ data/synthetic/M6B_groupB_compound.pkl
 data/synthetic/M6B_groupC_masked.pkl
 data/synthetic/M6B_groupD_cyclic.pkl
 data/synthetic/M6B_groupE_sensor2ch.pkl
-data/synthetic/zt_sequences_groupA/B/C/D/E.pkl
-data/synthetic/M6B_feature_matrix.csv
+data/synthetic/synthetic_groupA_normal.pkl
+data/synthetic/synthetic_groupA_faults.pkl
+data/synthetic/zt_sequences_groupA_normal.pkl
+data/synthetic/zt_sequences_groupA_faults.pkl
+data/synthetic/zt_sequences_groupB.pkl
+data/synthetic/zt_sequences_groupC.pkl
+data/synthetic/zt_sequences_groupD.pkl
+data/synthetic/zt_sequences_groupE.pkl
+data/synthetic/M6p5r_feature_matrix.csv
 data/synthetic/physics_context_strings.json
 ```
 
@@ -490,9 +506,9 @@ models/M4_threshold_config.json          ← Level 1 threshold 0.110058 LOCKED
 
 ## Next Prompt — Ready for M6B Step 0
 
-📦 File 13 done. Starting M6B Step 0 (Label 1/4/5 rerun).
+📦 File 13 done (v3.1 — conformity verified). Starting M6B Step 0 (Label 1/4/5 rerun).
 
 - **Finding:** M6A labels 1, 4, 5 require rerun at 250/400/300 steps.
-- **Locked:** M6A labels 0, 2, 3, 6 valid. M6.5r supersedes M6.5 v2.
-- **Uploading:** `modules_M6_synthetic_generation.md` (v3.0).
+- **Locked:** M6A labels 0, 2, 3, 6 valid. M6.5r supersedes M6.5 v2. Feature matrix = 196,000 rows × ~35 features.
+- **Uploading:** `modules_M6_synthetic_generation.md` (v3.1).
 - **Action:** Provide M6B Step 0 complete generation script.
