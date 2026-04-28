@@ -89,17 +89,46 @@
 
 | Label | Fault Type | Seq Length | Count | Source | Status |
 |-------|-----------|-----------|-------|--------|--------|
-| 0 | normal | 200 steps | 1,200 | Real CIRA M3 | ✅ VALID |
-| 1 | bearing_wear | 250 steps | 1,200 | Spike + M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — length insufficient for thermal lag physics)* |
-| 2 | impeller_imbalance | 200 steps | 1,200 | Sub-cluster M5 | ✅ VALID |
-| 3 | cavitation | 150 steps | 1,200 | Spike + M5 | ✅ VALID *(startup only — 150 steps correct; acute onset)* |
-| 4 | seal_failure | 400 steps | 1,200 | Sub-cluster M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — pressure decline too fast at 200; 400 required)* |
-| 5 | overloading | 300 steps | 1,200 | Sub-cluster M5 | ⚠️ RERUN in M6B Step 0 *(was 200 steps — thermal rise physically requires 300 minimum)* |
-| 6 | sensor_failure | 150 steps | 1,200 | Physics variants | ✅ VALID *(flatline/spike/drift — 150 steps correct; hardware failure is fast)* |
+| 0 | normal | 200 steps | 2,000 | Real CIRA M3 | REGENERATED v2 — Step0b (M6B channel order) |
+| 1 | bearing_wear | 250 steps | 1,500 | m6b_physics_lib | REGENERATED v2 — Step0 (F1: Temp.SV* coupling) |
+| 2 | impeller_imbalance | 200 steps | 1,500 | m6b_physics_lib | REGENERATED v2 — Step0b (F2: abs_sin AM) |
+| 3 | cavitation | 150 steps | 1,500 | m6b_physics_lib | REGENERATED v2 — Step0b (F3: M5-faithful) |
+| 4 | seal_failure | 400 steps | 1,500 | m6b_physics_lib | REGENERATED v2 — Step0 (orifice model) |
+| 5 | overloading | 300 steps | 1,500 | m6b_physics_lib | REGENERATED v2 — Step0 (F4: Q-H shift) |
+| 6 | sensor_failure | 150 steps | 1,200 | m6b_physics_lib | REGENERATED v2 — Step0b (F5: dropout added) |
 
 **TOTAL M6A: 8,400 sequences (7 classes × 1,200)**
 
-> **NOTE:** Labels 1, 4, 5 generated at 200-step in v1.0 are **INVALIDATED**. Their 200-step pkl files must NOT be used in M6.5r or M8 training. Replacement sequences are generated in M6B Step 0 at correct lengths.
+> **NOTE:** Labels 1, 4, 5 generated at 200-step in v1.0 are **INVALIDATED**. Their 200-step pkl files must NOT be used in M6.5r or M8 training. All Group A labels regenerated in M6B Step 0/0b v2 using m6b_physics_lib.py.
+
+### Unified Physics Library — m6b_physics_lib.py (LOCKED v1.0 2026-04-26)
+
+Location: src/m6b_physics_lib.py
+Used by: M6A v5, M6B Step0 v2, Step0b v2, all future Steps 1-3, M12
+All fault generation functions defined here exactly once.
+Any future physics changes MUST be made here — never inline in scripts.
+
+M6B Channel Order (LOCKED — ALL scripts must use this):
+  Index 0: Mot.SV  (vibration velocity)   — P* = actual / cluster_mean
+  Index 1: Pmp.SV  (vibration velocity)   — P* = actual / cluster_mean
+  Index 2: Mot.TV  (temperature)          — DeltaT* = (T-T_min)/(T_max-T_min)
+  Index 3: Pmp.PV  (vibration displ.)     — P* = actual / cluster_mean
+  Index 4: Temp.SV (temperature)          — DeltaT* = (T-T_min)/(T_max-T_min)
+  Index 5: Pres.SV (pressure)             — P* = actual / cluster_mean
+  Index 6: Pmp.TV  (temperature)          — DeltaT* = (T-T_min)/(T_max-T_min)
+  Index 7: Mot.PV  (vibration displ.)     — P* = actual / cluster_mean
+
+CRITICAL: M6A v1-v4 used WRONG order (Mot.PV=0, Mot.SV=1...).
+M6A v5 onwards and all M6B v2 scripts use M6B LOCKED order via m6b_physics_lib.py.
+All sequences generated before v5 must NOT be used downstream.
+
+Physics fixes applied in m6b_physics_lib.py:
+  F1: bearing_wear — Temp.SV* coupled via _tcoup r=0.9793 (M2 confirmed)
+  F2: impeller_imbalance — abs(sin) AM envelope (non-negative vibration, ISO 1940)
+  F3: cavitation — M5-faithful: severity-dep t_onset, mean_drop=0.6*sev, noise=0.3*sev
+  F4: overloading — Pres.SV* = (Q/Q_BEP)^2*(1-sev*0.1) affinity law (M5 canonical)
+  F5: sensor_failure — dropout subtype added: channel to 0.0 (cable cut / I/O failure)
+  F6: all generation unified in single library
 
 ---
 
