@@ -5,7 +5,7 @@
 |-------|-------|
 | **Document version** | v4.0 — v14.2 z_t features + score_A/B/C + corrected seq counts |
 | **Date** | 2026-04-19 |
-| **Status** | NOT STARTED — BLOCKED until `data/synthetic/M6B_combined_sequences.pkl`, `models/fault_rules_v3.json`, AND `z_t_sequences_group[A-E].pkl` (6 files) exist (all written by M6B Step 3) |
+| **Status** | NEXT ACTIVE — M6B COMPLETE (2026-04-28). All blocking files now exist. Script not yet run. |
 | **Script filename** | `module_06p5r_feature_retrain.py` |
 | **Output file** | `data/synthetic/M6B_feature_matrix.csv` (~196,000 rows × ~36 columns) |
 
@@ -494,13 +494,18 @@ z_t_sequences_group[A-E].pkl             — M6B output (read-only input to M6.5
 M6A [COMPLETE] (8,400 seq, 7 classes) — LOCKED
   │
   ▼
-M6B [NEXT ACTIVE] — spec locked (v14.2), script not yet run
-  Outputs needed: M6B_combined_sequences.pkl, M6B_sequence_meta.csv,
-                  fault_rules_v3.json (22-class), all M6B_sequences_group*.pkl,
-                  z_t_sequences_group[A-E].pkl (6 files — NEW v14.2)
+M6B [COMPLETE — LOCKED 2026-04-28]
+  All outputs present:
+    M6B_combined_sequences.pkl (452.7 MB) — 32,500 seqs, 24 classes
+    M6B_sequence_meta.csv (4.2 MB) — 32,500 rows
+    fault_rules_v3.json (4.3 KB) — 24-class canonical map LOCKED
+    z_t_sequences_groupA_faults_rerun.pkl, z_t_sequences_groupA_normal.pkl,
+    z_t_sequences_groupA_faults.pkl, z_t_sequences_groupB.pkl,
+    z_t_sequences_groupC.pkl, z_t_sequences_groupD.pkl,
+    z_t_sequences_groupE.pkl — all present
   │
   ▼
-M6.5r [NOT STARTED] — blocked until M6B Step 3 completes
+M6.5r [NEXT ACTIVE] — M6B complete, all inputs confirmed present (2026-04-28)
   This module: extracts ~36-column feature matrix from M6B sequences + z_t exports
   Output: data/synthetic/M6B_feature_matrix.csv (~196,000 × ~36)
   │

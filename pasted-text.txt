@@ -1144,3 +1144,79 @@ Active_module                  : M6B_Step1_GroupB_compound_chains
 Status_for_M6B_Step1           : READY
 
 ===== END M6 UPDATE 2026-04-26 =====
+
+===== M6B STEPS 1-3 UPDATE 2026-04-28 =====
+
+M6B_steps123_script             : module_06B_steps1to3_combined.py v1.0
+M6B_steps123_status             : COMPLETE_LOCKED
+M6B_steps123_completion_date    : 2026-04-28
+M6B_steps123_arch_version       : v14.2
+
+M6B_step1_groupB_count          : 9000
+M6B_step1_gate_G8               : 1.000 PASS
+M6B_step1_gate_G9               : 1.000 PASS
+
+M6B_step2_groupC_count          : 6000
+M6B_step2_groupD_count          : 5200
+M6B_step2_gate_G10              : 1.000 PASS
+M6B_step2_label21_subthreshold_pct : 68.0% (target >=60%)
+M6B_step2_gate_G11ext           : 1.000 PASS
+
+M6B_step3_groupE_count          : 1600
+M6B_step3_gate_G11              : 1.000 PASS
+M6B_step3_total_sequences       : 32500
+M6B_step3_label_min_count       : 800
+M6B_step3_coupling_fidelity     : 0.427 (PASS vs synthetic baseline 0.40)
+M6B_step3_physics_violations    : 0
+M6B_step3_fault_rules_v3_written : True
+M6B_step3_physics_ctx_generated : True
+M6B_step3_G1_final              : 1.0000
+M6B_step3_G2_final              : 1.0000
+
+M6B_label_distribution:
+  Label 0  (normal)                        : 2000
+  Label 1  (bearing_wear)                  : 1500
+  Label 2  (impeller_imbalance)            : 1500
+  Label 3  (cavitation)                    : 1500
+  Label 4  (seal_failure)                  : 1500
+  Label 5  (overloading)                   : 1500
+  Label 6  (sensor_failure)                : 1200
+  Label 7  (bearing_wear+overloading)      : 1500
+  Label 8  (cavitation+seal_failure)       : 1500
+  Label 9  (impeller_imbalance+bearing_wear): 1500
+  Label 10 (seal_failure+cavitation_H)     : 1500
+  Label 11 (overloading+bearing_wear)      : 1500
+  Label 12 (impeller_imbalance+cavitation) : 1500
+  Label 13 (bearing_wear_MotSV_masked)     : 1200
+  Label 14 (cavitation_PresSV_masked)      : 1200
+  Label 15 (seal_failure_PresSV_drifting)  : 1200
+  Label 16 (overloading_TempSV_stuck)      : 1200
+  Label 17 (imbalance_PmpSV_flatline)      : 1200
+  Label 18 (cavitation_intermittent)       : 1200
+  Label 19 (seal_failure_fast)             : 800
+  Label 20 (overloading_cyclic)            : 1200
+  Label 21 (bearing_wear_gradual)          : 2000
+  Label 22 (sensor_failure_2ch_thermal)    : 800
+  Label 23 (sensor_failure_2ch_pump)       : 800
+
+M6B_output_files_locked:
+  data/synthetic/M6B_sequences_groupB.pkl      : 193.4 MB
+  data/synthetic/z_t_sequences_groupB.pkl      : 35.3 MB
+  data/synthetic/M6B_sequences_groupC.pkl      : 62.8 MB
+  data/synthetic/z_t_sequences_groupC.pkl      : 11.5 MB
+  data/synthetic/M6B_sequences_groupD.pkl      : 103.1 MB
+  data/synthetic/z_t_sequences_groupD.pkl      : 18.8 MB
+  data/synthetic/M6B_sequences_groupE.pkl      : 10.6 MB
+  data/synthetic/z_t_sequences_groupE.pkl      : 2.0 MB
+  data/synthetic/M6B_combined_sequences.pkl    : 452.7 MB
+  data/synthetic/M6B_sequence_meta.csv         : 4.2 MB (32500 rows x 32 cols)
+  data/synthetic/M6B_physics_context_strings.json : 14.9 KB
+  models/fault_rules_v3.json                   : 4.3 KB (LOCKED)
+
+fault_rules_v3_classes          : 24 (labels 0-23)
+fault_rules_v3_locked           : True — do not overwrite
+
+Active_module                   : M6.5r_feature_extraction
+Status_for_M6p5r                : READY
+
+===== END M6B STEPS 1-3 UPDATE 2026-04-28 =====

@@ -5,8 +5,8 @@
  
 | Field | Value |
 |-------|-------|
-| Status | M5 LOCKED. M6A COMPLETE v5 LOCKED. M6B Group A Step0+Step0b COMPLETE v2 LOCKED. M6B Step1 NEXT ACTIVE. |
-| Updated | 2026-04-26 |
+| Status | M5 LOCKED. M6A COMPLETE v5 LOCKED. M6B ALL STEPS COMPLETE v1.0 LOCKED (2026-04-28). M6.5r NEXT ACTIVE. |
+| Updated | 2026-04-28 |
 | Author | Souvik |
  
 **This file contains:**
@@ -148,10 +148,11 @@ outputs/reports/module_06a_synthetic_report.md
  
 ## M6B — Expanded Synthetic Dataset (22-Class, Groups A–E) — v14.2
  
-**Status: NEXT ACTIVE — SPEC LOCKED (v14.2), STEP 0 + STEP 0b COMPLETE**
- 
-> **NOTE:** M6B Step 0 and Step 0b are COMPLETE (v2). All Group A sequences generated.
-> Step 1 (Group B compound chains) is NEXT ACTIVE.
+**Status: ✅ COMPLETE — ALL STEPS LOCKED (2026-04-28)**
+
+> **NOTE:** M6B Steps 0, 0b, 1, 2, 3 ALL COMPLETE. 32,500 sequences generated across
+> 24 classes (Labels 0–23, Groups A–E). fault_rules_v3.json written and LOCKED.
+> M6.5r is NEXT ACTIVE — blocked until now, now unblocked.
 
 ### M6A v5 Results (COMPLETE — LOCKED 2026-04-26)
 
@@ -475,28 +476,67 @@ models/fault_rules_v3.json                   ← 22-class label map (written by 
 outputs/reports/module_06b_synthetic_report.md
 ```
  
-### M6B Paste Text Keys (Populate AFTER script runs — do not fill in advance)
- 
+### Paste Text Keys — M6B COMPLETE (LOCKED 2026-04-28)
+
+**Step 1 — Group B**
+
 | Key | Value |
 |-----|-------|
-| `M6B_total_sequences` | [fill after run — target ~31,800] |
-| `M6B_classes` | 22 (labels 0–21, Groups A–E) |
-| `M6B_group_A_sequences` | [fill — target ~11,200] |
-| `M6B_group_B_sequences` | [fill — target ~9,000] |
-| `M6B_group_C_sequences` | [fill — target ~6,000] |
-| `M6B_group_D_sequences` | [fill — target ~5,200] |
-| `M6B_group_E_sequences` | [fill — target ~1,600] |
-| `M6B_label21_sequences` | [fill — target 2,000] |
-| `M6B_label21_slope_gate` | [fill — `err_slope_MotSV > 0` in ≥95% seqs] |
-| `M6B_fault_rules_version` | [fill — `fault_rules_v3.json` written in Step 3] |
-| `M6B_physics_violations` | [fill — expect NONE] |
-| `M6B_coupling_fidelity_pass` | [fill from M6B run log] |
-| `M6B_mae_gate_B_pass` | [fill from M6B run log] |
-| `M6B_mae_gate_C_pass` | [fill from M6B run log] |
-| `M6B_combined_output` | `data/synthetic/M6B_combined_sequences.pkl` |
-| `M6B_meta_output` | `data/synthetic/M6B_sequence_meta.csv` |
-| `M6B_zt_exports` | `z_t_sequences_group[A-E].pkl` (6 files) |
-| `Status_for_M6p5r` | READY / BLOCKED |
+| `M6B_step1_groupB_count` | 9,000 |
+| `M6B_step1_gate_G8_temporal` | 1.000 PASS (all 6 classes) |
+| `M6B_step1_gate_G9_compound_mae` | 1.000 PASS (all 6 classes) |
+| `M6B_step1_zt_export_groupB` | True |
+| `M6B_step1_script` | module_06B_steps1to3_combined.py v1.0 |
+
+**Step 2 — Groups C + D**
+
+| Key | Value |
+|-----|-------|
+| `M6B_step2_groupC_count` | 6,000 |
+| `M6B_step2_groupD_count` | 5,200 |
+| `M6B_step2_gate_G10_masked` | 1.000 PASS |
+| `M6B_step2_gate_G11ext_label21_slope` | 1.000 PASS |
+| `M6B_step2_zt_export_groupC` | True |
+| `M6B_step2_zt_export_groupD` | True |
+| `M6B_step2_label21_subthreshold_pct` | 68.0% (target ≥60%) |
+
+**Step 3 — Group E + Merge**
+
+| Key | Value |
+|-----|-------|
+| `M6B_step3_groupE_count` | 1,600 |
+| `M6B_step3_gate_G11_multisensor` | 1.000 PASS |
+| `M6B_step3_total_sequences` | 32,500 |
+| `M6B_step3_classes` | 24 (labels 0–23 including Group E 22/23) |
+| `M6B_step3_fault_rules_v3_written` | True |
+| `M6B_step3_zt_export_all_groups` | True |
+| `M6B_step3_physics_context_str_generated` | True |
+| `M6B_step3_physics_violations` | 0 |
+| `M6B_step3_coupling_fidelity_synthetic` | 0.427 (PASS vs synthetic baseline ≥0.40) |
+| `M6B_step3_label_distribution_min` | 800 (Labels 19, 22, 23) |
+| `M6B_step3_sequence_meta_rows` | 32,500 (32 columns) |
+| `M6B_step3_G1_final` | 1.0000 PASS |
+| `M6B_step3_G2_final` | 1.0000 PASS |
+| `Status_for_M6p5r` | **READY** |
+
+### M6B Output Files (ALL LOCKED — do not regenerate)
+
+| File | Size | Notes |
+|------|------|-------|
+| `data/synthetic/M6B_sequences_groupB.pkl` | 193.4 MB | Labels 7–12, 9,000 seqs |
+| `data/synthetic/z_t_sequences_groupB.pkl` | 35.3 MB | z_t for Group B |
+| `data/synthetic/M6B_sequences_groupC.pkl` | 62.8 MB | Labels 13–17, 6,000 seqs |
+| `data/synthetic/z_t_sequences_groupC.pkl` | 11.5 MB | z_t for Group C |
+| `data/synthetic/M6B_sequences_groupD.pkl` | 103.1 MB | Labels 18–21, 5,200 seqs |
+| `data/synthetic/z_t_sequences_groupD.pkl` | 18.8 MB | z_t for Group D |
+| `data/synthetic/M6B_sequences_groupE.pkl` | 10.6 MB | Labels 22–23, 1,600 seqs |
+| `data/synthetic/z_t_sequences_groupE.pkl` | 2.0 MB | z_t for Group E |
+| `data/synthetic/M6B_combined_sequences.pkl` | 452.7 MB | Full 32,500 seq merged |
+| `data/synthetic/M6B_sequence_meta.csv` | 4.2 MB | 32,500 rows × 32 cols |
+| `data/synthetic/M6B_physics_context_strings.json` | 14.9 KB | M10 lookup seed |
+| `models/fault_rules_v3.json` | 4.3 KB | 24-class canonical map LOCKED |
+| `outputs/reports/M6B_file_registry.json` | 51.3 KB | Machine-readable file index |
+| `outputs/reports/M6B_file_registry.md` | 16.3 KB | Human-readable file index |
  
 ---
  
