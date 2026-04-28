@@ -5,8 +5,8 @@
  
 | Field | Value |
 |-------|-------|
-| Status | M5, M6A sections LOCKED. M6B section = SPEC ONLY — NOT YET EXECUTED. |
-| Updated | 2026-04-19 |
+| Status | M5 LOCKED. M6A COMPLETE v5 LOCKED. M6B Group A Step0+Step0b COMPLETE v2 LOCKED. M6B Step1 NEXT ACTIVE. |
+| Updated | 2026-04-26 |
 | Author | Souvik |
  
 **This file contains:**
@@ -148,9 +148,55 @@ outputs/reports/module_06a_synthetic_report.md
  
 ## M6B — Expanded Synthetic Dataset (22-Class, Groups A–E) — v14.2
  
-**Status: NEXT ACTIVE — SPEC LOCKED (v14.2), SCRIPT NOT YET RUN**
+**Status: NEXT ACTIVE — SPEC LOCKED (v14.2), STEP 0 + STEP 0b COMPLETE**
  
-> **NOTE:** M6B has NOT been executed. No output files exist yet. `fault_rules_v3.json`, `M6B_*.pkl`, `M6B_sequence_meta.csv`, `M6B_feature_matrix.csv` are ALL pending — they will be created when the M6B script runs. This section is the LOCKED SPEC that governs the M6B script.
+> **NOTE:** M6B Step 0 and Step 0b are COMPLETE (v2). All Group A sequences generated.
+> Step 1 (Group B compound chains) is NEXT ACTIVE.
+
+### M6A v5 Results (COMPLETE — LOCKED 2026-04-26)
+
+Script: module_06a_synthetic_generator_v5.py
+Physics lib: src/m6b_physics_lib.py (unified, F1-F6 fixes)
+Total sequences: 8,400 | Shape: (8400, 200, 8)
+Severity early%: 51.2% (Weibull k=0.8)
+Channel order: M6B LOCKED (Mot.SV=0, Pmp.SV=1, Mot.TV=2, Pmp.PV=3,
+                            Temp.SV=4, Pres.SV=5, Pmp.TV=6, Mot.PV=7)
+Physics fixes:
+  F1: bearing_wear Temp.SV* coupled via _tcoup r=0.9793
+  F2: impeller_imbalance abs(sin) AM envelope
+  F3: cavitation M5-faithful severity-dep t_onset mean_drop=0.6*sev
+  F4: overloading Pres.SV* affinity law Q-H shift
+  F5: sensor_failure dropout subtype added
+  F6: all generation unified in m6b_physics_lib.py
+
+### M6B Step 0 v2 Results (COMPLETE — LOCKED 2026-04-26)
+
+Script: module_06B_step0_groupA_rerun_v2.py
+Labels: 1 (bearing_wear 250s), 4 (seal_failure 400s), 5 (overloading 300s)
+Total sequences: 4,500 | Gates: 21/21 PASS
+Fixes: F1 (Temp.SV* coupling), F4 (Pres.SV* Q-H shift)
+z_t export: 4,500 entries | Shape errors: 0
+Files written:
+  data/synthetic/M6B_sequences_groupA_rerun.pkl
+  data/synthetic/M6B_sequences_groupA_rerun_meta.csv
+  data/synthetic/z_t_sequences_groupA_faults_rerun.pkl
+
+### M6B Step 0b v2 Results (COMPLETE — LOCKED 2026-04-26)
+
+Script: module_06B_step0b_groupA_carried_v2.py
+Labels: 0 (normal 200s), 2 (imbalance 200s), 3 (cavitation 150s), 6 (sensor 150s)
+Total sequences: 6,200 | Gates: 20/20 PASS
+Fixes: F2 (abs_sin), F3 (M5-faithful cav), F5 (dropout)
+Cavitation dual-sig: Pres.SV* shift=-0.2304 | Pmp.SV* shift=+0.2003
+Label 6 subtypes: flatline/spike/drift/dropout 300 each
+z_t export: 2,000 normal + 4,200 faults | Shape errors: 0
+Files written:
+  data/synthetic/M6B_sequences_groupA_carried.pkl
+  data/synthetic/M6B_sequences_groupA_carried_meta.csv
+  data/synthetic/z_t_sequences_groupA_normal.pkl
+  data/synthetic/z_t_sequences_groupA_faults.pkl
+
+Active module: M6B Step 1 — Group B compound chains (Labels 7-12)
  
 ### Why M6B Was Created
  
