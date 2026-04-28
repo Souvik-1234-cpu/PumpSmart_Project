@@ -1110,3 +1110,37 @@ Date      : 2026-04-19
 Supersedes: ALL previous paste text versions (v14.1 and earlier)
 Source    : new discussion.docx + user messages (canonical truth)
 ══════════════════════════════════════════════════════════════════
+
+
+===== M6 UPDATE 2026-04-26 =====
+
+M6A_v5_status                  : COMPLETE_LOCKED
+M6A_v5_total_sequences         : 8400
+M6A_v5_array_shape             : (8400, 200, 8)
+M6A_v5_sev_early_pct           : 51.2
+M6A_v5_physics_lib             : m6b_physics_lib.py
+M6A_v5_fixes                   : F1,F2,F3,F4,F5,F6
+
+M6B_step0_v2_status            : COMPLETE_LOCKED
+M6B_step0_v2_total_sequences   : 4500
+M6B_step0_v2_gates_all_pass    : True
+M6B_step0_v2_zt_shape_errors   : 0
+M6B_step0_v2_fixes             : F1,F4
+
+M6B_step0b_v2_status           : COMPLETE_LOCKED
+M6B_step0b_v2_total_sequences  : 6200
+M6B_step0b_v2_gates_all_pass   : True
+M6B_step0b_v2_cav_pres_shift   : -0.2304
+M6B_step0b_v2_cav_pmpSV_shift  : 0.2003
+M6B_step0b_v2_label6_subtypes  : flatline/spike/drift/dropout 300each
+M6B_step0b_v2_zt_shape_errors  : 0
+M6B_step0b_v2_fixes            : F2,F3,F5
+
+m6b_physics_lib_status         : LOCKED_v1.0
+m6b_physics_lib_fixes          : F1,F2,F3,F4,F5,F6
+channel_order_M6B_LOCKED       : Mot.SV=0,Pmp.SV=1,Mot.TV=2,Pmp.PV=3,Temp.SV=4,Pres.SV=5,Pmp.TV=6,Mot.PV=7
+
+Active_module                  : M6B_Step1_GroupB_compound_chains
+Status_for_M6B_Step1           : READY
+
+===== END M6 UPDATE 2026-04-26 =====
