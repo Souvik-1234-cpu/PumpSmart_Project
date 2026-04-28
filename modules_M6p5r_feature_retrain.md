@@ -42,7 +42,11 @@ File:    data/synthetic/M6B_combined_sequences.pkl      ← PENDING (M6B output)
 Format:  dict {label_int: list of np.ndarray, each shape (seq_len, 8)}
          NOTE: seq_len is VARIABLE per label — NOT blanket 200 steps.
 Labels:  0-21 (integer) — see fault_rules_v3.json for string mapping
-Channels (order fixed): MotPV, MotSV, MotTV, PmpPV, PmpSV, PmpTV, TempSV, PresSV
+Channels (order fixed — M6B LOCKED via m6b_physics_lib.py):
+  Index 0: Mot.SV  | Index 1: Pmp.SV  | Index 2: Mot.TV  | Index 3: Pmp.PV
+  Index 4: Temp.SV | Index 5: Pres.SV | Index 6: Pmp.TV  | Index 7: Mot.PV
+NOTE: M6A v1-v4 used wrong order (Mot.PV=0). All M6B v2 sequences use
+M6B LOCKED order. M6.5r must read columns in this exact index order.
 Dtype:   float32, normalized (all values relative to M3 cluster baselines)
 Size:    ~31,800 sequences x avg 400 steps x 8 channels ~= ~367 MB average
 ```
