@@ -13,7 +13,11 @@
 > - Part 2 = Step 0 + 3-step script plan, dispatcher, pre-flight, API spec, paste keys *(this file)*
 
 > **EXECUTION STATUS:**
-> - M6B = NEXT ACTIVE — spec locked (v14.2), script not yet run
+> - M6B Step 0 v2  = COMPLETE LOCKED 2026-04-26 (Labels 1,4,5 | 4,500 seqs | 21/21 gates)
+> - M6B Step 0b v2 = COMPLETE LOCKED 2026-04-26 (Labels 0,2,3,6 | 6,200 seqs | 20/20 gates)
+> - M6B Step 1     = NEXT ACTIVE — Group B compound chains (Labels 7-12)
+> - M6B Steps 2-3  = PENDING (blocked on Step 1)
+> - Physics lib    = src/m6b_physics_lib.py LOCKED v1.0
 > - M6.5r = NOT STARTED — blocked until M6B completes
 > - M7 = NOT STARTED — blocked until M6.5r completes
 > - M8 = NOT STARTED — TCN-AE architecture locked (v14.2)
@@ -523,11 +527,26 @@ M6C: CANCELLED — all valid content absorbed into M6B Groups C, D, E.
 
 | Key | Target / Value |
 |-----|---------------|
-| `M6B_step0_label1_seqs` | [fill — target 1,500] |
-| `M6B_step0_label4_seqs` | [fill — target 1,500] |
-| `M6B_step0_label5_seqs` | [fill — target 1,500] |
-| `M6B_step0_gate_G1_G7_rerun_labels` | [PASS/FAIL per label 1,4,5] |
-| `M6B_step0_zt_export_rerun` | [True/False] |
+| `M6B_step0_label1_seqs` | 1,500 (bearing_wear 250s) |
+| `M6B_step0_label4_seqs` | 1,500 (seal_failure 400s) |
+| `M6B_step0_label5_seqs` | 1,500 (overloading 300s) |
+| `M6B_step0_gate_G1_G7_rerun_labels` | ALL PASS (21/21 gates) |
+| `M6B_step0_zt_export_rerun` | True (4,500 entries, 0 shape errors) |
+| `M6B_step0_fixes_applied` | F1 (Temp.SV* coupling r=0.9793), F4 (Pres.SV* Q-H shift) |
+| `M6B_step0_script` | module_06B_step0_groupA_rerun_v2.py |
+| `M6B_step0b_label0_seqs` | 2,000 (normal 200s) |
+| `M6B_step0b_label2_seqs` | 1,500 (impeller_imbalance 200s) |
+| `M6B_step0b_label3_seqs` | 1,500 (cavitation 150s) |
+| `M6B_step0b_label6_seqs` | 1,200 (sensor_failure 150s) |
+| `M6B_step0b_gate_all_pass` | True (20/20 gates) |
+| `M6B_step0b_cav_pres_shift` | -0.2304 (must be less than 0) |
+| `M6B_step0b_cav_pmpSV_shift` | +0.2003 (must be greater than 0) |
+| `M6B_step0b_label6_subtypes` | flatline/spike/drift/dropout 300 each |
+| `M6B_step0b_zt_normal` | 2,000 entries | 0 shape errors |
+| `M6B_step0b_zt_faults` | 4,200 entries | 0 shape errors |
+| `M6B_step0b_fixes_applied` | F2 (abs_sin), F3 (M5-faithful cav), F5 (dropout) |
+| `M6B_step0b_script` | module_06B_step0b_groupA_carried_v2.py |
+| `Status_for_M6B_Step1` | READY |
 
 ### Step 1 — Group B
 
