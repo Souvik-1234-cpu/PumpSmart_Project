@@ -1,0 +1,181 @@
+{
+  "schema_version": "3.0",
+  "arch_version": "v14.2",
+  "created": "2026-04-28",
+  "created_by": "module_06B_steps1to3_combined",
+  "description": "22-class (+ 2 Group E sub-variants) fault universe for PumpSmart v14.2. Supersedes fault_rules.json (v1, M5/M6A). DO NOT overwrite fault_rules.json — that is M5 reference, archived.",
+  "total_classes": 24,
+  "locked_threshold": 0.110058,
+  "channel_order": [
+    "Mot.SV",
+    "Pmp.SV",
+    "Mot.TV",
+    "Pmp.PV",
+    "Temp.SV",
+    "Pres.SV",
+    "Pmp.TV",
+    "Mot.PV"
+  ],
+  "sequence_steps": {
+    "0": 200,
+    "1": 250,
+    "2": 200,
+    "3": 150,
+    "4": 400,
+    "5": 300,
+    "6": 150,
+    "7": 600,
+    "8": 550,
+    "9": 700,
+    "10": 900,
+    "11": 800,
+    "12": 450,
+    "13": 300,
+    "14": 210,
+    "15": 500,
+    "16": 350,
+    "17": 250,
+    "18": 300,
+    "19": 150,
+    "20": 600,
+    "21": 1000
+  },
+  "sequence_counts": {
+    "7": 1500,
+    "8": 1500,
+    "9": 1500,
+    "10": 1500,
+    "11": 1500,
+    "12": 1500,
+    "13": 1200,
+    "14": 1200,
+    "15": 1200,
+    "16": 1200,
+    "17": 1200,
+    "18": 1200,
+    "19": 800,
+    "20": 1200,
+    "21": 2000,
+    "E_thermal": 800,
+    "E_pump": 800
+  },
+  "compound_lag_ranges": {
+    "7": [
+      200,
+      400
+    ],
+    "8": [
+      50,
+      150
+    ],
+    "9": [
+      150,
+      350
+    ],
+    "10": [
+      300,
+      600
+    ],
+    "11": [
+      200,
+      500
+    ],
+    "12": [
+      100,
+      250
+    ]
+  },
+  "groups": {
+    "A": {
+      "description": "Single faults",
+      "labels": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    "B": {
+      "description": "Compound fault chains",
+      "labels": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    "C": {
+      "description": "Masked faults",
+      "labels": [
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    "D": {
+      "description": "Severity variants",
+      "labels": [
+        18,
+        19,
+        20,
+        21
+      ]
+    },
+    "E": {
+      "description": "Multi-sensor failures",
+      "labels": [
+        22,
+        23
+      ]
+    }
+  },
+  "label_map": {
+    "0": "normal",
+    "1": "bearing_wear",
+    "2": "impeller_imbalance",
+    "3": "cavitation",
+    "4": "seal_failure",
+    "5": "overloading",
+    "6": "sensor_failure",
+    "7": "bearing_wear+overloading",
+    "8": "cavitation+seal_failure",
+    "9": "impeller_imbalance+bearing_wear",
+    "10": "seal_failure+cavitation_H",
+    "11": "overloading+bearing_wear",
+    "12": "impeller_imbalance+cavitation",
+    "13": "bearing_wear_MotSV_masked",
+    "14": "cavitation_PresSV_masked",
+    "15": "seal_failure_PresSV_drifting",
+    "16": "overloading_TempSV_stuck",
+    "17": "imbalance_PmpSV_flatline",
+    "18": "cavitation_intermittent",
+    "19": "seal_failure_fast",
+    "20": "overloading_cyclic",
+    "21": "bearing_wear_gradual",
+    "22": "sensor_failure_2ch_thermal",
+    "23": "sensor_failure_2ch_pump"
+  },
+  "validation_gates": {
+    "G1": "Pres.SV* >= -0.01 at all timesteps",
+    "G2": "Temp channels >= -0.12 (flash evap allowed, C-09)",
+    "G8": "Compound: primary onset before secondary, ≥95% seqs",
+    "G9": "Compound: weighted MAE > 0.110058 in ≥90% seqs",
+    "G10": "Masked: non-masked channels carry ≥50% of base fault MAE",
+    "G11": "Multi-sensor: exactly 2 channels anomalous; remaining 6 within ±0.20",
+    "G11ext": "Label 21: err_slope_MotSV > 0 in ≥95% sequences"
+  },
+  "physics_notes": {
+    "SV_channels": "Broadband peak acceleration envelopes — NOT ISO 10816-3 velocity RMS. All fault detection relative (SV*). ISO 10816-3 retained for severity language only.",
+    "temperature_normalization": "ΔT* cluster-relative (C-09/C-10). NOT ambient-relative. Flash evap at 40 bar allows T_actual < T_cluster_min.",
+    "overloading_detection": "Rate-of-change pattern (dT*/dt > 0) NOT absolute threshold (C-04).",
+    "label_21_detection": "Sub-threshold for L1 (≥60% seqs). CUSUM L3 is primary detection path. DO NOT raise threshold.",
+    "compound_chains": "Single-label classification (NOT multi-label). M10 maps label → display string Primary→Secondary."
+  }
+}

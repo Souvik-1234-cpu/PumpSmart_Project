@@ -1,0 +1,200 @@
+{
+  "schema_version": "1.0",
+  "arch_version": "v14.2",
+  "created": "2026-04-28",
+  "description": "Static physics knowledge strings per fault label. Seeds M10 API 7-field output lookup table. One entry per canonical fault class. NOT per sequence.",
+  "labels": {
+    "0": {
+      "name": "normal",
+      "group": "A",
+      "probable_condition": "Pump operating within normal parameters. All 8 channels within cluster baseline.",
+      "expected_sensor_behaviour": "All P*, a*, ΔT* stable near 1.0. No monotonic drift. Score_A < 0.110058.",
+      "risk_if_ignored": "None — normal operation.",
+      "recommended_action": "Continue routine monitoring. Next scheduled inspection as per PM schedule."
+    },
+    "1": {
+      "name": "bearing_wear",
+      "group": "A",
+      "probable_condition": "Progressive bearing race fatigue. Paris law crack growth (da/dN = C·dK^m). Motor-side bearing housing affected.",
+      "expected_sensor_behaviour": "Mot.SV* rising (Paris law). Mot.TV* lagged coupling r=0.9793. Pmp.SV* mildly elevated.",
+      "risk_if_ignored": "Bearing seizure within 3–14 days at current wear rate. Catastrophic rotor damage possible.",
+      "recommended_action": "Vibration spectral analysis (ISO 13373-3). Lube oil sample. Plan bearing replacement within 7 days."
+    },
+    "2": {
+      "name": "impeller_imbalance",
+      "group": "A",
+      "probable_condition": "Impeller mass imbalance (ISO 1940 G6.3 exceeded). BPF harmonic at 347.67 Hz in vibration spectrum.",
+      "expected_sensor_behaviour": "Pmp.SV* AM envelope (abs(sin) pattern). Pmp.PV* coupled. Pressure pulsation at BPF.",
+      "risk_if_ignored": "Bearing fatigue acceleration (compound chain 9). Seal damage (compound chain 12) within 2–5 weeks.",
+      "recommended_action": "Dynamic balance check (ISO 1940). Inspect impeller for erosion, deposits, or cracking."
+    },
+    "3": {
+      "name": "cavitation",
+      "group": "A",
+      "probable_condition": "Vapor bubble collapse at impeller inlet. NPSHa < NPSHr (NPSHr = 5.71 m nameplate).",
+      "expected_sensor_behaviour": "Pres.SV* drop (mean_drop=0.6×sev). Pmp.SV* erratic high-frequency spikes. Broadband noise elevation.",
+      "risk_if_ignored": "Impeller surface erosion. Seal face damage via axial thrust (compound chain 8). NPSHa margin further depleted.",
+      "recommended_action": "Check suction head. Reduce flow if above BEP. Inspect strainer. Verify NPSH margin."
+    },
+    "4": {
+      "name": "seal_failure",
+      "group": "A",
+      "probable_condition": "Mechanical seal face wear. Hydraulic leak via orifice: Q_leak = Cd·A·√(2·ΔP/ρ) at 40 bar.",
+      "expected_sensor_behaviour": "Pres.SV* monotonic decline (-ve drift). Pmp.TV* slight rise from friction heat. Mot.PV* stable.",
+      "risk_if_ignored": "NPSHa margin loss → cavitation cascade (compound chain 10). Seal blowout within 4–8 hours at active leak rate.",
+      "recommended_action": "Check for visible leakage at seal housing. Measure Pres.SV trend rate. Plan seal replacement at next stop."
+    },
+    "5": {
+      "name": "overloading",
+      "group": "A",
+      "probable_condition": "Motor operating beyond rated shaft power. Viscous dissipation: Cp·m·dT/dt = Q_friction - Q_ambient.",
+      "expected_sensor_behaviour": "Temp.SV* monotonically rising. Mot.TV* correlated rise (Pearson ≥ 0.85). Vibration stable (dSV/dt ≈ 0).",
+      "risk_if_ignored": "Insulation degradation (thermal class F limit 155°C). Bearing lubrication thinning → compound chain 7 or 11.",
+      "recommended_action": "Check motor current (IEC 60034). Verify impeller running at BEP. Reduce system resistance."
+    },
+    "6": {
+      "name": "sensor_failure",
+      "group": "A",
+      "probable_condition": "Single sensor anomaly (IEC 61511). One of 4 subtypes: flatline, spike, calibration drift, or dropout (cable cut/I-O failure).",
+      "expected_sensor_behaviour": "Exactly 1 channel anomalous. Remaining 7 within ±0.20 of cluster baseline.",
+      "risk_if_ignored": "Masked underlying pump fault (see Group C classes). False negative on process condition.",
+      "recommended_action": "Identify anomalous channel. Cross-verify with adjacent sensor if available. Replace/recalibrate."
+    },
+    "7": {
+      "name": "bearing_wear+overloading",
+      "group": "B",
+      "probable_condition": "Bearing heat generation (Paris law) → lubricant viscosity drop → friction torque increase → thermal runaway. Two-phase cascade.",
+      "expected_sensor_behaviour": "Phase 1: Mot.SV* rising only. Phase 2 (lag 200–400s): Temp.SV* accelerated rise joins Mot.SV* elevation.",
+      "risk_if_ignored": "Thermal runaway within 1–4 hours. Combined bearing seizure + motor winding damage.",
+      "recommended_action": "Immediate oil sample. Check lube oil temperature. Both vibration and thermal remediation required."
+    },
+    "8": {
+      "name": "cavitation+seal_failure",
+      "group": "B",
+      "probable_condition": "Joukowsky pressure shock (dP = ρ·a_wave·dV = 19.1 bar at 2980 RPM) → axial thrust spike → seal face damage.",
+      "expected_sensor_behaviour": "Phase 1: Pres.SV* drop + Pmp.SV* spikes. Phase 2 (lag 50–150s): Pres.SV* additional declining trend (seal leak).",
+      "risk_if_ignored": "Full seal blowout risk within 2–6 hours. NPSHa depletion accelerates cavitation severity.",
+      "recommended_action": "Emergency: verify suction head. Inspect seal housing for early leakage. Prepare for planned shutdown."
+    },
+    "9": {
+      "name": "impeller_imbalance+bearing_wear",
+      "group": "B",
+      "probable_condition": "BPF cyclic loading (347.67 Hz) → fatigue crack accumulation in bearing race (Paris law K accumulation). Lag: 150–350s.",
+      "expected_sensor_behaviour": "Phase 1: Pmp.SV* AM envelope. Phase 2: Mot.SV* broadband rise joins Pmp.SV* pattern.",
+      "risk_if_ignored": "Accelerated bearing life consumption. Both imbalance and bearing must be addressed simultaneously.",
+      "recommended_action": "Vibration spectrum for both BPF harmonic (imbalance) and sub-synchronous bearing frequencies."
+    },
+    "10": {
+      "name": "seal_failure+cavitation_H",
+      "group": "B",
+      "probable_condition": "Seal leak → process flow loss → operating point shift left on Q-H curve → NPSHa margin collapse → sustained cavitation. Lag: 300–600s.",
+      "expected_sensor_behaviour": "Phase 1: Pres.SV* slow decline. Phase 2: Pmp.SV* burst pattern + Pres.SV* accelerated drop (double source).",
+      "risk_if_ignored": "Highest severity compound chain. Impeller erosion + seal destruction simultaneously. 900-step sequence length.",
+      "recommended_action": "Immediate shutdown evaluation. Both seal inspection AND NPSHa audit required."
+    },
+    "11": {
+      "name": "overloading+bearing_wear",
+      "group": "B",
+      "probable_condition": "Motor OL heat generation → lubricant thinning (viscosity ∝ T^-n) → bearing fatigue acceleration. Lag: 200–500s.",
+      "expected_sensor_behaviour": "Phase 1: Temp.SV* rising. Phase 2: Mot.SV* broadband rise joins thermal rise.",
+      "risk_if_ignored": "Simultaneous thermal and mechanical failure. Most common field compound fault in multistage pumps.",
+      "recommended_action": "Reduce motor load. Oil analysis. Both thermal and vibration remediation required."
+    },
+    "12": {
+      "name": "impeller_imbalance+cavitation",
+      "group": "B",
+      "probable_condition": "Impeller orbit → localized low-pressure zones → vapor pocket nucleation at imbalance node. Lag: 100–250s.",
+      "expected_sensor_behaviour": "Phase 1: Pmp.SV* AM. Phase 2: Pres.SV* drop + Pmp.SV* erratic elevation (dual signature).",
+      "risk_if_ignored": "Combined erosion from cavitation + imbalance fatigue loading. Impeller replacement likely.",
+      "recommended_action": "Check suction pressure AND imbalance simultaneously. Standard cavitation remediation insufficient alone."
+    },
+    "13": {
+      "name": "bearing_wear_MotSV_masked",
+      "group": "C",
+      "probable_condition": "Bearing wear active but primary sensor (Mot.SV) has failed (flatline/calibration drift). Fault only visible via secondary channels.",
+      "expected_sensor_behaviour": "Mot.SV* flatlined (sensor dead). Mot.TV* rising (thermal coupling still visible). Pmp.SV* mildly elevated.",
+      "risk_if_ignored": "Most dangerous masked pattern — primary vibration channel dead. Operator has no direct warning. Thermal path is only alert.",
+      "recommended_action": "Verify Mot.SV sensor hardware. Use Mot.TV trend as proxy. Plan sensor replacement urgently."
+    },
+    "14": {
+      "name": "cavitation_PresSV_masked",
+      "group": "C",
+      "probable_condition": "Cavitation active but Pres.SV sensor fouled/failed (flatline). Cavitation only visible via Pmp.SV* broadband spikes.",
+      "expected_sensor_behaviour": "Pres.SV* flatlined. Pmp.SV* erratic spikes (cavitation secondary path). Process pressure unknown.",
+      "risk_if_ignored": "Cannot confirm NPSHa status without pressure reading. Cavitation damage continuing unmonitored.",
+      "recommended_action": "Clean/replace pressure transducer immediately. Use Pmp.SV spectral signature as interim cavitation indicator."
+    },
+    "15": {
+      "name": "seal_failure_PresSV_drifting",
+      "group": "C",
+      "probable_condition": "Seal leak (negative Pres.SV trend) partially masked by simultaneous upward sensor calibration drift. Net Pres.SV may appear near-normal.",
+      "expected_sensor_behaviour": "Pres.SV* shows mixed trend (seal loss – sensor gain). True process pressure unknown. Pmp.TV* slight rise from seal friction.",
+      "risk_if_ignored": "True seal leak rate hidden by sensor drift. Insidious: instrument and process fault simultaneously active.",
+      "recommended_action": "Cross-verify with secondary pressure point if available. Recalibrate Pres.SV sensor. Visual seal inspection."
+    },
+    "16": {
+      "name": "overloading_TempSV_stuck",
+      "group": "C",
+      "probable_condition": "Motor overloading active but Temp.SV thermocouple burned out (frozen reading). Overloading only visible via Mot.TV* rise.",
+      "expected_sensor_behaviour": "Temp.SV* frozen at constant value. Mot.TV* rising monotonically (OL primary path). Vibration stable.",
+      "risk_if_ignored": "Operator sees no temperature alarm on process side. Thermal runaway proceeds masked.",
+      "recommended_action": "Replace Temp.SV thermocouple. Use Mot.TV as thermal proxy for overloading decision."
+    },
+    "17": {
+      "name": "imbalance_PmpSV_flatline",
+      "group": "C",
+      "probable_condition": "Impeller imbalance active but Pmp.SV accelerometer hardware failed (cable break). BPF signature lost.",
+      "expected_sensor_behaviour": "Pmp.SV* flatlined. Pmp.PV* still shows AM displacement coupling (secondary path). BPF cannot be confirmed.",
+      "risk_if_ignored": "Primary vibration channel for imbalance diagnosis is dead. Spectral diagnosis impossible.",
+      "recommended_action": "Replace pump-side accelerometer cable. Use Pmp.PV displacement as interim imbalance indicator."
+    },
+    "18": {
+      "name": "cavitation_intermittent",
+      "group": "D",
+      "probable_condition": "NPSHa oscillating around NPSHr boundary. Cavitation bursts during NPSHa dips; recovery between bursts.",
+      "expected_sensor_behaviour": "Pmp.SV* burst pattern (3–7 bursts). Pres.SV* oscillating dips. MAE stays above threshold even in low phase.",
+      "risk_if_ignored": "Each burst causes incremental impeller erosion. Cumulative damage exceeds continuous cavitation over same period.",
+      "recommended_action": "NPSH margin audit. Check for inlet throttling, suction line obstructions, or flow pulsation sources."
+    },
+    "19": {
+      "name": "seal_failure_fast",
+      "group": "D",
+      "probable_condition": "Catastrophic seal blowout. Turbulent orifice flow: Q_leak = Cd·A·√(2·ΔP/ρ). Pres.SV drops ≤20 steps. DANGER.",
+      "expected_sensor_behaviour": "Pres.SV* collapses to near-zero within 10–20 steps. Single-window MAE fires immediately. Mot.PV* spike from thrust.",
+      "risk_if_ignored": "Process fluid loss. Secondary system contamination. Fire/safety risk if process fluid is flammable or hazardous.",
+      "recommended_action": "EMERGENCY SHUTDOWN. Do not attempt restart before full seal replacement and system pressure test."
+    },
+    "20": {
+      "name": "overloading_cyclic",
+      "group": "D",
+      "probable_condition": "Cyclic load ON/OFF pattern with rising thermal baseline across cycles. Accumulator fires within 15 min of onset.",
+      "expected_sensor_behaviour": "Temp.SV* sawtooth with rising envelope. Each cycle starts higher than previous. Mot.TV* correlated.",
+      "risk_if_ignored": "Thermal ratcheting — each cycle degrades insulation incrementally. Winding failure risk within 2–5 days.",
+      "recommended_action": "Identify cyclic load source (valve cycling, process demand fluctuation). Check motor thermal protection setting."
+    },
+    "21": {
+      "name": "bearing_wear_gradual",
+      "group": "D",
+      "probable_condition": "Very slow bearing crack propagation. Paris law at low dK. Severity 0.05–0.25. Below L1 alarm threshold. CUSUM-only detection.",
+      "expected_sensor_behaviour": "Mot.SV* barely above baseline. Positive slope err_slope_MotSV only visible over 150+ steps. Score_A typically < threshold.",
+      "risk_if_ignored": "PRIMARY LIABILITY CLASS. Silent progression to catastrophic failure without CUSUM alert. 7–14 day planning window.",
+      "recommended_action": "Plan bearing inspection within 7–14 days. Oil sample analysis. Do not await L1 alarm — CUSUM is the only reliable indicator."
+    },
+    "22": {
+      "name": "sensor_failure_2ch_thermal",
+      "group": "E",
+      "probable_condition": "Simultaneous failure of Mot.TV and Temp.SV. Common thermal excitation rail failure (shared hardware fault).",
+      "expected_sensor_behaviour": "Both Mot.TV* and Temp.SV* anomalous simultaneously. Motor-side vibration and pressure channels normal.",
+      "risk_if_ignored": "Complete loss of thermal monitoring. Any thermal overloading or bearing heat buildup becomes invisible.",
+      "recommended_action": "Check shared thermal measurement rail. Replace both sensors from common excitation supply simultaneously."
+    },
+    "23": {
+      "name": "sensor_failure_2ch_pump",
+      "group": "E",
+      "probable_condition": "Simultaneous failure of Pmp.SV and Pmp.PV. Moisture ingress to pump-side junction box causing dual sensor loss.",
+      "expected_sensor_behaviour": "Both Pmp.SV* and Pmp.PV* anomalous. Motor-side channels (MotPV, MotSV, MotTV) remain normal.",
+      "risk_if_ignored": "Complete loss of pump-side vibration monitoring. Any impeller or pump bearing fault becomes invisible.",
+      "recommended_action": "Inspect pump-side junction box for moisture/water ingress. Dry and reseal. Replace both sensors."
+    }
+  }
+}
