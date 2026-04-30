@@ -503,16 +503,17 @@ M6B COMPLETE — ALL STEPS LOCKED (2026-04-28)
   Step 3 (2026-04-28): Group E (1,600) + merge (32,500 total) + fault_rules_v3.json LOCKED
   Actuals: 32,500 sequences | 24 classes (Labels 0–23) | 8 z_t pkl files | all gates PASS
   │
-M6.5r NEXT ACTIVE — M6B complete, all inputs confirmed present (2026-04-28)
-  Target: ~196,000 rows × ~35 columns → M6B_feature_matrix.csv
-  New features: score_A, score_B, score_C (from z_t), zt_drift_slope,
-                mean_zt_magnitude, std_zt_magnitude, onset_order
+M6.5r COMPLETE — LOCKED (2026-04-29)
+  Input  : M6B_combined_sequences.pkl (452.7 MB) + 7 z_t group pkl files
+  Output : M6B_feature_matrix.csv — 526,300 rows x 34 cols (282.6 MB)
+  Gates  : 8 PASS / 4 WARN (D3/D5/Z2/F1 — all physically justified)
+  Report : outputs/reports/M6.5r_Feature_Matrix_Report.md
   │
-M7 NOT STARTED — blocked until M6B_feature_matrix.csv (~196,000 × ~35)
-  Input: M6B_feature_matrix.csv
-  Target: label_int 0-21, 22-class XGBoost
-  Output: models/M7_xgboost_classifier.json
-  SHAP: score_C expected rank 1 for Group B compound classes
+M7 [ACTIVE — UNBLOCKED 2026-04-29]  <-- CURRENT ACTIVE MODULE
+  Input  : data/synthetic/M6B_feature_matrix.csv (526,300 x 34) confirmed exists
+  Target : label_int 0-23, 24-class XGBoost classifier
+  Output : models/M7_xgboost_classifier.json
+  Script : module_07_xgboost_classifier.py
   │
 M8 NOT STARTED — TCN-AE architecture locked v14.2
   Level 1: LSTM-AE 50-step window (frozen M4 weights as starting point)

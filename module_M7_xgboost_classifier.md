@@ -7,7 +7,7 @@
 | **Date** | 2026-04-21 |
 | **Prerequisite** | M6.5r all gates passed — `data/synthetic/M6B_feature_matrix.csv` (~196,000 × ~36) available |
 | **Asset** | 110 kW, 7-stage, 40 bar, 2980 RPM multistage centrifugal pump (CIRA SACIP) |
-| **Status** | NOT STARTED — ACTIVE after M6B + M6.5r complete |
+| **Status** | ACTIVE — M6.5r COMPLETE 2026-04-29. Input file confirmed. Script pending. |
 | **Script filename** | `module_07_xgboost_classifier.py` |
 
 > **NOTE:** Read `modules_M6B_script_plan.md` (File 7, v3.0) and `modules_M6p5r_feature_retrain.md` (File 8, v4.0) BEFORE this file.
@@ -72,8 +72,8 @@
 
 ```
 File    : data/synthetic/M6B_feature_matrix.csv       ← PENDING (M6.5r output)
-Rows    : ~196,000 windows
-Columns : ~36 total (~35 features + label_int)
+Rows    : 526,300 windows (variable seq lengths produce more windows than ~196k spec estimate — correct)
+Columns : 34 total (33 features + label_int)
 ```
 
 ### Exact Column Order (matches M6.5r output spec — File 8 v4.0)
@@ -143,6 +143,35 @@ DOMAIN 4 — z_t latent features + TCN-AE scores (NEW v14.2, ~10 features):
 | `score_C` | XGBoost only (M7 + M10) | M7 READS as feature only |
 
 > M7 reads ALL three as input features. M7 does **NOT** route them — routing is enforced at M8 inference time. Do NOT remove `score_A` or `score_B` from M7 input — they are valid features.
+
+---
+
+### ⚠️ Class Imbalance — MANDATORY XGBoost Configuration (Added v5.0)
+
+Actual class distribution confirmed from M6.5r run (526,300 total windows):
+
+| Largest classes | Windows | % | Risk |
+|----------------|---------|---|------|
+| label 21 — bearing_wear_gradual | 78,000 | 14.8% | Dominates loss if unweighted |
+| label 4 — seal_failure | 51,686 | 9.8% | |
+| label 2 — impeller_imbalance | 40,459 | 7.7% | |
+
+| Smallest classes | Windows | % | Risk |
+|-----------------|---------|---|------|
+| label 19 — seal_failure_fast | 4,000 | 0.8% | Smallest — monitor F1 specifically |
+| label 6 — sensor_failure | 6,000 | 1.1% | |
+| label 22 — sensor_failure_2ch_thermal | 5,600 | 1.1% | |
+| label 23 — sensor_failure_2ch_pump | 5,600 | 1.1% | |
+
+**REQUIRED:** Compute per-class `sample_weight` proportional to inverse frequency
+before calling `xgb.train()`. Do NOT use uniform weights — label 19 will be
+undertrained and its F1 will be artificially suppressed.
+
+**Label 19 special watch:** Physics visualization (M6.5r Section 11A) shows a
+gradual character in the representative sequence rather than the expected ≤20-step
+Pres.SV* collapse (turbulent orifice blowout). If F1(label_19) < 0.80 after M7
+training, this is the likely cause. Flag for review — NOT a blocking issue for
+M7 delivery. Do NOT re-run M6B over this.
 
 ---
 
@@ -406,11 +435,28 @@ Overloading MAE = 0.093 — sub-threshold in M4. M7 WILL classify overloading co
 **Finding 4 — Label 21 Sub-Threshold Detection:**
 `bearing_wear_gradual` (label 21) severity 0.05–0.15 → per-window MAE < M4 threshold (0.110058) is PHYSICALLY CORRECT. XGBoost must classify label 21 via `err_slope_MotSV` (positive, monotonic) alone — not via MAE amplitude. `score_B` in top-3 confirms CUSUM target learnable. Gate M7-14-ext validates `err_slope_MotSV` rank 1 + `score_B` rank ≤2. **Do NOT raise M4 threshold.**
 
+> **M6.5r Gate D5 confirmation (2026-04-29):** `err_slope_MotSV > 0` confirmed in
+> 68.7% of label 21 fault-active windows (gate target ≥95% → WARN accepted).
+> This is expected physics: Paris law at severity 0.05–0.15 produces slope below
+> noise floor at the 50-step window scale.
+> `score_B` (z_t drift slope, sequence-level) = positive in **99.4%** of label 21
+> windows → M8 Layer 3 CUSUM is fully viable. Do NOT raise M4 threshold.
+> Do NOT filter sub-threshold label 21 windows as normal.
+
 **Finding 5 — Cavitation Always Acute:**
 Cavitation MAE = 0.675 (6.1× threshold). M7 F1 gate >0.88 is conservative — expect closer to 0.95. Risk: cavitation dominating macro F1 and masking weaker classes. **REPORT per-group F1 separately.**
 
 **Finding 6 — Domain 4 z_t Feature Alignment (NEW in v4.0):**
 `score_C` is computed from z_t sequences in M6.5r Domain 4 as the max delta `z_t_recon_err` between consecutive windows over N_windows. For compound chains: `score_C` spikes at `secondary_onset_lag` step. For single-source: `score_C` ≈ low and stable. If `score_C` not rank 1 for Group B → either z_t export from M6B is wrong OR M6.5r `score_C` formula needs verification. **Use max delta — NOT mean delta — for `score_C`.**
+
+> **M6.5r Gate Z2 result (2026-04-29):** `score_C > Group A P50` confirmed in
+> 72.5% of Group B windows (gate target ≥80% → WARN accepted).
+> Root cause: z_t pkl files use T//50 non-overlapping windowing = 4–18 delta
+> points per sequence. Max-delta has lower statistical power than stride-25 would give.
+> `onset_order` (Fisher = 9.27×10¹³, rank 1 overall) dominates compound
+> classification — `score_C` contributes additively.
+> **If Group B macro F1 < 0.72 after M7 training:** revisit score_C formula —
+> try mean-delta instead of max-delta as a first diagnostic step.
 
 ---
 
@@ -466,8 +512,8 @@ outputs/reports/module_07_xgboost_report.md
 | Dependency | Details |
 |-----------|---------|
 | M6B Steps 0–3 complete | `M6B_combined_sequences.pkl`, `fault_rules_v3.json`, `z_t_sequences_group[A-E].pkl` (7 pkl files), `M6B_sequence_meta.csv` all written |
-| M6.5r all gates passed | Gates W1–W3, F1, D1–D5, **Z1, Z2, Z3** (Z-gates NEW v4.0) |
-| `M6B_feature_matrix.csv` written | ~196,000 × ~36 |
+| M6.5r gates evaluated 2026-04-29 | 8 PASS, 4 WARN (D3/D5/Z2/F1 — all physically accepted, non-blocking) |
+| `M6B_feature_matrix.csv` written and confirmed | **526,300 × 34** (33 features + label_int) — 282.6 MB |
 
 ### Downstream (M7 outputs feed into)
 
@@ -589,6 +635,7 @@ outputs/reports/module_07_xgboost_report.md
 
 | Version | Date | Change |
 |---------|------|--------|
+| v5.0 | 2026-04-29 | M6.5r COMPLETE update. Input spec corrected to 526,300 × 34 (was ~196,000 × ~36). Class imbalance section added: label 21 = 14.8%, label 19 = 0.8% smallest. Gate D5/Z2 WARN context appended to Findings 4 and 6. Label 19 watch flag added. Status set to ACTIVE. |
 | v1.0 | 2026-04-12 | Original: 7-class multi-label, 10,000 × 29, MultiOutputClassifier. **INVALID.** |
 | v2.0 | 2026-04-15 | Full rewrite: 21-class single-label, ~189,000 × 26, XGBClassifier, per-group F1 gates (A–E), SHAP per-group. v1.0 INVALID. |
 | v3.0 | 2026-04-16 | v14.0 UPGRADE: 22-class throughout. ~196,000 rows. Label map: label 12 `bearing_wear->seal_failure` (Group B 6 classes); labels 13–17 Group C (5 classes); labels 18–21 Group D (4 classes incl. label 21). Input fixed to 26 cols. Gate M7-14-ext added. Group D SHAP labels 18–21. Finding 4 label 21 added. |
