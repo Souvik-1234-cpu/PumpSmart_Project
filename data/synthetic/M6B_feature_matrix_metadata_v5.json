@@ -1,0 +1,36 @@
+{
+  "patch_version": "v5",
+  "date": "2026-05-01",
+  "change": "onset_order 4-level ordinal encoding for Group B (labels 7-12)",
+  "encoding": {
+    "0": "normal / non-compound fault (Groups A,C,D,E)",
+    "1": "pre-onset: Phase 1 active (primary fault only)",
+    "2": "transition zone: within \u00b11 window of secondary onset",
+    "3": "post-onset: Phase 2 active (compound fault)"
+  },
+  "transition_half_width": 1,
+  "onset_step_source": "secondary_onset_step",
+  "physics_basis": {
+    "label_10": "seal\u2192cavitation: NPSHa drops below NPSHr at transition window",
+    "label_12": "imbalance\u2192cavitation: BPF amplitude crosses bubble nucleation threshold"
+  },
+  "v4b_patches_retained": [
+    "score_C per-sequence SNR (linspace boundaries)",
+    "err_slope_MotSV cumsum P75 baseline",
+    "multi_sensor_anomaly_count labels 22/23=12",
+    "variant_slope_ratio zeroed + lbl18 burst + lbl19 collapse"
+  ],
+  "gates": {
+    "P1_groupB_has_all_levels": "\u2705 PASS",
+    "P2_transition_zone_present": "\u2705 PASS",
+    "P3_transition_count_reasonable": "\u2705 PASS",
+    "P4_fisher_maintained": "\u274c FAIL",
+    "P5_lbl10_unique_vals": "\u2705 PASS",
+    "P6_lbl12_unique_vals": "\u2705 PASS",
+    "P7_v4b_intact_scoreC": "\u2705 PASS",
+    "P7_v4b_intact_ms": "\u2705 PASS",
+    "P8_nongrpB_all_zero": "\u2705 PASS"
+  },
+  "fisher_onset_order": 5.116655727574637,
+  "transition_zone_pct": 0.22306014749704506
+}
