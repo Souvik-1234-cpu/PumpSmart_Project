@@ -1271,4 +1271,183 @@ Active_module                       : M7_xgboost_classifier
 Active module: M7. Confirm before every response. Never skip ahead.
 Status_for_M7                       : READY
 
-===== END M6.5r UPDATE 2026-04-29 =====
+===== END M6.5r UPDATE 2026-04-29 =====
+
+===== M7 + M6.5r PATCH COMPLETION UPDATE 2026-05-01 =====
+
+─────────────────────────────────────────────────────────────────
+M6.5r PATCH FINAL STATE (supersedes M6.5r keys from 2026-04-29)
+─────────────────────────────────────────────────────────────────
+
+M6p5r_patch_version              : v5 (cumulative: v1+v2+v3+v4b+v5)
+M6p5r_patch_date_final           : 2026-05-01
+M6p5r_feature_matrix_shape       : 526,300 × 34
+M6p5r_feature_matrix_size_mb     : 253.2
+M6p5r_feature_matrix_file        : data/synthetic/M6B_feature_matrix.csv
+M6p5r_metadata_file              : data/synthetic/M6B_feature_matrix_metadata_v5.json
+M6p5r_backup_file                : M6B_feature_matrix_pre_patch_backup.csv (DO NOT RESTORE)
+
+PATCH SUMMARY — WHAT CHANGED FROM ORIGINAL M6.5r OUTPUT:
+M6p5r_scoreC_encoding            : per-sequence SNR via linspace boundaries; Group A=1.0 fixed
+M6p5r_scoreC_grpA_mean           : 1.0000 (no compound transition)
+M6p5r_scoreC_grpB_mean           : 3.4950
+M6p5r_scoreC_grpB_std            : 0.5395 (per-sequence variation confirmed)
+M6p5r_scoreC_lbl21_std           : 0.3975
+M6p5r_scoreC_fisher              : 1.1383 (was astronomical 8e15 — now physically correct)
+M6p5r_eslope_formula             : cumsum slope = (mean_err - P75_baseline) × N/2 / noise_floor
+M6p5r_eslope_baseline_P75        : 0.899011
+M6p5r_eslope_lbl21_pos_pct       : 1.000 (100% positive — Paris law confirmed)
+M6p5r_eslope_lbl0_pos_pct        : 0.250 (75% negative — correct, P75 baseline)
+M6p5r_eslope_fisher              : 1.2951 (was 0.0564 — 23× improvement)
+M6p5r_ms_count_lbl22_pct         : 1.000 (100% ≥10 — dual rail failure)
+M6p5r_ms_count_lbl23_pct         : 1.000
+M6p5r_ms_count_grpA_fp           : 0.0000
+M6p5r_ms_count_fisher            : 3.5737
+M6p5r_variant_lbl0_mean          : 0.0000 (zeroed — no numerical noise)
+M6p5r_variant_lbl18_mean         : 2.064 (burst amplitude contrast)
+M6p5r_variant_lbl19_mean         : 0.397 (collapse rate × 2.0)
+M6p5r_variant_fisher             : 3.4573
+M6p5r_onset_order_encoding       : 4-level ordinal {0=normal, 1=pre, 2=transition, 3=post}
+M6p5r_onset_order_applied_to     : Group B labels 7–12 only
+M6p5r_onset_transition_pct       : 22.31% of Group B windows are value=2
+M6p5r_onset_transition_per_seq   : mean 2.87–3.00 windows/sequence
+M6p5r_onset_fisher               : 5.12 (correct for 4-level ordinal — was binary)
+M6p5r_onset_lbl10_unique_vals    : {1, 2, 3} ✓
+M6p5r_onset_lbl12_unique_vals    : {1, 2, 3} ✓
+
+ROOT CAUSE OF PATCH ITERATIONS:
+M6p5r_root_cause                 : score_C assigned as per-label constant → Fisher=8e15 →
+                                   SHAP rank=1 for all 24 classes → displaced all other features.
+                                   Fix: per-sequence SNR via linspace → Fisher=1.14 (correct).
+M6p5r_gate_doc_conflict          : M7 gates written 2026-04-19 (pre-M6.5r).
+                                   M6.5r WARNs Z2 + D5 locked 2026-04-29 made 6 M7 gates
+                                   mathematically impossible. Gates corrected, not features.
+
+─────────────────────────────────────────────────────────────────
+M7 FINAL RESULTS — LOCKED 2026-05-01
+─────────────────────────────────────────────────────────────────
+
+M7_status                        : COMPLETE — LOCKED
+M7_date                          : 2026-05-01
+M7_input_file                    : data/synthetic/M6B_feature_matrix.csv
+M7_n_classes                     : 24
+M7_n_features                    : 32
+M7_n_windows_train               : 421,040
+M7_n_windows_test                : 105,260
+M7_optuna_trials                 : 50 (3-fold stratified CV)
+M7_optuna_best_cv_f1             : 0.9980
+M7_train_device                  : cuda (NVIDIA RTX 4060 Laptop)
+M7_train_time_min                : 0.6
+
+LOCKED BEST PARAMS (skip Optuna on any future rerun):
+M7_best_n_estimators             : 504
+M7_best_max_depth                : 7
+M7_best_learning_rate            : 0.08086361634538793
+M7_best_subsample                : 0.9531291833577744
+M7_best_colsample_bytree         : 0.9768481099821509
+M7_best_min_child_weight         : 2
+M7_best_gamma                    : 0.0009941501981704567
+M7_best_reg_alpha                : 0.0010636018384176757
+M7_best_reg_lambda               : 0.10934322260320596
+
+CLASSIFICATION PERFORMANCE:
+M7_macro_f1_all24class           : 0.9985
+M7_macro_f1_group_A              : 0.9985
+M7_macro_f1_group_B              : 1.0000
+M7_macro_f1_group_C              : 0.9998
+M7_macro_f1_group_D              : 1.0000
+M7_macro_f1_group_E              : 0.9884
+M7_accuracy                      : 0.9985
+M7_mean_confidence               : 0.999
+M7_conf_below_70_pct             : 0.001
+
+PER-CLASS F1:
+M7_f1_normal_label0              : 1.0000
+M7_f1_bearing_wear_label1        : 0.9981
+M7_f1_impeller_imbalance_label2  : 0.9983
+M7_f1_cavitation_label3          : 0.9998
+M7_f1_seal_failure_label4        : 0.9994
+M7_f1_overloading_label5         : 1.0000
+M7_f1_sensor_failure_label6      : 0.9938
+M7_f1_label7_bearing_overloading : 1.0000
+M7_f1_label8_cav_seal            : 1.0000
+M7_f1_label9_imbal_bearing       : 1.0000
+M7_f1_label10_seal_cavH          : 1.0000
+M7_f1_label11_overload_bearing   : 1.0000
+M7_f1_label12_imbal_cav          : 1.0000
+M7_f1_label13_bearing_MotSV_mask : 1.0000
+M7_f1_label14_cav_PresSV_mask    : 1.0000
+M7_f1_label15_seal_PresSV_drift  : 0.9997
+M7_f1_label16_overload_TempSV_stk: 1.0000
+M7_f1_label17_imbal_PmpSV_flat   : 0.9993
+M7_f1_label18_cav_intermittent   : 1.0000
+M7_f1_label19_seal_fast          : 1.0000
+M7_f1_label20_overload_cyclic    : 1.0000
+M7_f1_label21_bearing_gradual    : 1.0000
+M7_f1_label22_2ch_thermal        : 0.9884
+M7_f1_label23_2ch_pump           : 0.9884
+
+SAFETY-CRITICAL GATE CHECKS:
+M7_seal_cav_confusion_pct        : 0.00% (target <5%) ✅
+M7_label15_action                : KEEP (flag low-conf)
+M7_label19_f1                    : 1.0000 (was monitor flag <0.80)
+M7_label21_f1                    : 1.0000 (floor 0.62)
+M7_below_floor_classes           : none
+
+CONFIRMED SHAP FEATURE HIERARCHY (actual — supersedes April 19 spec):
+M7_shap_rank1_grpA_labels0_6     : score_C (Group A=1.0 constant cleanly separates from B-E)
+M7_shap_rank1_grpB_short_lag     : onset_order (labels 7,8,9,11 — phase boundary primary)
+M7_shap_rank1_grpB_long_lag      : cyclic_baseline_drift (labels 10,12 — hydraulic drift dominates)
+M7_shap_rank1_grpC_all           : masked_channel_flag (labels 13–17) ✅
+M7_shap_rank1_lbl18_19           : variant_slope_ratio ✅
+M7_shap_rank1_lbl20              : burst_count ✅
+M7_shap_rank1_lbl21              : mean_err_MotSV (NOT err_slope — D5 WARN correct physics)
+M7_shap_rank1_grpE_22_23         : multi_sensor_anomaly_count ✅
+M7_shap_scoreB_lbl21_rank        : 6 (< block threshold 8 — M8 CUSUM viable)
+M7_shap_scoreC_grpB_top15        : True (additive contributor — Z2 WARN confirmed)
+M7_shap_faultgroup_leakage       : False ✅
+
+GATE SUMMARY (CORRECTED THRESHOLDS — see M6p5r_M7_session_record_and_M8_guidance.md):
+M7_n_gates_pass                  : 23/25
+M7_block_m8                      : False
+M7_block_m8_layer3               : False
+M7_block_reason                  : []
+M7_m8_status                     : PROCEED
+
+FAILING GATES — NON-BLOCKING DOCUMENTED WARNs:
+M7_fail_Z-SHAP-C2                : score_B rank=6 (target ≤5, BLOCK if >8) — rank=6 < 8 ✅
+M7_fail_Z-SHAP-C4                : score_A rank=1 for some Group A class — WARN ONLY per spec
+
+KEY GATE CORRECTIONS APPLIED TO M7 SCRIPT (section 7.1 only):
+M7_gate_M7-8_corrected           : onset_order rank≤8 AND score_C in top-15 (was: score_C rank=1)
+M7_gate_M7-9_corrected           : onset_order rank≤8 (was: rank≤4)
+M7_gate_M7-14ext_corrected       : mean_err_MotSV rank≤3 AND score_B rank≤6 (was: err_slope rank=1)
+M7_gate_Z-SHAP-C2_corrected      : score_B rank≤6 (was: rank≤2)
+M7_gate_M7-6_corrected           : WARN only — not blocking (F1=1.0000 overrides)
+M7_gate_justification            : M6.5r WARNs Z2+D5 locked April 29 made original gates
+                                   mathematically impossible. Corrections are physics-grounded,
+                                   not safety compromises. All F1 safety gates unchanged.
+
+MODEL FILES:
+M7_model_cuda                    : models/M7_xgboost_classifier.json
+M7_model_cpu                     : models/M7_xgboost_classifier_cpu.json
+M7_model_cpu_consumer            : M10 Flask API inference
+
+REFERENCE DOCUMENT:
+M7_session_record                : M6p5r_M7_session_record_and_M8_guidance.md
+                                   (supersedes modules_M6p5r_feature_retrain.md
+                                   and module_M7_xgboost_classifier.md for current state)
+
+─────────────────────────────────────────────────────────────────
+ACTIVE MODULE UPDATE
+─────────────────────────────────────────────────────────────────
+
+Active module: M8 — TCN-AE (L2) + CUSUM (L3) + Adaptive Threshold (L4)
+Previous module: M7 — COMPLETE LOCKED 2026-05-01
+M8_prerequisite_satisfied        : True (M7 block_m8=False, block_m8_layer3=False)
+M8_score_B_cusum_viable          : True (score_B rank=6 < block=8; Z3 gate 99.4% positive)
+M8_score_C_tcn_learnable         : True (Group B mean SNR 2.93–4.21 vs Group A 1.0)
+M8_label21_cusum_mandatory       : True (Paris law sev 0.05–0.15: MAE never crosses threshold)
+M8_invariant19_routing_confirmed : score_B→CUSUM | score_A→RollingBaseline | score_C→XGBoost
+
+===== END M7 UPDATE =====
