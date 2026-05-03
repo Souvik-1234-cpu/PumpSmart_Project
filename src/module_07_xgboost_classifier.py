@@ -287,20 +287,20 @@ log("=" * 70)
 log("SECTION 3 — Optuna hyperparameter search (50 trials, 3-fold stratified CV)")
 log("=" * 70)
 
-# LOCKED PARAMS from run 2026-05-01 — skip Optuna rerun
-best_params = {
-    'n_estimators': 504, 'max_depth': 7, 
-    'learning_rate': 0.08086361634538793,
-    'subsample': 0.9531291833577744, 
-    'colsample_bytree': 0.9768481099821509,
-    'min_child_weight': 2, 'gamma': 0.0009941501981704567, 
-    'reg_alpha': 0.0010636018384176757, 
-    'reg_lambda': 0.10934322260320596
-}
-best_cv_f1 = 0.9980
-results['optuna_best_cv_f1'] = best_cv_f1
-results['optuna_best_params'] = best_params
-log("  Using locked best params — skipping Optuna rerun")
+# # LOCKED PARAMS from run 2026-05-01 — skip Optuna rerun
+# best_params = {
+#     'n_estimators': 504, 'max_depth': 7, 
+#     'learning_rate': 0.08086361634538793,
+#     'subsample': 0.9531291833577744, 
+#     'colsample_bytree': 0.9768481099821509,
+#     'min_child_weight': 2, 'gamma': 0.0009941501981704567, 
+#     'reg_alpha': 0.0010636018384176757, 
+#     'reg_lambda': 0.10934322260320596
+# }
+# best_cv_f1 = 0.9980
+# results['optuna_best_cv_f1'] = best_cv_f1
+# results['optuna_best_params'] = best_params
+# log("  Using locked best params — skipping Optuna rerun")
 
 OPTUNA_N_TRIALS = 50
 OPTUNA_N_FOLDS  = 3    # balance speed vs stability at 526k rows
@@ -342,11 +342,11 @@ def optuna_objective(trial):
 
 t_opt_start = time.time()
 try:
-    # study = optuna.create_study(direction='maximize',
-    #                              sampler=optuna.samplers.TPESampler(seed=42))
-    # study.optimize(optuna_objective, n_trials=OPTUNA_N_TRIALS, show_progress_bar=False)
-    # best_params = study.best_params
-    # best_cv_f1  = study.best_value
+    study = optuna.create_study(direction='maximize',
+                                 sampler=optuna.samplers.TPESampler(seed=42))
+    study.optimize(optuna_objective, n_trials=OPTUNA_N_TRIALS, show_progress_bar=False)
+    best_params = study.best_params
+    best_cv_f1  = study.best_value
     opt_time    = time.time() - t_opt_start
     log(f"  Optuna complete: {OPTUNA_N_TRIALS} trials in {opt_time/60:.1f} min")
     log(f"  Best CV macro F1: {best_cv_f1:.4f}")

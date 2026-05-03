@@ -852,36 +852,29 @@ def generate_cavitation_intermittent(steps, cluster_id=1, rng=None):
 def generate_seal_failure_fast(steps, rng=None, cluster_id=1):
     """
     Label 19: Catastrophic seal blowout — turbulent orifice discharge.
-    Q_leak = Cd × A_orifice × sqrt(2 × dP / rho)
-    PresSV drops in ≤20 steps to minimum. Single-window MAE fires immediately.
-    
-    NOT Hagen-Poiseuille (that's laminar pipe flow — wrong physics for seal blowout).
+    FIX v2 (2026-05-03): Three bugs fixed — see m6b_physics_lib.py for details.
+    onset=55-85 (post spike-seed), frac corrected, severity-direct drop used.
+    Physics: sev=0.50 → Pres.SV drops to 0.70. sev=0.80 → drops to 0.52.
     """
-    seq      = make_baseline(steps, cluster_id)
-    onset    = int(rng.integers(20, 50))
-    Cd       = 0.61   # orifice discharge coefficient
-    rho      = 1000.0
-    dP_nom   = 40e5   # 40 bar in Pa
-    A_frac   = float(rng.uniform(0.001, 0.004))  # effective orifice fraction of seal area
-    A_ref    = 1e-4   # reference seal area m² (IEC 60534 basis)
-    A_ori    = A_ref * A_frac
-
-    Q_leak_m3s = Cd * A_ori * math.sqrt(2 * dP_nom / rho)
-
-    # Pressure drop: linear until minimum in ≤20 steps
-    drop_steps = int(rng.integers(10, 21))
-    max_drop   = min(0.8, Q_leak_m3s * 1500)  # normalized to cluster mean
+    seq            = make_baseline(steps, cluster_id)
+    onset          = int(rng.integers(55, 85))
+    drop_steps     = int(rng.integers(10, 21))
+    severity_local = float(rng.uniform(0.20, 0.80))
+    max_drop       = float(severity_local * 0.60)
+    target_min     = float(max(0.05, 1.0 - max_drop))
 
     for t in range(onset, min(onset + drop_steps, steps)):
-        frac = (t - onset) / drop_steps
-        seq[t, CH["Pres.SV"]] = max(0.05, seq[t, CH["Pres.SV"]] - max_drop * frac)
-    # Hold at minimum
-    for t in range(onset + drop_steps, steps):
-        seq[t, CH["Pres.SV"]] = max(0.05, seq[onset + drop_steps - 1, CH["Pres.SV"]])
+        frac = (t - onset + 1) / drop_steps
+        seq[t, CH["Pres.SV"]] = float(max(
+            target_min,
+            seq[t, CH["Pres.SV"]] - max_drop * frac
+        ))
+    for t in range(min(onset + drop_steps, steps), steps):
+        seq[t, CH["Pres.SV"]] = float(target_min) + float(
+            rng.normal(0, NOISE_STD.get("Pres.SV", 0.015)))
 
-    # Secondary: motor current spike (overload detection)
-    seq[onset:onset + 10, CH["Mot.PV"]] += 0.3
-
+    t_sec_end = min(onset + 15, steps)
+    seq[onset:t_sec_end, CH["Mot.PV"]] += float(rng.uniform(0.20, 0.35))
     return seq.astype(np.float32)
 
 
