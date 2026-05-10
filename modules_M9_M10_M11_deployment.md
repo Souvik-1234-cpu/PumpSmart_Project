@@ -1,1275 +1,554 @@
-# PumpSmart --- M9 + M10 + M11: Deployment Modules
-
-**Pump Selector \| Flask Web Application \| Docker + Hugging Face
-Deployment**
-
-  -----------------------------------------------------------------------
-  Field                               Value
-  ----------------------------------- -----------------------------------
-  Document version                    v4.0 --- Architecture v14.2 (TCN-AE
-                                      Level 2 + score_A/B/C +
-                                      physics_context + adaptive
-                                      threshold)
-
-  Date                                2026-04-21
-
-  Prerequisites                       M8 all_gates_pass = True \| M7
-                                      all_gates_pass = True
-
-  Status                              All NOT STARTED --- begin after M8
-                                      gates confirmed
-
-  Pump                                110 kW, 7-stage, 40 bar, 2980 RPM,
-                                      45 m3/h, 450 m head --- CIRA SACIP
-  -----------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-## What Changed in v4.0 (Architecture v14.2)
-
-  ------------------------------------------------------------------------------------------------
-  Item                    v3.0 (arch v14.0)       v4.0 (arch v14.2)
-  ----------------------- ----------------------- ------------------------------------------------
-  Level 2 model           LSTM-AE v2              TCN-AE Level 2 `tcn_ae_level2_best.pth` ---
-                          `lstm_ae_v2_best.pth`   5-layer dilated causal, dilation=\[1,2,4,8,16\]
-
-  Level 2 input           Raw MAE channels        z_t sequences (N_windows x 64) --- NEVER raw
-                                                  sensor data (Invariant 16)
-
-  Level 2 output          Single MAE score        score_A (severity), score_B (drift slope),
-                                                  score_C (chain transition)
-
-  CUSUM input             Raw per-channel MAE     score_B ONLY (Invariant 19)
-
-  Rolling baseline input  err_slope per channel   score_A ONLY (Invariant 19)
-
-  XGBoost input at        25 features             \~35 features including score_A/B/C,
-  runtime                                         onset_order, z_t features
-
-  Adaptive threshold      Not implemented         theta_t = mu_rolling(6hr) +
-                                                  3\*sigma_rolling(6hr), updates every 50s in M10
-
-  z_t rolling buffer      Not present             N_windows z_t vectors maintained in memory per
-                                                  streaming call
-
-  physics_context field   Not present             Added to Route 1 + Route 2 output ---
-                                                  what/why/timeline/action/if_ignored/disclaimer
-
-  /api/physics_context    Not present             New Route 8 --- plain-language fault description
-                                                  per label, all 22 classes
-
-  Commissioning mode      Not documented here     48hr data collection then re-run M2/M3 then lock
-                                                  config. M4 + TCN-AE weights FROZEN
-
-  Limitation disclaimer   3 global disclaimers    \+ per-alert limitation flag in UI linking to 6
-                                                  known limitations (File 3 registry)
-
-  models_loaded at        lstm_ae_v2,             lstm_ae_l1, tcn_ae_l2, xgboost_22class,
-  startup                 xgboost_22class,        m9_physics
-                          m9_physics              
-
-  /health version         "3.0"                   "4.0"
-
-  API routes total        7                       8 (+ /api/physics_context)
-
-  M10 local tests         13                      15
-
-  M11 deployment checks   11                      12
-
-  M10 paste keys          13                      18
-  ------------------------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
+# PumpSmart — M9 + M10 + M11: Deployment Modules
+ 
+**Pump Selector | FastAPI Web Application | Docker + Hugging Face Deployment**
+ 
+> **ARCHITECTURE CHANGE — 2026-05-10**
+> Flask → FastAPI throughout. Reason: PumpSmart M10 requires real-time continuous
+> sensor data inflow, persistent state (CUSUM accumulator, rolling score_A buffer,
+> z_t streaming buffer), and async-native concurrent request handling — all of which
+> FastAPI + uvicorn handles natively without threading hacks. gunicorn/WSGI replaced
+> by uvicorn/ASGI. All route signatures, state management, and validation updated
+> accordingly. This change propagates through M10, M11, Dockerfile, requirements.txt,
+> GitHub Actions, and all dependency diagrams below.
+ 
+| Field | Value |
+|---|---|
+| Document version | v5.0 — Architecture v14.2 (FastAPI migration) |
+| Supersedes | v4.0 (Flask) |
+| Date | 2026-05-10 |
+| Prerequisites | M8 all_gates_pass = True \| M7 all_gates_pass = True \| M9 24/24 PASS |
+| Status | M9 COMPLETE LOCKED — M10 IN DEVELOPMENT |
+| Pump | 110 kW, 7-stage, 40 bar, 2980 RPM, 45 m³/h, 450 m head — CIRA SACIP |
+ 
+---
+ 
+## What Changed in v5.0 (FastAPI Migration)
+ 
+| Item | v4.0 (Flask) | v5.0 (FastAPI) |
+|---|---|---|
+| Web framework | `flask>=3.0` | `fastapi>=0.111.0` |
+| WSGI/ASGI server | `gunicorn` | `uvicorn[standard]>=0.29.0` |
+| Request handlers | `def` (synchronous) | `async def` (non-blocking) |
+| Input validation | Manual / none | Pydantic `BaseModel` — automatic |
+| Route decorator | `@app.route('/path', methods=['POST'])` | `@app.post('/path')` |
+| Auto API docs | None (manual Swagger needed) | Built-in at `/docs` and `/redoc` |
+| Concurrent sensor streams | Blocking — requires threading | Native async — no threading needed |
+| Persistent state | `global` variables + lock hacks | FastAPI `lifespan` + dependency injection |
+| WebSocket (future) | `flask-socketio` extension | Built-in `WebSocket` support |
+| Dockerfile CMD | `gunicorn app.app:app ...` | `uvicorn app.main:app --host 0.0.0.0 --port 7860` |
+| Entry point file | `app/app.py` | `app/main.py` |
+| Health check | `GET /health` returns dict | `GET /health` — same contract, async handler |
+| Startup model loading | `@app.before_first_request` | `lifespan` context manager (FastAPI standard) |
+ 
+**Why these changes matter for PumpSmart specifically:**
+ 
+1. **1 Hz sensor polling** — Flask WSGI blocks thread per request. At 1 Hz continuous inflow from
+   a SCADA system plus concurrent operator UI queries, Flask needs multiple workers or threading.
+   FastAPI's async model handles both on a single uvicorn worker without blocking.
+2. **Persistent CUSUM + rolling buffer** — `S_n` accumulator, `score_A_rolling_buffer`, and
+   `zt_buffer` must survive across requests without race conditions. FastAPI's dependency injection
+   (`Depends()`) provides clean shared state with proper async locking — no `global` variables.
+3. **Pydantic sensor payload validation** — incoming 8-channel sensor windows are validated
+   structurally at the API boundary before any ML code runs. Malformed payloads return 422
+   immediately with field-level error detail. Flask required manual `request.json` parsing.
+4. **Real-time UI** — FastAPI supports WebSocket endpoints natively for pushing live alert state
+   to the dashboard without polling overhead. This is optional at M10 but required for Tier 3
+   shadow deployment UI (T3-3 input distribution drift monitoring dashboard).
+---
+ 
 ## Prerequisite Chain
-
-    M7 all_gates_pass = True
-      -> M8 all_gates_pass = True
-           -> M9 (physics tools) — can run in parallel with M8 after M7 completes
-           -> M10 (Flask app) — requires M8 models + M7 models + M9 physics tools
-           -> M11 (deployment) — requires M10 fully tested locally
-           -> M12 adversarial validation — run AFTER M11 deployment confirmed
-
-------------------------------------------------------------------------
-
-## M9 --- Pump Selector + Household Advisor
-
-**Status:** NOT STARTED (can begin after M7 completes) **Nature:**
-PHYSICS ONLY --- no ML inference in this module
-
+ 
+```
+M7 all_gates_pass = True
+  -> M8 all_gates_pass = True
+       -> M9 (physics tools) — COMPLETE LOCKED (24/24 PASS)
+       -> M10 (FastAPI app) — requires M8 models + M7 models + M9 physics tools
+       -> M12 adversarial validation — MUST run BEFORE M11 (T2-1)
+       -> M11 (deployment) — requires M10 15/15 tests pass + M12 ≥80% detection rate
+```
+ 
+---
+ 
+## M9 — Pump Selector + Household Advisor
+ 
+**Status: COMPLETE LOCKED (24/24 PASS — 2026-05-10)**
+ 
+Entry point for M10: `from src.module_09_pump_selector import pump_selector_dispatch`
+ 
+Framework-agnostic pure Python — works identically under FastAPI, Flask, or CLI.
+ 
 ### Scope Boundary (NEVER VIOLATE)
-
-``` python
-if pump_type == 'household': return physics_advisory_only()
-else: return ml_prediction()   # routes to M8 + M7 in M10
-```
-
-> Household monoblock pump ≠ industrial multistage pump. Cross-domain ML
-> = out-of-distribution inference = safety risk. Household advisor label
-> in M10 UI: **"Advisory guidance only --- not a monitoring tool"**
-
-------------------------------------------------------------------------
-
-### M9 Part A --- Industrial Pump Selector
-
-#### Physics Equations Implemented
-
-**1. Hydraulic Power**
-
-    P_hyd = rho x g x Q x H
-    rho = fluid density (kg/m3), g = 9.81 m/s2,
-    Q = flow rate (m3/s), H = total head (m)
-    Nameplate check: P_hyd = 1000 x 9.81 x (45/3600) x 450 = ~55.2 kW  PASS
-
-**2. Shaft Power (motor requirement)**
-
-    P_shaft = P_hyd / eta_pump
-    eta_pump = pump hydraulic efficiency (default 0.65 for multistage)
-    P_shaft = 55.2 / 0.65 = ~84.9 kW -> motor selection: 110 kW (IEC frame)
-
-**3. Total Head (multi-component)**
-
-    H_total = H_static + H_friction + H_velocity
-    H_static   = elevation difference (m)
-    H_friction = f x (L/D) x (v2/2g)   [Darcy-Weisbach]
-    H_velocity = v2 / 2g
-
-**4. NPSH Available (NPSHa)**
-
-    NPSHa = (P_atm - P_vapour) / (rho x g) + H_suction - H_friction_suction
-    P_vapour = vapour pressure at operating temperature
-
-**5. NPSH Required (NPSHr)**
-
-    NPSHr = pump-specific value from manufacturer curve
-    CAVITATION RISK FLAG: if NPSHa < NPSHr + 0.5m (safety margin) -> flag
-
-**6. NPSH Margin Check**
-
-    margin = NPSHa - NPSHr
-    if margin < 0.5m  -> CAVITATION_RISK = True  (startup vulnerable)
-    if margin < 0.0m  -> CAVITATION_CERTAIN = True (do not operate)
-
-**7. Affinity Laws (speed change)**
-
-    Q2/Q1 = N2/N1
-    H2/H1 = (N2/N1)^2
-    P2/P1 = (N2/N1)^3
-    Use: estimate performance at variable speed / partial load
-
-**8. Specific Speed (pump type selector)**
-
-    Ns = N x Q^0.5 / H^0.75   [SI units: RPM, m3/s, m]
-    Ns < 25       : Radial flow -> multistage centrifugal
-    25 < Ns < 70  : Mixed flow
-    Ns > 70       : Axial flow
-    Nameplate: Ns = 2980 x (45/3600)^0.5 / 450^0.75 = ~10.2 -> radial  PASS
-
-**9. Joukowsky Water Hammer (transient pressure check)**
-
-    Delta_P = rho x a x Delta_v
-    a = pressure wave velocity (~1200 m/s in steel pipe)
-    Delta_v = sudden velocity change (valve closure)
-    Max transient: P_operating + Delta_P must not exceed pipe pressure rating
-    Nameplate transient observed: 46.7 bar (confirmed M2 data)
-
-**10. Stage Head (multistage)**
-
-    H_per_stage = H_total / n_stages
-    Nameplate: 450 / 7 = 64.3 m per stage
-    Verify: per-stage head within impeller design range
-
-------------------------------------------------------------------------
-
-#### Industrial Selector Input
-
-  Parameter         Type    Description
-  ----------------- ------- ---------------------------------------------
-  flow_rate_m3h     float   required m3/h
-  total_head_m      float   required head in m
-  fluid_density     float   kg/m3, default 1000
-  fluid_temp_c      float   degrees C, for vapour pressure lookup
-  suction_head_m    float   positive = flooded, negative = suction lift
-  pipe_length_m     float   ---
-  pipe_diameter_m   float   ---
-  speed_rpm         float   default 2980 for 50Hz 2-pole
-
-#### Industrial Selector Output
-
-  Field                  Type          Description
-  ---------------------- ------------- ---------------------------------------------
-  hydraulic_power_kw     float         ---
-  required_shaft_kw      float         ---
-  recommended_motor_kw   float         next IEC standard frame above shaft
-  npsha                  float         ---
-  npshr_margin           float         ---
-  cavitation_risk        bool          ---
-  specific_speed         float         ---
-  pump_type              str           multistage_centrifugal / mixed_flow / axial
-  stage_head_m           float         ---
-  water_hammer_dp_bar    float         ---
-  warnings               list of str   ---
-  recommendation         str           ---
-
-------------------------------------------------------------------------
-
-#### Validation Test Cases (M9 Gate)
-
-**TEST-M9-1: Nameplate reproduction** - Input: Q=45 m3/h, H=450m,
-rho=1000, eta=0.65, N=2980 - Expect: P_hyd \~55.2 kW, P_shaft \~84.9 kW,
-motor=110 kW, Ns\~10.2 **TEST-M9-2: Cavitation risk flag** - Input:
-NPSHa=3.2m, NPSHr=3.0m (margin=0.2m \< 0.5m) - Expect: cavitation_risk =
-True, warning issued **TEST-M9-3: Affinity law speed reduction** -
-Input: N1=2980, Q1=45, H1=450, N2=2500 - Expect: Q2 = 45 x (2500/2980) =
-37.75 m3/h, H2 = 450 x (2500/2980)\^2 = 317.8 m, P2/P1 = (2500/2980)\^3
-= 0.591 **TEST-M9-4: Water hammer transient** - Input: rho=1000, a=1200
-m/s, Delta_v=2.5 m/s, P_operating=40 bar - Expect: Delta_P = 1000 x 1200
-x 2.5 / 100000 = 30 bar --- P_transient = 70 bar -\> WARNING: exceeds 40
-bar nameplate **TEST-M9-5: Specific speed pump type** - Input: N=2980,
-Q=45 m3/h, H=450m - Expect: Ns \~10.2 -\> pump_type =
-multistage_centrifugal **Gates:** - GATE-M9-1: All 5 test cases PASS -
-GATE-M9-2: No unphysical outputs (negative pressure, T below ambient, Ns
-\< 0) - GATE-M9-3: Household pump_type -\> physics_advisory_only()
-returns, no ML call ---
-
-### M9 Part B --- Household Advisor (Physics Only)
-
-**Scope:** Domestic water supply, agricultural irrigation, small booster
-systems. **NO ML INFERENCE. NO MONITORING. Advisory guidance only.**
-**UI label:** "Advisory guidance only --- not a monitoring tool"
-
-#### Input
-
-  Parameter          Type    Description
-  ------------------ ------- -----------------------------------
-  usage_type         str     domestic / agricultural / booster
-  daily_demand_lph   float   litres per hour
-  static_head_m      float   ---
-  pipe_length_m      float   ---
-  pipe_diameter_mm   float   ---
-
-#### Output
-
-  -----------------------------------------------------------------------
-  Field                   Type                    Description
-  ----------------------- ----------------------- -----------------------
-  recommended_flow_lph    float                   ---
-
-  recommended_head_m      float                   ---
-
-  recommended_motor_kw    float                   standard sizes: 0.5,
-                                                  0.75, 1.0, 1.5 kW
-
-  pipe_velocity_ms        float                   warn if \> 2.0 m/s
-
-  friction_head_m         float                   ---
-
-  estimated_runtime_h     float                   hours per day to meet
-                                                  demand
-
-  recommendations         list of str             ---
-
-  advisory_disclaimer     str                     always appended --- see
-                                                  below
-  -----------------------------------------------------------------------
-
-#### Physics
-
-    Flow velocity : v = Q / A  (A = pi x D^2 / 4)
-    Friction head : Darcy-Weisbach (simplified for small pipes)
-    Motor sizing  : P = rho x g x Q x H / (eta x 1000) -> round up to next standard size
-
-#### Advisory Disclaimer (always appended)
-
-> "This is advisory guidance based on simplified hydraulic calculations.
-> Actual pump selection should be verified by a qualified engineer. This
-> tool does not monitor pump health and cannot detect faults."
-
-------------------------------------------------------------------------
-
-### M9 Outputs
-
--   `src/module_09_pump_selector.py`
--   `outputs/reports/module_09_pump_selector_report.md` \### M9 Paste
-    Text Keys
-
-  Key                             Value
-  ------------------------------- ---------------
-  M9_industrial_test_cases_pass   \[X/5\]
-  M9_household_advisory_tested    True/False
-  M9_scope_boundary_enforced      True/False
-  M9_all_gates_pass               True/False
-  Status_for_M10                  READY/BLOCKED
-
-------------------------------------------------------------------------
-
-## M10 --- Flask Web Application
-
-**Status:** NOT STARTED (requires M8 + M7 + M9 complete)
-
-------------------------------------------------------------------------
-
-### Commissioning Mode (MANDATORY --- First 48 Hours on New Installation)
-
-> **COMMISSIONING MODE RULE --- NEVER SKIP**
-
-On first deployment at a new pump or plant:
-
-**Phase 1 --- Data Collection (Hours 0 to 48)**
-
-All inference routes respond with:
-
-``` json
-{
-  "commissioning_mode": true,
-  "message": "Data collection in progress. Predictions unavailable for 48 hours."
-}
-```
-
-No anomaly alerts. No fault classifications. No CUSUM accumulation. Raw
-sensor data logged to `commissioning_buffer/` at 1 Hz.
-
-**Phase 2 --- Recalibration (After 48 hours)**
-
--   Re-run M2 KMeans clustering on `commissioning_buffer/` data
--   Re-compute M3 normalization baselines
--   Lock new `M3_normalization_config.json`
--   Re-initialize CUSUM mu0 and rolling baseline references from new M3
-    config
--   CUSUM state reset to 0.0
--   Rolling slope buffer cleared **Phase 3 --- Lock Config
-    (Post-Recalibration)**
-
-  Component                Action
-  ------------------------ ---------------------------
-  M4 LSTM-AE weights       FROZEN --- DO NOT RETRAIN
-  TCN-AE Level 2 weights   FROZEN --- DO NOT RETRAIN
-  XGBoost M7 weights       FROZEN --- DO NOT RETRAIN
-
-Only M2 cluster labels + M3 normalization baselines are recalibrated.
-`commissioning_mode` flag -\> False. Full inference enabled.
-
-**Invariant:** - M4 threshold 0.110058 is NOT recalibrated during
-commissioning. It is the Level 1 static threshold, frozen at M4
-commissioning. - The adaptive threshold theta_t (Level 4) IS
-recalibrated using new M3 baselines after Phase 2. ---
-
-### Model and Runtime State Loading (at startup --- ALL map_location='cpu')
-
-``` python
-from config import DEVICE, MODEL_DIR
-import torch, json, pickle
-```
-
-**M4 LSTM-AE --- Level 1 (LOCKED --- inference only)**
-
-``` python
-lstm_ae_l1 = LSTMAEModel(config)
-lstm_ae_l1.load_state_dict(
-    torch.load(MODEL_DIR / 'lstm_ae_baseline_best.pth', map_location='cpu')
-)
-lstm_ae_l1.eval()
-M4_THRESHOLD = 0.110058
-# NOTE: STATIC — Level 1 only. NEVER apply to TCN-AE output.
-```
-
-**TCN-AE Level 2 (NEW v4.0 --- replaces LSTM-AE v2 from v3.0)**
-
-``` python
-# 5-layer dilated causal TCN, dilation=[1,2,4,8,16], kernel=3
-# Input  : z_t sequence (N_windows x 64)
-# Output : score_A (severity), score_B (drift slope), score_C (chain transition)
-tcn_ae_l2 = TCNAutoencoder(config)
-tcn_ae_l2.load_state_dict(
-    torch.load(MODEL_DIR / 'tcn_ae_level2_best.pth', map_location='cpu')
-)
-tcn_ae_l2.eval()
-# NEVER call .cuda() or .to('cuda') on tcn_ae_l2 in deployment.
-```
-
-**M7 XGBoost --- 22-class single-label**
-
-``` python
-# Trained on M6B_feature_matrix.csv (~35 features at inference, label excluded)
-# Saved as pickle (sklearn wrapper). device='cpu' at inference.
-with open(MODEL_DIR / 'xgboost_fault_classifier_cpu.pkl', 'rb') as f:
-    xgb_model = pickle.load(f)
-assert all(e.device == 'cpu' for e in xgb_model.estimators_)
-```
-
-**Configs**
-
-``` python
-with open(MODEL_DIR / 'M8_threshold_config.json') as f:
-    threshold_config = json.load(f)
-with open(MODEL_DIR / 'M3_normalization_config.json') as f:
-    norm_config = json.load(f)    # READ-ONLY
-with open(MODEL_DIR / 'fault_rules_v3.json') as f:
-    fault_rules = json.load(f)    # 22-class label map + physics_context strings
-```
-
-**z_t Rolling Buffer --- Level 2 TCN-AE Streaming Input (NEW v4.0)**
-
-``` python
-# Maintains last N_windows z_t vectors (each 64-dim) in memory per call.
-# Each inference call: append new z_t -> feed sequence to TCN-AE Level 2.
-# Min windows before TCN fires : 6  (Glass 1 minimum)
-# Max buffer length             : 20 (sliding window — oldest dropped)
-# Persists across API calls within one container lifecycle.
  
-ZT_BUFFER_MIN = 6
-ZT_BUFFER_MAX = 20
-zt_rolling_buffer = []    # list of np.ndarray shape (64,)
-# Resets on pump restart signal OR /api/acknowledge with channels="all".
-```
-
-**Layer 3 --- CUSUM Runtime State**
-
-``` python
-# Operates on score_B (drift slope from TCN-AE) — NEVER on raw MAE channels.
-# Invariant 19: score_B -> CUSUM ONLY. Never route score_A or score_C here.
-# Formula: S_n = max(0, S_{n-1} + (score_B_n - mu0_B) - k)
-# mu0_B = normal score_B mean (from M8_threshold_config.json)
-# k     = 0.5 x (score_B_cusum_threshold - mu0_B)
-# Control limit H = 5.0
-# PERSISTENT across API calls.
-# Resets ONLY on /api/acknowledge or pump restart.
- 
-cusum_state = {
-    "score_B_Sn": 0.0,
-    "fired": False,
-    "n_consecutive": 0
-}
-cusum_mu0_B = threshold_config["score_B_normal_mean"]
-cusum_k     = 0.5 * (threshold_config["score_B_cusum_threshold"] - cusum_mu0_B)
-CUSUM_CONTROL_LIMIT = 5.0
-```
-
-**Layer 4 --- Adaptive Threshold + Rolling Baseline (NEW v4.0)**
-
-``` python
-# Operates on score_A (severity from TCN-AE) — NEVER on score_B or score_C.
-# Invariant 19: score_A -> rolling baseline ONLY.
-# Adaptive threshold formula:
-#   theta_t = mean(score_A_rolling_buffer) + 3 x std(score_A_rolling_buffer)
-# Updates every 50 seconds (every inference call at 1Hz x 50-step window).
-# 6-hour rolling window = 6 x 3600 / 50 = 432 inference calls.
-# Warmup: theta_t activates after 216 calls (half window).
-# Until warmup complete: M4_THRESHOLD (0.110058) governs Level 1 gate as fallback.
-# NOTE: adaptive theta_t is Level 4 ONLY.
-#       M4_THRESHOLD = 0.110058 remains Level 1 static gate — NEVER changed.
- 
-ROLLING_WINDOW_CALLS  = 432
-score_A_rolling_buffer = []    # list of float, max len = 432
-adaptive_threshold     = 0.110058    # initialised to static threshold at startup
-```
-
-**Physics Context Lookup (NEW v4.0)**
-
-``` python
-# Static lookup table loaded from fault_rules_v3.json at startup.
-# Maps label_int (0–21) -> physics_context dict.
-# NOT ML inference — pure static lookup. Safe for all pump types.
-physics_context_table = {int(k): v for k, v in fault_rules["physics_context"].items()}
-# Structure per label: what, why, timeline, action, if_ignored, disclaimer
-```
-
-------------------------------------------------------------------------
-
-### Score Routing --- Invariant 19 (ENFORCED IN M10 RUNTIME --- NEVER CROSS)
-
-  -----------------------------------------------------------------------
-  Score                   Routes To               Never To
-  ----------------------- ----------------------- -----------------------
-  score_A                 Layer 4 Rolling         CUSUM, XGBoost directly
-                          Baseline only           
-
-  score_B                 Layer 3 CUSUM only      Rolling Baseline,
-                                                  XGBoost directly
-
-  score_C                 XGBoost M7 (as          CUSUM, Rolling Baseline
-                          onset_order / chain     
-                          feature) only           
-  -----------------------------------------------------------------------
-
-> Cross-routing = architecture violation. Any code path routing score_B
-> to rolling baseline, score_A to CUSUM, or either to XGBoost directly =
-> **BLOCK**. Fix before M10 testing begins.
-
-------------------------------------------------------------------------
-
-### API Routes (8 Routes)
-
-#### Route 1 --- POST /api/anomaly_detect
-
-**Purpose:** Real-time anomaly detection on incoming sensor window
-**Input:** JSON or CSV upload --- 50 rows x 8 sensor columns (raw
-values)
-
-**Process:**
-
--   Step 1: Normalize using `M3_normalization_config.json`
-    (cluster-aware)
-
--   Step 2: Detect cluster from M2 KMeans model
-
--   Step 3: Run 4-layer inference protocol **Layer 1 --- M4 LSTM-AE
-    single-window**
-
-        MAE vs M4_THRESHOLD (0.110058 — STATIC, Level 1 only)
-        Output: per-channel MAE (8 values), z_t (64-dim bottleneck vector)
-        Append z_t to zt_rolling_buffer (max len = ZT_BUFFER_MAX = 20)
-
-    **Layer 2 --- TCN-AE Level 2 on z_t sequence**
-
-        Fires when len(zt_rolling_buffer) >= ZT_BUFFER_MIN (6)
-        Input: zt_rolling_buffer as array shape (N_windows, 64)
-        Output:
-          score_A = mean MAE over N_windows (overall severity)
-          score_B = OLS slope of per-window recon error (drift slope)
-          score_C = max delta of consecutive recon errors (chain transition)
-        If buffer < 6 windows: skip Layer 2, set score_A/B/C = None
-
-    **Layer 3 --- CUSUM update on score_B (Invariant 19 --- score_B
-    ONLY)**
-
-        S_n = max(0, S_{n-1} + (score_B - cusum_mu0_B) - cusum_k)
-        cusum_state["score_B_Sn"] = S_n
-        cusum_state["fired"] = (S_n > CUSUM_CONTROL_LIMIT)
-
-    **Layer 4 --- Adaptive threshold update + rolling baseline on
-    score_A**
-
-        Append score_A to score_A_rolling_buffer (max len = 432)
-        If len(buffer) >= 216 (warmup complete):
-          adaptive_threshold = mean(buffer) + 3 x std(buffer)
-        rolling_baseline_alert = (score_A > adaptive_threshold)
-        NOTE: adaptive_threshold updates every 50 seconds automatically.
-
--   Step 4: Fetch `physics_context` from
-    `physics_context_table[predicted_label]`
-
--   Step 5: Return full output dict **Output:**
-
-  --------------------------------------------------------------------------------------------------
-  Field                                       Type                    Description
-  ------------------------------------------- ----------------------- ------------------------------
-  alert_state                                 str                     NORMAL / WATCH / WARN / DANGER
-
-  anomaly_flag                                bool                    ---
-
-  mae_per_channel                             dict channel -\> float  Layer 1
-
-  z_t_norm                                    float                   L2 norm of z_t
-
-  score_A                                     float or None           Layer 2
-
-  score_B                                     float or None           Layer 2
-
-  score_C                                     float or None           Layer 2
-
-  zt_buffer_len                               int                     ---
-
-  cusum_state.score_B_Sn                      float                   ---
-
-  cusum_state.fired                           bool                    ---
-
-  cusum_state.n_consecutive                   int                     ---
-
-  rolling_baseline_alert.score_A_current      float                   ---
-
-  rolling_baseline_alert.adaptive_threshold   float                   ---
-
-  rolling_baseline_alert.alert                bool                    ---
-
-  rolling_baseline_alert.buffer_len           int                     ---
-
-  adaptive_threshold_active                   bool                    False until 216-call warmup
-
-  bearing_wear_gradual_advisory               str or None             "Plan bearing inspection
-                                                                      within 7--14 days." if
-                                                                      cusum_state.fired AND
-                                                                      rolling_baseline_alert.alert =
-                                                                      True AND predicted_label = 21
-
-  physics_context.what                        str                     plain-language fault
-                                                                      description
-
-  physics_context.why                         str                     physical causal mechanism
-
-  physics_context.timeline                    str                     how fast this fault develops
-
-  physics_context.action                      str                     recommended immediate action
-
-  physics_context.if_ignored                  str                     consequence of inaction
-
-  physics_context.disclaimer                  str                     always: Advisory only ---
-                                                                      consult qualified engineer
-
-  limitation_flags                            list of str             applicable limitation IDs from
-                                                                      File 3 registry
-
-  cluster                                     str                     ---
-
-  confidence                                  float                   ---
-
-  uncertainty_std                             float                   MC Dropout N=20, CPU
-
-  commissioning_mode                          bool                    True during first 48h
-  --------------------------------------------------------------------------------------------------
-
-> **Note:** `physics_context` = None if `alert_state = NORMAL`
-
-**CUSUM Reset Rule:** - `cusum_state` resets to 0.0 ONLY on: - (a) POST
-`/api/acknowledge` --- operator confirms action taken - (b) Pump restart
-signal: PresSV drops to near 0 -\> startup cluster detected - Do NOT
-auto-reset on NORMAL windows --- gradual drift MUST accumulate. - Do NOT
-reset on WATCH -\> NORMAL transition --- this destroys the CUSUM signal.
-**ZT Buffer Reset Rule:** - `zt_rolling_buffer` clears ONLY on: - (a)
-POST `/api/acknowledge` with `channels="all"` - (b) Pump restart signal
-detected - Do NOT clear on every API call --- the buffer IS the temporal
-memory. **Scope Check:**
-
-``` python
-if pump_type == 'household': return physics_advisory_only()
-else: run full 4-layer inference
-```
-
-------------------------------------------------------------------------
-
-#### Route 2 --- POST /api/classify_fault
-
-**Purpose:** Classify fault type from feature snapshot (22-class, labels
-0--21) **Input:** JSON --- \~35 feature values (M6.5r feature set, label
-excluded). Feature order: same as `M6B_feature_matrix.csv` (all columns
-except label_int). `score_C` must be included in input features
-(Invariant 19 routing). OR: raw 50-step window -\> run Layer 1 + Layer 2
-inference on-the-fly.
-
-**Process:** 1. If raw window: run Layer 1 + Layer 2 -\> extract \~35
-features 2. Run M7 22-class XGBoost (device='cpu') 3. get
-`predict_proba` -\> probability array over 22 classes (labels 0--21) 4.
-Apply Stage 1/2/3 progressive confidence logic (threshold=0.75) 5. Map
-`label_int` -\> fault name via `fault_rules_v3.json` 6. Map compound
-label (7--12) -\> causal chain string for UI 7. Run SHAP TreeExplainer
-on X_input -\> top-3 features per predicted fault 8. Fetch
-`physics_context` from `physics_context_table[predicted_label]` \> All
-stages output includes `physics_context` (same structure as Route 1) and
-`limitation_flags` (list of applicable limitation IDs).
-
-**Stage 1 output** (primary_conf \< 0.50)
-
-  Field              Value
-  ------------------ ----------------------------------------------
-  stage              1
-  message            "Minor anomaly --- multiple causes possible"
-  top3_candidates    list of (fault_name, prob)
-  action             "Monitor all channels closely"
-  physics_context    physics_context_table\[top_candidate_label\]
-  limitation_flags   list of str
-
-**Stage 2 output** (0.50 \<= primary_conf \< 0.75)
-
-  ------------------------------------------------------------------------------
-  Field                               Value
-  ----------------------------------- ------------------------------------------
-  stage                               2
-
-  message                             "Probable fault: \<n\> (XX%)"
-
-  secondary_faults                    dict fault_name -\> prob (all labels with
-                                      prob \> 0.30)
-
-  action                              "Schedule inspection within 48h"
-
-  physics_context                     physics_context_table\[predicted_label\]
-
-  limitation_flags                    list of str
-  ------------------------------------------------------------------------------
-
-**Stage 3 output** (primary_conf \>= 0.75)
-
-  Field              Value
-  ------------------ ------------------------------------------
-  stage              3
-  message            "CONFIRMED: \<n\> (XX%)"
-  secondary_faults   dict fault_name -\> prob
-  fault_stage        early / developing / advanced
-  shap_top3          list of dict (feature, value, direction)
-  physical_meaning   str
-  action             urgency string based on fault_stage
-  causal_chain       str or None (Group B labels 7--12)
-  physics_context    physics_context_table\[predicted_label\]
-  limitation_flags   list of str
-
-**Compound Fault Label Map (Group B --- single integer -\> causal chain
-display)**
-
-  Label   Primary              Secondary
-  ------- -------------------- --------------
-  7       bearing_wear         overloading
-  8       cavitation           seal_failure
-  9       impeller_imbalance   bearing_wear
-  10      seal_failure         cavitation
-  11      overloading          bearing_wear
-  12      impeller_imbalance   cavitation
-
-*Source: `fault_rules_v3.json` (written by M6B Step 3 ---
-authoritative)*
-
-**Scope Check:**
-
-``` python
-if pump_type == 'household': return physics_advisory_only()
-```
-
-------------------------------------------------------------------------
-
-#### Route 3 --- POST /api/select_pump
-
-**Purpose:** Industrial pump sizing and selection **Input:** JSON ---
-`flow_rate_m3h`, `total_head_m`, `fluid_density`, `fluid_temp_c`,
-`suction_head_m`, `pipe_length_m`, `pipe_diameter_m` **Process:** M9
-industrial pump selector (physics only) **Output:** Full M9 industrial
-output dict **No ML:** Pure physics --- no model inference
-
-------------------------------------------------------------------------
-
-#### Route 4 --- GET /api/household
-
-**Purpose:** Household pump advisory **Input:** Query params ---
-`usage_type`, `daily_demand_lph`, `static_head_m`, `pipe_length_m`,
-`pipe_diameter_mm` **Process:** M9 household advisor (physics only)
-**Output:** M9 household output dict + `advisory_disclaimer` always
-appended **No ML:** `physics_advisory_only()` --- scope boundary
-enforced **UI label:** "Advisory guidance only --- not a monitoring
-tool"
-
-------------------------------------------------------------------------
-
-#### Route 5 --- POST /api/acknowledge
-
-**Purpose:** Operator acknowledgement --- resets CUSUM + z_t buffer +
-rolling baseline state after maintenance action confirmed
-
-**Input:**
-
-  Field          Type                   Description
-  -------------- ---------------------- ---------------------------------
-  channels       list of str OR "all"   ---
-  pump_id        str                    ---
-  action_taken   str                    free text --- maintenance notes
-
-**Process:**
-
-``` python
-if channels == "all":
-    cusum_state["score_B_Sn"] = 0.0
-    cusum_state["fired"]      = False
-    zt_rolling_buffer.clear()
-    score_A_rolling_buffer.clear()
-    adaptive_threshold reset to M4_THRESHOLD  # warmup restarts
+```python
+# Enforced in M10 FastAPI Route 3 + Route 4
+if pump_type == 'household':
+    return physics_advisory_only()   # NO ML inference
 else:
-    # Reset only specified channel accumulators (partial ACK)
-    pass
-# Log acknowledgement with timestamp and action_taken text.
+    return ml_prediction()           # routes to M8 + M7 stack
 ```
-
-**Output:**
-
-  Field                      Type
-  -------------------------- -------------
-  acknowledged_channels      list of str
-  cusum_reset                True
-  zt_buffer_reset            True
-  rolling_baseline_reset     True
-  adaptive_threshold_reset   bool
-  timestamp                  str
-
-**Access:** Production UI --- operator must explicitly trigger. Do NOT
-auto-call from anomaly_detect route.
-
-------------------------------------------------------------------------
-
-#### Route 6 --- POST /api/validate_model
-
-**Purpose:** M12 adversarial validation entry point **Input:** JSON ---
-`config_id` (1--16), sequence data OR auto-generate flag **Process:**
-Trigger M12 validation suite for specified config
-
-**Output:**
-
-  Field           Type
-  --------------- -----------------
-  config_id       int
-  alert_state     str
-  detection_lag   int (timesteps)
-  gate_pass       bool
-  details         str
-
-**Access:** Internal only --- not exposed in production UI
-
-------------------------------------------------------------------------
-
-#### Route 7 --- GET /health
-
-**Purpose:** Docker / Hugging Face health check
-
-**Output:**
-
-  Field                Value
-  -------------------- --------------------------------------------------------
-  status               healthy
-  models_loaded        \[lstm_ae_l1, tcn_ae_l2, xgboost_22class, m9_physics\]
-  device               cpu
-  version              4.0
-  cusum_active         true
-  tcn_ae_active        true
-  zt_buffer_len        int (current buffer depth)
-  adaptive_threshold   float (current theta_t value)
-  n_fault_classes      22
-  commissioning_mode   bool
-
-*Used by: Docker HEALTHCHECK + Hugging Face Spaces liveness probe*
-
-------------------------------------------------------------------------
-
-#### Route 8 --- GET /api/physics_context (NEW v4.0)
-
-**Purpose:** Return plain-language fault description for any label
-(0--21). Useful for UI tooltip, operator training, standalone lookup.
-**Input:** Query param --- `label=<int>` (0--21) OR `label="all"` -\>
-return full table for all 22 classes **Process:** Static lookup in
-`physics_context_table`. Loaded at startup from `fault_rules_v3.json`.
-NOT ML inference --- safe for all pump types.
-
-**Output:**
-
-  -----------------------------------------------------------------------
-  Field                   Type                    Description
-  ----------------------- ----------------------- -----------------------
-  label_int               int                     ---
-
-  label_str               str                     ---
-
-  what                    str                     plain-language fault
-                                                  description
-
-  why                     str                     physical causal
-                                                  mechanism --- pump
-                                                  physics
-
-  timeline                str                     how fast this fault
-                                                  develops --- seconds to
-                                                  weeks
-
-  action                  str                     recommended immediate
-                                                  action
-
-  if_ignored              str                     consequence of inaction
-                                                  --- physical outcome
-
-  disclaimer              str                     always: Advisory only
-                                                  --- consult qualified
-                                                  engineer
-  -----------------------------------------------------------------------
-
-**Example --- Label 10 (seal_failure -\> cavitation):**
-
-    label_int  : 10
-    label_str  : seal_failure -> cavitation
-    what       : Mechanical seal degrading, allowing internal leakage that
-                 reduces net suction head. NPSHa is approaching NPSHr.
-    why        : Seal gap (A_gap) allows Q_leak = Cd x A_gap x sqrt(2*delta_P/rho).
-                 Leakage shifts operating point left on Q-H curve, raising
-                 recirculation head losses until NPSHa < NPSHr.
-    timeline   : Full progression: 300s seal phase + 400–800s hydraulic lag +
-                 60s cavitation onset. Total: 760–1160 seconds at 40 bar.
-    action     : Reduce pump speed immediately. Inspect mechanical seal faces.
-                 Check suction pressure. Do not restart until seal replaced.
-    if_ignored : Impeller cavitation damage within 60–180s of NPSHa crossing NPSHr.
-                 Bubble collapse at 7-stage impeller tips causes pitting and
-                 catastrophic efficiency loss.
-    disclaimer : Advisory only — consult qualified engineer before action.
-
-**Access:** Public --- exposed in production UI as fault tooltip and
-operator guide. No authentication required. Read-only static lookup.
-
-------------------------------------------------------------------------
-
-### 4-State Alert UI Rendering
-
-#### NORMAL
-
--   **Condition:** score_A \< adaptive_threshold, CUSUM S_n \< 1.0, no
-    rolling alert
--   **Display:** "System operating within normal parameters"
--   **Colour:** 🟢 Green
--   **Action:** None
--   **Note:** If adaptive_threshold not yet active (warmup incomplete),
-    Level 1 static threshold (0.110058) governs NORMAL gate. \#### WATCH
--   **Condition:** score_A rising OR CUSUM S_n rising OR rolling
-    baseline drift
--   **Display:** "Early anomaly trend detected --- monitor closely"
--   **Colour:** 🟡 Yellow
--   **Details shown:**
-    -   score_A current value vs adaptive_threshold
-    -   zt_buffer_len (how many windows in memory)
-    -   score_B trend (CUSUM S_n rising)
-    -   Stage 2 classify_fault: probable fault + secondary candidates
-    -   physics_context for probable fault (plain language)
-    -   Limitation flags applicable to this prediction
-    -   CUSUM panel: if cusum_state.fired = True -\> show S_n and
-        n_consecutive **BEARING WEAR GRADUAL (label 21) --- WATCH
-        display:**
--   **Trigger:** CUSUM S_n(score_B) \> 3.0 AND
-    rolling_baseline_alert.alert = True
--   **Display:** "Warning: Gradual bearing wear trend detected" / "CUSUM
-    accumulator S_n = X.X (control limit = 5.0)" / "Adaptive threshold:
-    theta_t = X.XXXX (static was 0.110058)"
--   **Advisory:** "Plan bearing inspection within 7--14 days."
--   **Note:** Level 1 MAE will be BELOW threshold --- this is EXPECTED.
-    CUSUM (score_B) + Rolling Baseline (score_A) are the PRIMARY
-    detection path for label 21. Do NOT treat sub-threshold Level 1 MAE
-    as a false alarm for this class. \#### WARN
--   **Condition:** score_A \> adaptive_threshold sustained, score_B
-    slope positive
--   **Display:** "Sustained anomaly --- schedule maintenance inspection"
--   **Colour:** 🟠 Orange
--   **Details shown:**
-    -   Estimated time to DANGER at current score_A trend rate
-    -   Stage 2 classify_fault: probable primary fault
-    -   Secondary fault candidates (compound fault visible here)
-    -   SHAP top-3 feature explanation (Stage 2 or 3)
-    -   physics_context for primary predicted fault
-    -   Limitation flags \#### DANGER
--   **Condition:** score_A \>\> adaptive_threshold OR CUSUM S_n \> 5.0
-    OR Level 1 MAE \> 0.110058
--   **Display:** "Fault confirmed --- immediate maintenance action
-    required"
--   **Colour:** 🔴 Red
--   **Details shown:**
-    -   Stage 3 classify_fault (always at DANGER)
-    -   PRIMARY fault: confirmed name + confidence %
-    -   SECONDARY faults: compound pair shown if prob \> 0.30
-    -   fault_stage: early / developing / advanced
-    -   causal_chain string for Group B labels (7--12)
-    -   SHAP top-3 feature explanation
-    -   physics_context (full --- what/why/timeline/action/if_ignored)
-    -   Limitation flags (all applicable)
-    -   MC Dropout uncertainty_std
-    -   score_C value shown for Group B: "Chain transition confirmed at
-        window N" **CAVITATION DANGER specific display:**
-
-    ```{=html}
-    <!-- -->
-    ```
-        "CAVITATION DETECTED — STOP PUMP IMMEDIATELY"
-        "Impeller damage risk within 60–180 seconds of continued operation"
-        "Check inlet valve, suction line, and NPSH conditions before restart"
-        physics_context for label 3 or label 10 (as applicable)
-        Stage 3 output always fires for cavitation
-
-**COMPOUND FAULT display example (label 10: seal_failure -\>
-cavitation):**
-
-    PRIMARY  : seal_failure (84%)
-    SECONDARY: cavitation (79%) — NPSHa crossed NPSHr after hydraulic lag
-    CHAIN    : seal_failure -> cavitation
-    score_C  : Chain transition detected at window 13 of 18
-    ACTION   : Shutdown immediately — seal replacement + impeller inspection required
-    PHYSICS  : physics_context.what + physics_context.timeline
-
-------------------------------------------------------------------------
-
-### Physics Context Layer --- Per-Alert Limitation Flags (NEW v4.0)
-
-Every industrial alert (WATCH / WARN / DANGER) carries a
-`limitation_flags` list. Source: File 3
-(`module_M8_lstm_ae_v2_architecture.md`) Limitation Registry.
-
-#### Limitation IDs Displayed in UI
-
-  -----------------------------------------------------------------------
-  ID                                  Description
-  ----------------------------------- -----------------------------------
-  L1_single_installation              "Trained on 1 CIRA installation.
-                                      Sensor placement must follow ISO
-                                      13373. Verify calibration on your
-                                      specific installation."
-
-  L2_no_rul                           "No Remaining Useful Life estimate.
-                                      timeline field is physics-based
-                                      approximation only."
-
-  L3_static_threshold                 "Level 1 threshold (0.110058) may
-                                      drift false-positive over pump
-                                      lifespan. Adaptive threshold (Level
-                                      4) compensates but requires 6hr
-                                      warmup on new installation."
-
-  L4_synthetic_domain                 "Compound and masked fault data is
-                                      physics-synthetic. Real compound
-                                      fault characteristics may differ
-                                      from training distribution."
-
-  L5_label21_early                    "Gradual bearing wear (label 21)
-                                      detection relies on CUSUM
-                                      accumulation (score_B). Early-stage
-                                      S_n \< 3.0 may not yet trigger
-                                      WATCH. Continue monitoring."
-
-  L6_confidence_proxy                 "MC Dropout uncertainty_std is a
-                                      confidence proxy only. Not a
-                                      calibrated probability interval."
-  -----------------------------------------------------------------------
-
-#### Which Flags Appear Per Alert
-
-  Alert Level              Flags
-  ------------------------ ---------------------------------------------------------------
-  WATCH                    L3_static_threshold, L5_label21_early (if label 21)
-  WARN                     L3_static_threshold, L4_synthetic_domain, L6_confidence_proxy
-  DANGER                   All applicable --- determined by predicted label group
-  Group B labels (7--12)   L4_synthetic_domain always included
-  Label 21                 L5_label21_early always included
-
-------------------------------------------------------------------------
-
-### Mandatory Disclaimers (before ANY industrial inference --- all 3 required)
-
-**Disclaimer 1 --- Model Scope** \> "This model is trained on CIRA SACIP
-dataset (1 specific installation). Sensor placement must follow ISO
-13373 guidelines. r=0.9793 coupling between Mot.TV and Temp.SV is
-installation-specific. Model outputs are advisory --- consult a
-qualified engineer before action."
-
-**Disclaimer 2 --- Sensor Dependency** \> "Inference quality depends
-entirely on sensor hardware integrity. Sensor malfunction or
-miscalibration will affect model output. Verify sensor health
-independently before acting on any alert."
-
-**Disclaimer 3 --- Safety System Boundary** \> "PumpSmart is a condition
-monitoring tool (ISO 13374 Level 3). It is NOT a Safety Instrumented
-System (SIS) per IEC 61511. Hardwired process trips remain the primary
-safety barrier. PumpSmart alerts are advisory and do not replace
-hardwired protection."
-
-------------------------------------------------------------------------
-
-### M10 Local Testing Protocol (15 Tests)
-
-Before pushing to M11, verify locally:
-
-**Core Routes**
-
-  -----------------------------------------------------------------------
-  Test                    Description             Expected
-  ----------------------- ----------------------- -----------------------
-  Test 1                  `flask run`             server starts without
-                                                  error
-
-  Test 2                  GET /health             models_loaded =
-                                                  \[lstm_ae_l1,
-                                                  tcn_ae_l2,
-                                                  xgboost_22class,
-                                                  m9_physics\],
-                                                  tcn_ae_active = true,
-                                                  cusum_active = true,
-                                                  n_fault_classes = 22,
-                                                  version = "4.0"
-  -----------------------------------------------------------------------
-
-**Anomaly Detection --- Layer 1**
-
-  -----------------------------------------------------------------------
-  Test                    Description             Expected
-  ----------------------- ----------------------- -----------------------
-  Test 3                  POST                    alert_state = NORMAL
-                          /api/anomaly_detect -\> 
-                          normal window           
-
-  Test 4                  POST                    alert_state = DANGER
-                          /api/anomaly_detect -\> 
-                          known hard fault        
-
-  Test 5                  POST                    alert_state = WATCH or
-                          /api/anomaly_detect -\> WARN
-                          mild fault              
-  -----------------------------------------------------------------------
-
-**Anomaly Detection --- Layer 2 TCN-AE z_t Buffer (NEW)**
-
-  ---------------------------------------------------------------------------
-  Test                    Description             Expected
-  ----------------------- ----------------------- ---------------------------
-  Test 6                  Send 7 consecutive      zt_buffer_len must reach 7;
-                          windows (same mild      score_A, score_B, score_C
-                          fault)                  must be non-None from call
-                                                  6 onward;
-                                                  adaptive_threshold_active =
-                                                  False (warmup not yet done
-                                                  --- expected); all 3 scores
-                                                  present in output JSON
-
-  ---------------------------------------------------------------------------
-
-**Anomaly Detection --- Layers 3+4 CUSUM and Rolling Baseline**
-
-  -----------------------------------------------------------------------------------
-  Test                    Description             Expected
-  ----------------------- ----------------------- -----------------------------------
-  Test 7                  Simulate 40 consecutive cusum_state\["score_B_Sn"\] must
-                          label-21 windows        rise above 0 across calls;
-                          (severity=0.15)         rolling_baseline_alert\["alert"\] =
-                                                  True after \~30 windows;
-                                                  bearing_wear_gradual_advisory =
-                                                  "Plan bearing inspection within
-                                                  7--14 days."; alert_state = WATCH
-                                                  (NOT DANGER --- Level 1 MAE below
-                                                  0.110058 --- expected)
-
-  Test 8                  POST /api/acknowledge   cusum_state\["score_B_Sn"\] resets
-                          -\> channels="all"      to 0.0; zt_buffer_len resets to 0;
-                                                  adaptive_threshold reset confirmed
-                                                  in /health response
-  -----------------------------------------------------------------------------------
-
-**Fault Classification --- 22-Class**
-
-  -----------------------------------------------------------------------
-  Test                    Description             Expected
-  ----------------------- ----------------------- -----------------------
-  Test 9                  POST                    Stage 3, label=3
-                          /api/classify_fault -\> 
-                          cavitation features     
-
-  Test 10                 POST                    Stage 1 or 2
-                          /api/classify_fault -\> 
-                          overloading mild        
-
-  Test 11                 POST                    Stage 3, label=10,
-                          /api/classify_fault -\> causal_chain =
-                          compound                "seal_failure -\>
-                          seal+cavitation (label  cavitation"; score_C
-                          10)                     present in input
-                                                  features and top SHAP
-                                                  feature;
-                                                  secondary_faults
-                                                  populated
-  -----------------------------------------------------------------------
-
-**Physics Context (NEW)**
-
-  ----------------------------------------------------------------------------------------------------------
-  Test                    Description                      Expected
-  ----------------------- -------------------------------- -------------------------------------------------
-  Test 12                 GET                              Response contains
-                          /api/physics_context?label=10    what/why/timeline/action/if_ignored/disclaimer;
-                                                           if_ignored contains reference to NPSHa/NPSHr
-                                                           crossing
-
-  Test 13                 GET                              22 entries returned, labels 0--21 all present
-                          /api/physics_context?label=all   
-  ----------------------------------------------------------------------------------------------------------
-
-**Physics Tools**
-
-  Test      Description                                  Expected
-  --------- -------------------------------------------- ---------------------------------------
-  Test 14   POST /api/select_pump -\> nameplate inputs   motor = 110 kW
-  Test 15   GET /api/household                           advisory_disclaimer present in output
-
-**Scope Boundary --- verify across all tests:** - All industrial routes:
-3 disclaimers visible before inference - Household route:
-`physics_advisory_only()` fires, no ML model called - All
-WATCH/WARN/DANGER alerts: `limitation_flags` non-empty in response - All
-WATCH/WARN/DANGER alerts: `physics_context` non-null in response ---
-
-### M10 Outputs
-
-    app/
-      app.py
-      routes/
-        anomaly.py      <- /api/anomaly_detect  (4-layer inference, score routing)
-        classify.py     <- /api/classify_fault  (22-class, Stage 1/2/3, causal chain)
-        selector.py     <- /api/select_pump + /api/household
-        acknowledge.py  <- /api/acknowledge     (CUSUM + z_t + rolling baseline reset)
-        validate.py     <- /api/validate_model
-        health.py       <- /health
-        physics.py      <- /api/physics_context (NEW v4.0 — static lookup, 22 classes)
-      runtime/
-        cusum_state.py      <- CUSUM S_n on score_B — persistent state class
-        rolling_state.py    <- score_A rolling buffer + adaptive threshold updater
-        zt_buffer.py        <- z_t rolling buffer for TCN-AE streaming (NEW v4.0)
-        physics_context.py  <- static lookup loader from fault_rules_v3.json (NEW v4.0)
-      templates/
-        index.html      <- main dashboard (4-state UI, CUSUM panel, physics context)
-        household.html  <- household advisor UI
-        selector.html   <- industrial selector UI
-      static/
-        style.css
-        dashboard.js
-    outputs/reports/module_10_flask_app_report.md
-
+ 
+### Routing (T2-3 — Physical Envelope — NEVER string-based)
+ 
+```python
+def route_pump(power_kW: float, head_m: float,
+               stages: int, pressure_bar: float) -> str:
+    is_industrial = (power_kW >= 30 and head_m >= 80
+                     and stages >= 3 and pressure_bar >= 8)
+    if is_industrial:
+        return 'industrial_ml_pipeline'
+    elif power_kW <= 5 and stages == 1 and pressure_bar <= 5:
+        return 'household_physics_advisory'
+    else:
+        return 'OUT_OF_SCOPE'   # 5–30 kW commercial gap — explicit refusal
+```
+ 
+### Validated Physics (M9 locked outputs)
+ 
+| Parameter | Value | Status |
+|---|---|---|
+| P_hydraulic | 55.181 kW | PASS (expect ~55.2) |
+| Motor | 110 kW IEC | PASS |
+| Ns | 26.41 (m³/min convention) | PASS (radial < 50) |
+| Pump type | multistage_centrifugal | PASS |
+| H/stage | 64.29 m | PASS |
+| Water hammer ΔP | 30 bar → 70 bar transient | PASS |
+| Cavitation flag | Fires at NPSHa < NPSHr + 0.5 m | PASS |
+| Affinity laws | Q₂/Q₁=N₂/N₁, H₂/H₁=(N₂/N₁)² | PASS |
+ 
+---
+ 
+## M10 — FastAPI Application
+ 
+**Status: IN DEVELOPMENT — UNBLOCKED**
+ 
+### FastAPI Application Structure
+ 
+```
+app/
+  main.py               <- FastAPI app instance, lifespan, startup model loading
+  routers/
+    anomaly.py          <- POST /api/anomaly_detect  (4-layer inference, score routing)
+    classify.py         <- POST /api/classify_fault  (22-class XGBoost, causal chain)
+    selector.py         <- POST /api/select_pump + GET /api/household
+    acknowledge.py      <- POST /api/acknowledge     (CUSUM + z_t + rolling reset)
+    validate.py         <- GET  /api/validate_model
+    health.py           <- GET  /health
+    physics.py          <- GET  /api/physics_context (static lookup, 22 classes)
+    websocket.py        <- WS   /ws/live_alerts      (optional — Tier 3 shadow UI)
+  runtime/
+    cusum_state.py      <- CUSUM S_n on score_B — async-safe persistent state class
+    rolling_state.py    <- score_A rolling buffer + adaptive threshold updater
+    zt_buffer.py        <- z_t rolling buffer for TCN-AE streaming
+    physics_context.py  <- static lookup loader from fault_rules_v3.json
+    model_registry.py   <- all model loading in lifespan — single source of truth
+  schemas/
+    sensor_input.py     <- Pydantic BaseModel: SensorWindow(8 float channels × 50 steps)
+    fault_output.py     <- Pydantic BaseModel: FaultPrediction(7 mandatory fields)
+    selector_input.py   <- Pydantic BaseModel: PumpSpec(flow, head, density, temp, ...)
+    household_input.py  <- Pydantic BaseModel: HouseholdSpec(usage_type, demand, ...)
+  templates/
+    index.html          <- main dashboard (4-state UI, CUSUM panel, physics context)
+    household.html      <- household advisor UI
+    selector.html       <- industrial selector UI
+  static/
+    style.css
+    dashboard.js        <- async fetch() for continuous 1 Hz sensor polling
+outputs/reports/module_10_fastapi_app_report.md
+```
+ 
+### FastAPI App Entry Point (`app/main.py`)
+ 
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from app.routers import anomaly, classify, selector, acknowledge, validate, health, physics
+from app.runtime.model_registry import load_all_models
+from app.runtime.cusum_state import CUSUMState
+from app.runtime.rolling_state import RollingState
+from app.runtime.zt_buffer import ZTBuffer
+ 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP — load all models once, store in app.state
+    app.state.models = load_all_models()        # M4 LSTM-AE + TCN-AE + XGBoost
+    app.state.cusum  = CUSUMState()             # CUSUM S_n — score_B ONLY (Invariant 19)
+    app.state.rolling = RollingState()          # rolling score_A — Layer 4 (Invariant 19)
+    app.state.zt_buf  = ZTBuffer()              # z_t streaming buffer — Layer 2 input
+    yield
+    # SHUTDOWN — clean up (optional)
+ 
+app = FastAPI(
+    title="PumpSmart v14.2 — Industrial Pump Health Monitor",
+    version="5.0",
+    lifespan=lifespan,
+)
+ 
+app.include_router(health.router)
+app.include_router(anomaly.router,    prefix="/api")
+app.include_router(classify.router,   prefix="/api")
+app.include_router(selector.router,   prefix="/api")
+app.include_router(acknowledge.router,prefix="/api")
+app.include_router(validate.router,   prefix="/api")
+app.include_router(physics.router,    prefix="/api")
+ 
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+```
+ 
+### Pydantic Sensor Input Schema (`app/schemas/sensor_input.py`)
+ 
+```python
+from pydantic import BaseModel, Field, validator
+from typing import List
+ 
+class SensorWindow(BaseModel):
+    """
+    Single 50-step window of 8 normalised sensor channels.
+    Order (LOCKED from M6B): Mot.SV, Pmp.SV, Mot.TV, Pmp.PV,
+                              Temp.SV, Pres.SV, Pmp.TV, Mot.PV
+    Values must be cluster-normalised (M3 config) before submission.
+    Raw sensor values are NEVER fed directly — physics invariant.
+    """
+    window: List[List[float]] = Field(
+        ...,
+        description="50 timesteps × 8 channels, cluster-normalised",
+    )
+    pump_id: str = Field(default="pump_001")
+    cluster: str = Field(default="steady_state",
+                         description="startup|steady_state|high_load|cooldown")
+ 
+    @validator('window')
+    def check_shape(cls, v):
+        assert len(v) == 50, f"Expected 50 timesteps, got {len(v)}"
+        assert all(len(row) == 8 for row in v), "Each timestep must have 8 channels"
+        return v
+```
+ 
+### Pydantic Fault Output Schema (`app/schemas/fault_output.py`)
+ 
+```python
+from pydantic import BaseModel
+from typing import List, Optional, Dict
+ 
+class FaultPrediction(BaseModel):
+    """
+    Mandatory 7-field output — NEVER reduce to fewer fields.
+    All 7 fields required in every non-normal prediction.
+    """
+    fault_label: str                        # Field 1: specific class name
+    confidence_pct: float                   # Field 2: M7 predict_proba max
+    unknown_fault_flag: bool                # Field 2b: True if confidence < 70%
+    probable_physical_condition: str        # Field 3: what is happening inside
+    expected_sensor_behavior: str          # Field 4: trajectory if correct
+    operational_risk_if_ignored: str       # Field 5: consequence timeline
+    recommended_action: str                # Field 6: specific, sequenced steps
+    model_limitation_disclaimer: str       # Field 7: MANDATORY — never omit
+ 
+    # Additional M10 v5.0 fields
+    alert_state: str                       # NORMAL|WATCH|WARN|DANGER
+    score_A: float                         # TCN-AE severity (Layer 4 routing)
+    score_B: float                         # TCN-AE drift slope (Layer 3 routing)
+    score_C: float                         # TCN-AE chain transition (M7 routing)
+    cusum_Sn: float                        # Current CUSUM accumulator value
+    adaptive_threshold: float              # Current θ_t
+    physics_context: Optional[Dict]        # from fault_rules_v3.json
+    causal_chain: Optional[str]            # Group B labels only
+    limitation_flags: List[str]            # per-alert known limitations
+    ood_suspected: bool                    # Mahalanobis > tau_p99
+```
+ 
+### Route Definitions (8 routes)
+ 
+```python
+# Route 1 — POST /api/anomaly_detect
+# Input:  SensorWindow (50-step × 8-channel normalised)
+# Output: FaultPrediction (7-field mandatory)
+# Process: M4 LSTM-AE → z_t → TCN-AE → score_A/B/C → L3 CUSUM → L4 adaptive θ
+#          → OOD check → XGBoost classify → 7-field render
+# INVARIANT 19: score_A → L4 ONLY | score_B → CUSUM ONLY | score_C → XGBoost ONLY
+ 
+@router.post("/anomaly_detect", response_model=FaultPrediction)
+async def anomaly_detect(window: SensorWindow, request: Request):
+    ...
+ 
+# Route 2 — POST /api/classify_fault
+# Input:  SensorWindow
+# Output: FaultPrediction (Stage 1/2/3 label, causal chain for Group B)
+# Scope:  if pump_type == 'household': return physics_advisory_only()
+ 
+@router.post("/classify_fault", response_model=FaultPrediction)
+async def classify_fault(window: SensorWindow, request: Request):
+    ...
+ 
+# Route 3 — POST /api/select_pump
+# Input:  PumpSpec (flow_rate_m3h, total_head_m, fluid_density, fluid_temp_c,
+#                   suction_head_m, pipe_length_m, pipe_diameter_m)
+# Output: industrial_pump_selector() output dict
+# Process: M9 physics — NO ML inference
+ 
+@router.post("/select_pump")
+async def select_pump(spec: PumpSpec):
+    ...
+ 
+# Route 4 — GET /api/household
+# Input:  HouseholdSpec (usage_type, daily_demand_lph, static_head_m,
+#                        pipe_length_m, pipe_diameter_mm)
+# Output: household_physics_advisory() dict + advisory_disclaimer always present
+# Process: M9 physics ONLY — ZERO ML inference
+# UI label: "Advisory guidance only — not a monitoring tool"
+ 
+@router.get("/household")
+async def household_advisory(spec: HouseholdSpec = Depends()):
+    ...
+ 
+# Route 5 — POST /api/acknowledge
+# Input:  AcknowledgeRequest(channels: list|"all", pump_id: str, action_taken: str)
+# Process: Reset CUSUM S_n, z_t buffer, rolling score_A buffer
+#          Log with timestamp + action_taken text
+# INVARIANT: CUSUM resets ONLY on confirmed maintenance — NEVER on threshold update
+ 
+@router.post("/acknowledge")
+async def acknowledge(ack: AcknowledgeRequest, request: Request):
+    ...
+ 
+# Route 6 — GET /api/validate_model
+# Output: model hash verification against M9_selector_config.json
+# Gate: all model files present + SHA-256 match
+ 
+@router.get("/validate_model")
+async def validate_model(request: Request):
+    ...
+ 
+# Route 7 — GET /health
+# Output: {"status":"healthy","version":"5.0",
+#          "models_loaded":["lstm_ae_l1","tcn_ae_l2","xgboost_22class","m9_physics"],
+#          "tcn_ae_active":true, "cusum_active":true,
+#          "zt_buffer_len": N, "adaptive_threshold": θ_t,
+#          "commissioning_mode": false}
+ 
+@router.get("/health")
+async def health_check(request: Request):
+    ...
+ 
+# Route 8 — GET /api/physics_context?label={0-21}
+# Output: static lookup from fault_rules_v3.json
+#         {what, why, timeline, action, if_ignored, disclaimer}
+# NOT ML inference — pure static dict lookup
+ 
+@router.get("/physics_context")
+async def physics_context(label: int, request: Request):
+    ...
+```
+ 
+### Score Routing — Invariant 19 (ENFORCED IN M10 RUNTIME — NEVER CROSS)
+ 
+| Score | Routes To | Never To |
+|---|---|---|
+| score_A | Layer 4 Rolling Baseline ONLY → `rolling_state.update(score_A)` | CUSUM, XGBoost |
+| score_B | Layer 3 CUSUM ONLY → `cusum_state.update(score_B)` | Rolling Baseline, XGBoost |
+| score_C | XGBoost M7 feature ONLY → `xgb_model.predict_proba(features)` | CUSUM, Rolling Baseline |
+ 
+Cross-routing is an architecture violation. Enforced in `app/routers/anomaly.py`.
+ 
+### Layer 3 — CUSUM Runtime State (`app/runtime/cusum_state.py`)
+ 
+```python
+import asyncio
+ 
+class CUSUMState:
+    """
+    Thread-safe async CUSUM accumulator for score_B (drift slope).
+    Invariant 19: score_B → CUSUM ONLY.
+    Resets ONLY on confirmed maintenance (/api/acknowledge).
+    NEVER resets on adaptive threshold update — C-25 Adaptive Threshold Paradox.
+    Formula: S_n = max(0, S_{n-1} + (score_B_n - mu0_B) - k)
+    """
+    def __init__(self):
+        self._Sn       = 0.0
+        self._fired    = False
+        self._lock     = asyncio.Lock()
+ 
+    async def update(self, score_B: float, mu0_B: float,
+                     k: float, H: float = 5.0) -> dict:
+        async with self._lock:
+            self._Sn = max(0.0, self._Sn + (score_B - mu0_B) - k)
+            if self._Sn > H:
+                self._fired = True
+            return {"Sn": self._Sn, "fired": self._fired}
+ 
+    async def reset(self):
+        async with self._lock:
+            self._Sn    = 0.0
+            self._fired = False
+```
+ 
+### Layer 4 — Adaptive Threshold (`app/runtime/rolling_state.py`)
+ 
+```python
+import asyncio
+import numpy as np
+ 
+class RollingState:
+    """
+    score_A rolling buffer + adaptive threshold θ_t.
+    Invariant 19: score_A → Rolling Baseline ONLY.
+    θ_t = μ_rolling(6hr) + 3σ_rolling(6hr)
+    Updates every inference call (50 seconds of pump data at 1 Hz).
+    6-hour window = 432 calls. Warmup = 216 calls.
+    Crosspoint guard: θ_t > 1.5 × θ_initial → LOCK + DRIFT ALERT.
+    NEVER modifies CUSUM state — the two operate in parallel (C-25).
+    """
+    ROLLING_WINDOW = 432
+    WARMUP_CALLS   = 216
+    CROSSPOINT_GUARD = 1.5
+ 
+    def __init__(self, theta_initial: float = 0.110058):
+        self._buffer        = []
+        self._theta_initial = theta_initial
+        self._theta_t       = theta_initial
+        self._locked        = False
+        self._lock          = asyncio.Lock()
+ 
+    async def update(self, score_A: float) -> dict:
+        async with self._lock:
+            self._buffer.append(score_A)
+            if len(self._buffer) > self.ROLLING_WINDOW:
+                self._buffer.pop(0)
+            if len(self._buffer) >= self.WARMUP_CALLS and not self._locked:
+                arr = np.array(self._buffer)
+                new_theta = float(arr.mean() + 3 * arr.std())
+                if new_theta > self.CROSSPOINT_GUARD * self._theta_initial:
+                    self._locked  = True
+                    self._theta_t = self._theta_initial * self.CROSSPOINT_GUARD
+                    return {"theta_t": self._theta_t, "drift_alert": True,
+                            "locked": True}
+                self._theta_t = new_theta
+            return {"theta_t": self._theta_t, "drift_alert": False,
+                    "locked": self._locked}
+ 
+    async def reset(self):
+        async with self._lock:
+            self._buffer  = []
+            self._theta_t = self._theta_initial
+            self._locked  = False
+```
+ 
+### Model Loading in Lifespan (`app/runtime/model_registry.py`)
+ 
+```python
+import torch
+import xgboost as xgb
+import json
+from pathlib import Path
+ 
+def load_all_models() -> dict:
+    """
+    Load all models at startup via FastAPI lifespan.
+    ALL models loaded to CPU — NEVER .cuda() in deployment.
+    """
+    models = {}
+ 
+    # M4 LSTM-AE Level 1 (FROZEN — do not retrain)
+    from src.module_09_pump_selector import LSTMAutoencoder
+    m4 = LSTMAutoencoder(seq_len=50)
+    m4.load_state_dict(
+        torch.load('models/lstm_ae_baseline_final.pth', map_location='cpu'))
+    m4.eval()
+    for p in m4.parameters():
+        p.requires_grad_(False)
+    models['lstm_ae_l1'] = m4
+ 
+    # TCN-AE Level 2
+    from src.module_09_pump_selector import TCNAutoencoder
+    tcn = TCNAutoencoder()
+    tcn.load_state_dict(
+        torch.load('models/tcn_ae_level2_best.pth', map_location='cpu'))
+    tcn.eval()
+    for p in tcn.parameters():
+        p.requires_grad_(False)
+    models['tcn_ae_l2'] = tcn
+ 
+    # XGBoost 22-class (CPU deploy version)
+    xgb_model = xgb.XGBClassifier()
+    xgb_model.load_model('models/M7_xgboost_classifier_cpu.json')
+    models['xgboost_22class'] = xgb_model
+ 
+    # M9 physics config
+    with open('models/M9_selector_config.json') as f:
+        models['m9_physics'] = json.load(f)
+ 
+    # M8 threshold config
+    with open('models/M8_threshold_config.json') as f:
+        models['m8_config'] = json.load(f)
+ 
+    # OOD detector config
+    with open('models/M8p4_ood_config.json') as f:
+        models['ood_config'] = json.load(f)
+ 
+    # Fault rules (physics context lookup)
+    with open('models/fault_rules_v3.json') as f:
+        models['fault_rules'] = json.load(f)
+ 
+    return models
+```
+ 
+### M10 Local Test Protocol (15 tests)
+ 
+| # | Test | Input | Expected |
+|---|---|---|---|
+| 1 | Health check | GET /health | status=healthy, version=5.0, all 4 models loaded |
+| 2 | Normal window | POST /api/anomaly_detect (normal data) | alert_state=NORMAL |
+| 3 | Fault window | POST /api/anomaly_detect (high MAE) | alert_state=DANGER |
+| 4 | Mild fault | POST /api/anomaly_detect (moderate MAE) | WATCH or WARN |
+| 5 | z_t buffer Layer 2 | 6 consecutive windows | score_A/B/C non-null at window 6 |
+| 6 | Compound fault (label 10) | POST /api/classify_fault | causal_chain visible, score_C top SHAP |
+| 7 | Label 21 CUSUM | Repeated low-score_B windows | WATCH + advisory visible |
+| 8 | CUSUM reset | POST /api/acknowledge {"channels":"all"} | Sn=0, zt_buffer_len=0 |
+| 9 | Physics context | GET /api/physics_context?label=10 | what/why/timeline/action/if_ignored all non-empty |
+| 10 | Industrial selector | POST /api/select_pump (nameplate params) | P_hyd≈55.2 kW, motor=110 kW |
+| 11 | Household advisory | GET /api/household | advisory_disclaimer present, no ML fields |
+| 12 | OOD detection | POST /api/anomaly_detect (out-of-distribution) | ood_suspected=True |
+| 13 | Limitation flags | Any WATCH/WARN/DANGER | limitation_flags non-empty |
+| 14 | 7-field completeness | Any fault prediction | all 7 mandatory fields present |
+| 15 | Scope boundary | Household pump via /api/classify_fault | physics_advisory_only() response, no ML call |
+ 
 ### M10 Paste Text Keys
-
-  ---------------------------------------------------------------------------------
-  Key                                 Value
-  ----------------------------------- ---------------------------------------------
-  M10_routes_registered               \[list of 8 routes\]
-
-  M10_health_check_response           healthy/error
-
-  M10_models_loaded_at_startup        \[lstm_ae_l1, tcn_ae_l2, xgboost_22class,
-                                      m9_physics\]
-
-  M10_tcn_ae_active_at_startup        True/False
-
-  M10_normal_window_test              NORMAL/error
-
-  M10_fault_window_test               DANGER/error
-
-  M10_mild_fault_test                 WATCH/WARN/error
-
-  M10_zt_buffer_layer2_test           score_A_B_C_non_null_at_window_6/error
-
-  M10_compound_fault_test             causal_chain_visible/score_C_top_SHAP/error
-
-  M10_label21_cusum_test              WATCH+advisory_visible/error
-
-  M10_cusum_reset_test                reset_confirmed/error
-
-  M10_cusum_active_at_startup         True/False
-
-  M10_adaptive_threshold_active       True/False
-
-  M10_physics_context_route_test      22_labels_returned/error
-
-  M10_limitation_flags_in_response    True/False
-
-  M10_commissioning_mode_documented   True/False
-
-  M10_household_scope_enforced        True/False
-
-  M10_disclaimers_displayed           True/False
-
-  M10_local_tests_pass                \[X/15\]
-
-  Status_for_M11                      READY/BLOCKED
-  ---------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-## M11 --- Docker + Hugging Face Deployment
-
-**Status:** NOT STARTED (requires M10 15/15 local tests pass)
-
-------------------------------------------------------------------------
-
+ 
+| Key | Value |
+|---|---|
+| M10_framework | FastAPI v5.0 |
+| M10_routes_registered | [/health, /api/anomaly_detect, /api/classify_fault, /api/select_pump, /api/household, /api/acknowledge, /api/validate_model, /api/physics_context] |
+| M10_health_check_response | healthy/error |
+| M10_models_loaded_at_startup | [lstm_ae_l1, tcn_ae_l2, xgboost_22class, m9_physics] |
+| M10_tcn_ae_active_at_startup | True/False |
+| M10_normal_window_test | NORMAL/error |
+| M10_fault_window_test | DANGER/error |
+| M10_mild_fault_test | WATCH/WARN/error |
+| M10_zt_buffer_layer2_test | score_A_B_C_non_null_at_window_6/error |
+| M10_compound_fault_test | causal_chain_visible/score_C_top_SHAP/error |
+| M10_label21_cusum_test | WATCH+advisory_visible/error |
+| M10_cusum_reset_test | reset_confirmed/error |
+| M10_cusum_active_at_startup | True/False |
+| M10_adaptive_threshold_active | True/False |
+| M10_physics_context_route_test | 22_labels_returned/error |
+| M10_limitation_flags_in_response | True/False |
+| M10_commissioning_mode_documented | True/False |
+| M10_household_scope_enforced | True/False |
+| M10_pydantic_validation_active | True/False |
+| M10_async_handlers_confirmed | True/False |
+| M10_local_tests_pass | [X/15] |
+| Status_for_M11 | READY/BLOCKED |
+ 
+---
+ 
+## M11 — Docker + Hugging Face Deployment
+ 
+**Status: NOT STARTED — requires M10 15/15 tests pass + M12 ≥80% detection rate**
+ 
 ### Dockerfile
-
-``` dockerfile
+ 
+```dockerfile
 FROM python:3.11-slim
  
 WORKDIR /app
@@ -1291,70 +570,68 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:7860/health || exit 1
  
-CMD ["gunicorn", "app.app:app", "--bind", "0.0.0.0:7860", \
-     "--workers", "1", "--timeout", "120"]
+# FastAPI via uvicorn — replaces gunicorn/WSGI from v4.0
+CMD ["uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "7860", \
+     "--workers", "1", \
+     "--timeout-keep-alive", "120"]
 ```
-
-------------------------------------------------------------------------
-
-### requirements.txt (Deployment --- CPU Only)
-
-    torch==2.6.0+cpu
-    xgboost>=2.0
-    flask>=3.0
-    gunicorn>=21.0
-    scikit-learn>=1.3
-    numpy>=1.24
-    pandas>=2.0
-    shap>=0.44
-    scipy>=1.11
-
-> **Note:** TCN-AE is implemented in PyTorch --- already covered by
-> `torch==2.6.0+cpu`. No new library required vs v3.0.
-> `requirements.txt` UNCHANGED.
-
-------------------------------------------------------------------------
-
-### Model Loading Rules (Deployment --- NON-NEGOTIABLE)
-
-**M4 LSTM-AE Level 1**
-
-``` python
+ 
+**Why `--workers 1`:** PyTorch models are not fork-safe. Multiple uvicorn workers would each load
+their own copy of the models into RAM, exceeding Hugging Face Spaces free-tier memory (16 GB).
+One worker with async handlers provides adequate concurrency for shadow-mode deployment.
+ 
+### requirements.txt (Deployment — CPU Only)
+ 
+```
+# Framework — v4.0 Flask replaced by FastAPI + uvicorn
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.0           # FastAPI v0.100+ requires Pydantic v2
+httpx>=0.27.0           # async HTTP client (used in tests)
+jinja2>=3.1.0           # templating (same as Flask)
+python-multipart>=0.0.9 # FastAPI form data support
+ 
+# ML stack — UNCHANGED from v4.0
+torch==2.6.0+cpu
+xgboost>=2.0
+scikit-learn>=1.3
+numpy>=1.24
+pandas>=2.0
+shap>=0.44
+scipy>=1.11
+ 
+# REMOVED from v4.0
+# flask>=3.0       <- REPLACED by fastapi
+# gunicorn>=21.0   <- REPLACED by uvicorn
+```
+ 
+**Delta from v4.0:** Remove `flask`, `gunicorn`. Add `fastapi`, `uvicorn[standard]`,
+`pydantic>=2.0`, `httpx`, `python-multipart`. All ML dependencies unchanged.
+ 
+### Model Loading Rules (NON-NEGOTIABLE — unchanged from v4.0)
+ 
+```python
+# M4 LSTM-AE Level 1
 lstm_ae_l1.load_state_dict(
-    torch.load('models/lstm_ae_baseline_best.pth', map_location='cpu')
-)
-```
-
-**TCN-AE Level 2**
-
-``` python
+    torch.load('models/lstm_ae_baseline_final.pth', map_location='cpu'))
+ 
+# TCN-AE Level 2
 tcn_ae_l2.load_state_dict(
-    torch.load('models/tcn_ae_level2_best.pth', map_location='cpu')
-)
-# NEVER call .cuda() or .to('cuda') on either model in deployment code.
+    torch.load('models/tcn_ae_level2_best.pth', map_location='cpu'))
+ 
+# NEVER call .cuda() or .to('cuda') on any model in deployment code.
+# XGBoost CPU version: models/M7_xgboost_classifier_cpu.json
+# CUSUM S_n, z_t buffer, rolling baseline: in-memory Python state — NOT model weights
+# Persist across API calls within one container lifecycle.
+# Reset on container restart OR POST /api/acknowledge.
 ```
-
-**XGBoost 22-class**
-
-``` python
-import pickle
-with open('models/xgboost_fault_classifier_cpu.pkl', 'rb') as f:
-    xgb_model = pickle.load(f)
-assert all(e.device == 'cpu' for e in xgb_model.estimators_)
-```
-
-**CUSUM (score_B), z_t buffer, rolling baseline (score_A):** - All
-in-memory Python state --- NOT stored in model weights. - Persist across
-API calls within one container lifecycle. - Reset on container restart
-OR `/api/acknowledge`. - Score routing Invariant 19 enforced in
-`anomaly.py` --- NEVER crossed. ---
-
-### GitHub Actions CI/CD Pipeline
-
-**File:** `.github/workflows/deploy.yml`
-
-``` yaml
-name: Deploy to Hugging Face Spaces
+ 
+### GitHub Actions CI/CD Pipeline (`.github/workflows/deploy.yml`)
+ 
+```yaml
+name: Deploy PumpSmart to Hugging Face Spaces
  
 on:
   push:
@@ -1365,6 +642,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+ 
       - name: Push to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -1374,14 +652,10 @@ jobs:
           git remote add hf https://souvik:$HF_TOKEN@huggingface.co/spaces/Souvik-1234-cpu/PumpSmart
           git push hf main --force
 ```
-
-------------------------------------------------------------------------
-
-### Hugging Face Spaces Configuration
-
-**File:** `README.md` front matter
-
-``` yaml
+ 
+### Hugging Face Spaces Configuration (`README.md` front matter)
+ 
+```yaml
 ---
 title: PumpSmart Industrial Pump Health Monitor
 emoji: 🔧
@@ -1392,169 +666,150 @@ app_port: 7860
 license: mit
 ---
 ```
-
-------------------------------------------------------------------------
-
+ 
 ### Deployment Validation Checklist (12 Checks)
-
-  --------------------------------------------------------------------------------------------------------------
-  Check                   Description                           Expected
-  ----------------------- ------------------------------------- ------------------------------------------------
-  Check 1                 Docker build locally                  no errors
-
-  Check 2                 `docker run -p 7860:7860 pumpsmart`   container starts
-
-  Check 3                 GET http://localhost:7860/health      status = healthy, version = 4.0; models_loaded =
-                                                                \[lstm_ae_l1, tcn_ae_l2, xgboost_22class,
-                                                                m9_physics\]; cusum_active = true, tcn_ae_active
-                                                                = true; n_fault_classes = 22, commissioning_mode
-                                                                = false
-
-  Check 4                 POST /api/anomaly_detect              valid response (not 500); score_A/B/C present in
-                                                                output
-
-  Check 5                 POST /api/classify_fault              valid Stage 3 fault (label 0--21)
-
-  Check 6                 POST /api/classify_fault compound     causal_chain = "seal_failure -\> cavitation";
-                          window (label 10)                     score_C top SHAP feature confirmed
-
-  Check 7                 POST /api/acknowledge                 cusum_state resets, zt_buffer_len = 0
-
-  Check 8                 GET /api/physics_context?label=10     what/why/timeline/action/if_ignored/disclaimer
-                                                                all non-empty
-
-  Check 9                 Image size                            \< 2GB (Hugging Face free tier limit)
-
-  Check 10                Startup time                          \< 60s (within HEALTHCHECK start-period)
-
-  Check 11                Push to Hugging Face Spaces           Space builds successfully
-
-  Check 12                HF Space URL /health                  status = healthy, version = 4.0; GitHub Actions
-                                                                workflow passes on push to main
-  --------------------------------------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-### M11 Outputs
-
--   `Dockerfile`
--   `requirements.txt` (deployment version --- CPU only)
--   `.github/workflows/deploy.yml` (GitHub Actions CI/CD)
--   `README.md` (Hugging Face Spaces front matter)
--   `outputs/reports/module_11_deployment_report.md` \### M11 Paste Text
-    Keys
-
-  Key                              Value
-  -------------------------------- ----------------------------
-  M11_docker_build_status          SUCCESS/FAILED
-  M11_container_startup_time_s     \[seconds --- gate \< 60\]
-  M11_image_size_mb                \[MB --- gate \< 2000\]
-  M11_health_check_local           healthy/error
-  M11_tcn_ae_active_in_container   True/False
-  M11_cusum_active_in_container    True/False
-  M11_physics_context_route_test   PASS/FAIL
-  M11_hf_deployment_url            \[URL\]
-  M11_hf_health_check              healthy/error
-  M11_github_actions_status        PASS/FAIL
-  M11_compound_fault_route_test    PASS/FAIL
-  M11_all_checks_pass              True/False
-  Status_for_M12                   READY/BLOCKED
-
-------------------------------------------------------------------------
-
+ 
+| Check | Description | Expected |
+|---|---|---|
+| 1 | Docker build locally | No errors |
+| 2 | `docker run -p 7860:7860 pumpsmart` | Container starts |
+| 3 | GET http://localhost:7860/health | status=healthy, version=5.0, models_loaded=[lstm_ae_l1,tcn_ae_l2,xgboost_22class,m9_physics], cusum_active=true, tcn_ae_active=true |
+| 4 | POST /api/anomaly_detect | Valid FaultPrediction response; score_A/B/C present; Pydantic 422 on bad input |
+| 5 | POST /api/classify_fault | Valid Stage 3 fault (label 0–21) |
+| 6 | POST /api/classify_fault compound (label 10) | causal_chain = "seal_failure → cavitation"; score_C top SHAP |
+| 7 | POST /api/acknowledge | cusum_state Sn=0, zt_buffer_len=0 |
+| 8 | GET /api/physics_context?label=10 | what/why/timeline/action/if_ignored/disclaimer all non-empty |
+| 9 | Image size | < 2 GB (HF free tier limit) |
+| 10 | Startup time | < 60 s (within HEALTHCHECK start-period) |
+| 11 | Push to Hugging Face Spaces | Space builds successfully; uvicorn starts |
+| 12 | HF Space URL /health | status=healthy, version=5.0; GitHub Actions workflow passes on push to main |
+ 
+### M11 Paste Text Keys
+ 
+| Key | Value |
+|---|---|
+| M11_docker_build_status | SUCCESS/FAILED |
+| M11_server | uvicorn (ASGI) |
+| M11_container_startup_time_s | [seconds — gate < 60] |
+| M11_image_size_mb | [MB — gate < 2000] |
+| M11_health_check_local | healthy/error |
+| M11_tcn_ae_active_in_container | True/False |
+| M11_cusum_active_in_container | True/False |
+| M11_physics_context_route_test | PASS/FAIL |
+| M11_pydantic_422_on_bad_input | PASS/FAIL |
+| M11_hf_deployment_url | [URL] |
+| M11_hf_health_check | healthy/error |
+| M11_github_actions_status | PASS/FAIL |
+| M11_compound_fault_route_test | PASS/FAIL |
+| M11_all_checks_pass | True/False |
+| Status_for_M12 | READY/BLOCKED |
+ 
+---
+ 
 ## Module Dependency Summary
-
-    M7 XGBoost (22-class, ~35 features, M6B_feature_matrix.csv)
-    M8 Level 1 LSTM-AE + Level 2 TCN-AE + Layer 3 CUSUM + Layer 4 Rolling Baseline
-    M9 Physics Tools
-        |
-        v
-    M10 Flask App
-        score routing (Invariant 19)
-        z_t rolling buffer
-        adaptive threshold theta_t
-        physics context lookup
-        commissioning mode
-        |
-        v
-    M11 Docker + Hugging Face
-        |
-        v
-    M12 Adversarial Validation
-
+ 
+```
+M7 XGBoost (22-class, ~35 features, M6B_feature_matrix.csv)
+M8 Level 1 LSTM-AE + Level 2 TCN-AE + Layer 3 CUSUM + Layer 4 Rolling Baseline
+M9 Physics Tools [COMPLETE LOCKED]
+    |
+    v
+M10 FastAPI App
+    score routing (Invariant 19)
+    z_t rolling buffer (async-safe)
+    adaptive threshold θ_t (async-safe)
+    physics context lookup
+    Pydantic input validation
+    commissioning mode
+    |
+    v
+M12 Adversarial Validation  ← MUST precede M11 (T2-1)
+    |
+    v
+M11 Docker + Hugging Face (uvicorn ASGI)
+    |
+    v
+M12.5 Post-deployment validation
+```
+ 
 ### Sequencing Law
-
-  Gate                       Unlocks
-  -------------------------- ---------------------------
-  M7 gates pass              M8 starts
-  M8 gates pass              M9 finalised + M10 starts
-  M10 15/15 tests pass       M11 starts
-  M11 deployment OK          M12 starts
-  M12 PRODUCTION_VALIDATED   system live
-
-------------------------------------------------------------------------
-
+ 
+| Gate | Unlocks |
+|---|---|
+| M7 gates pass | M8 starts |
+| M8 gates pass | M9 finalised + M10 starts |
+| M10 15/15 tests pass | M12 starts |
+| M12 detection rate ≥80% | M11 starts |
+| M11 deployment OK | T3 shadow operation |
+ 
+---
+ 
+## Tier 2 — Required before M11
+ 
+### T2-1 — M12 before M11 (procedural reorder)
+ 
+Pathway: M9 → M10 → **M12** → M11. Deploying M11 before M12 publishes an unvalidated model.
+Gate: `T2-1_M12_before_M11_PASS`. Block M11 if M12 macro detection rate < 80%.
+ 
+### T2-2 — CPU inference benchmark
+ 
+Measure full inference path in Docker `--cpus=1 --memory=2g`:
+M4 forward + TCN-AE forward + OOD check + XGBoost predict_proba + CUSUM update + 7-field render.
+**Total must be < 5 seconds.** If not, ONNX export of LSTM-AE and TCN-AE required.
+Script: `module_08p6_cpu_inference_benchmark.py`.
+ 
+**Note:** FastAPI's async handlers mean the 5-second CPU inference budget applies per-request,
+not per-concurrent-user. Multiple operators can poll simultaneously without queuing.
+ 
+### T2-3 — Physical-parameter routing (COMPLETE — M9 locked)
+ 
+Physical envelope routing implemented and gate-tested (24/24 PASS). T2-3 closed.
+ 
+### T2-4 — Baseline LSTM-AE comparison
+ 
+Train vanilla LSTM-AE with single fixed threshold. Measure on M12 adversarial set.
+Report: detection rate Group A / B / Label 21 / Group C / FPR — four-column comparison table.
+Publishable headline: Label 21 detection 0% (vanilla) vs >60% (PumpSmart).
+ 
+### T2-5 — Threshold sensitivity audit
+ 
+Sweep: q=0.110058 (M4), H=5.0 (CUSUM), tau_p99 (OOD), θ_initial (L4).
+Include FPR vs threshold sweep for v2 slope-continuity gate on healthy CIRA windows.
+Report per-gate TPR/FPR trade-off table. Document sensitivity bounds.
+ 
+### T2-6 — Configuration drift hash registry
+ 
+SHA-256 lock all config files: `M8_threshold_config.json`, `M9_selector_config.json`,
+`M8p4_ood_config.json`, `fault_rules_v3.json`. Alert on mismatch at startup.
+ 
+### T2-7 — Cluster assignment hysteresis
+ 
+Prevent sawtooth false alerts at startup/steady-state boundary.
+Implement hysteresis: cluster assignment requires N consecutive windows in new cluster before switching.
+ 
+### T2-8 — Operator UI honesty controls
+ 
+Confidence displayed as range not point. Disclaimers non-dismissible on first view.
+Advisory-only label persistent on household path.
+ 
+### T2-9 — Group B v1↔v2 cross-evaluation
+ 
+Report per-class F1 deltas in both directions (not just macro). Required for publication-grade
+artifact independence claim.
+ 
+---
+ 
 ## Document Revision History
-
-  -----------------------------------------------------------------------------------
-  Version                 Date                    Changes
-  ----------------------- ----------------------- -----------------------------------
-  v1.0                    2026-04-12              Initial creation --- split from
-                                                  `module_pathway_M1_to_M12_v10.md`
-
-  v2.0                    2026-04-12              Bias-audit cascade: multi-label
-                                                  classify route, Stage 1/2/3 API
-                                                  schema, compound fault UI display,
-                                                  MultiOutputClassifier pickle
-                                                  loading, scikit-learn deployment
-                                                  dependency, 12-test local protocol,
-                                                  M11 compound route check
-
-  v3.0                    2026-04-16              Architecture v14.0: CUSUM runtime
-                                                  state (Layer 3, raw MAE) + rolling
-                                                  baseline (Layer 4) +
-                                                  /api/acknowledge + 22-class XGBoost
-                                                  throughout + label 21 advisory + 7
-                                                  routes + 13 local tests + 11 M11
-                                                  checks
-
-  v4.0                    2026-04-21              Architecture v14.2: TCN-AE Level 2
-                                                  replaces LSTM-AE v2. z_t rolling
-                                                  buffer added (streaming).
-                                                  score_A/B/C routing per Invariant
-                                                  19 enforced in M10. Adaptive
-                                                  threshold theta_t =
-                                                  mu_rolling(6hr) +
-                                                  3\*sigma_rolling(6hr) added (Layer
-                                                  4). /api/physics_context added as
-                                                  Route 8. physics_context field in
-                                                  Route 1 + Route 2 output.
-                                                  limitation_flags per alert.
-                                                  Commissioning mode 48hr documented.
-                                                  /health updated: version=4.0,
-                                                  tcn_ae_active, zt_buffer_len,
-                                                  adaptive_threshold. 8 routes, 15
-                                                  local tests, 12 M11 checks, 18 M10
-                                                  paste keys.
-  -----------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-
-
-  -----------------------------------------------------------------------
-  Field                               Value
-  ----------------------------------- -----------------------------------
-  Pump                                110 kW, 7-stage, 40 bar, 2980 RPM,
-                                      45 m3/h, 450 m head --- CIRA SACIP
-
-  Standards                           ISO 10816-3 vibration \| ISO
-                                      13373-3 monitoring \| ISO 13374
-                                      Level 3 \| IEC 61511 boundary
-
-  Architecture                        v14.2
-
-  Classes                             22 (labels 0--21)
-
-  Detection layers                    4
-  -----------------------------------------------------------------------
+ 
+| Version | Date | Changes |
+|---|---|---|
+| v1.0 | 2026-04-12 | Initial creation — split from `module_pathway_M1_to_M12_v10.md` |
+| v2.0 | 2026-04-12 | Bias-audit cascade: multi-label classify route, Stage 1/2/3 API schema |
+| v3.0 | 2026-04-16 | Architecture v14.0: CUSUM runtime state + rolling baseline + /api/acknowledge + 22-class XGBoost |
+| v4.0 | 2026-04-21 | Architecture v14.2: TCN-AE Level 2, z_t rolling buffer, score_A/B/C routing (Invariant 19), adaptive threshold θ_t, /api/physics_context, limitation_flags |
+| v5.0 | 2026-05-10 | **FastAPI migration.** Flask → FastAPI throughout. gunicorn → uvicorn. Sync → async handlers. global state → lifespan + dependency injection. Manual validation → Pydantic BaseModel. requirements.txt updated. Dockerfile CMD updated. All route signatures updated. Async-safe CUSUM and rolling state classes. New: schemas/ directory, model_registry.py lifespan loader. |
+ 
+---
+ 
+*PumpSmart v14.2 | Architecture v5.0 | FastAPI + uvicorn + Pydantic v2*
+*Deployment target: Hugging Face Spaces Docker SDK, port 7860*
