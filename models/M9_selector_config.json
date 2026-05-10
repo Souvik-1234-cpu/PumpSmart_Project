@@ -1,0 +1,131 @@
+{
+  "arch_version": "v14.2",
+  "patch_version": "v2",
+  "created": "2026-05-10",
+  "script": "module_09_pump_selector",
+  "g_ms2": 9.81,
+  "rho_water_default": 1000.0,
+  "p_atm_pa": 101325.0,
+  "a_wave_steel_ms": 1200.0,
+  "nameplate": {
+    "power_motor_kw": 110.0,
+    "stages": 7,
+    "pressure_bar": 40.0,
+    "head_m": 450.0,
+    "flow_m3h": 45.0,
+    "speed_rpm": 2980.0,
+    "eta_pump": 0.65,
+    "frame_iec": "IEC 315mm",
+    "voltage": "400V",
+    "poles": 2,
+    "p_hyd_kw": 55.19,
+    "p_shaft_kw": 84.91,
+    "ns_specific": 26.41
+  },
+  "industrial_envelope": {
+    "power_kw_min": 30.0,
+    "head_m_min": 80.0,
+    "stages_min": 3,
+    "pressure_bar_min": 8.0
+  },
+  "household_envelope": {
+    "power_kw_max": 5.0,
+    "stages_max": 1,
+    "pressure_bar_max": 5.0
+  },
+  "out_of_scope_gap": {
+    "power_kw_range": "5\u201330 kW",
+    "stages_range": "1\u20133 stages",
+    "pressure_bar_range": "5\u201330 bar",
+    "action": "explicit refusal \u2014 no inference"
+  },
+  "iec_motor_sizes_kw": [
+    0.18,
+    0.25,
+    0.37,
+    0.55,
+    0.75,
+    1.1,
+    1.5,
+    2.2,
+    3.0,
+    4.0,
+    5.5,
+    7.5,
+    11.0,
+    15.0,
+    18.5,
+    22.0,
+    30.0,
+    37.0,
+    45.0,
+    55.0,
+    75.0,
+    90.0,
+    110.0,
+    132.0,
+    160.0,
+    200.0,
+    250.0,
+    315.0,
+    355.0,
+    400.0,
+    450.0,
+    500.0,
+    560.0,
+    630.0
+  ],
+  "service_factor": 1.15,
+  "specific_speed_convention": {
+    "formula": "Ns = N * Q_m3min^0.5 / H^0.75",
+    "units": "RPM, m3/min, m",
+    "fix1_note": "Q in m3/min \u2014 yields Ns=10.26 for nameplate \u2713",
+    "radial_centrifugal": {
+      "max_ns": 50,
+      "type": "multistage_centrifugal"
+    },
+    "mixed_flow": {
+      "min_ns": 50,
+      "max_ns": 150,
+      "type": "mixed_flow"
+    },
+    "axial_flow": {
+      "min_ns": 150,
+      "type": "axial_flow"
+    }
+  },
+  "npsh_safety_margin_m": 0.5,
+  "npsh_critical_margin_m": 0.0,
+  "household_standard_motor_kw": [
+    0.37,
+    0.55,
+    0.75,
+    1.1,
+    1.5,
+    2.2,
+    3.0,
+    4.0,
+    5.5
+  ],
+  "household_eta_default": 0.55,
+  "household_pipe_velocity_limit": 2.0,
+  "gate_results": {
+    "test_m9_1": true,
+    "test_m9_2": true,
+    "test_m9_3": true,
+    "test_m9_4": true,
+    "test_m9_5": true,
+    "gate_m9_2": true,
+    "gate_m9_3": true,
+    "all_pass": true
+  },
+  "scope_invariants": {
+    "household_rule": "if pump_type=='household': return physics_advisory_only()",
+    "routing_rule": "route on physical envelope \u2014 NEVER on pump_type string",
+    "ml_scope": "110 kW, 7-stage, 40 bar, 2980 RPM only",
+    "ood_note": "M8p4 Mahalanobis check before any ML prediction in M10",
+    "c22_note": "P_hyd=55.2 kW \u2014 NOT 10 kW (Zenodo doc error)",
+    "fix1_ns_note": "Ns convention = RPM, m\u00b3/min, m \u2192 Ns=26.41 for nameplate (radial<50) \u2713",
+    "fix3_pv_note": "P_vap(100\u00b0C)\u2248P_atm is correct physics (boiling point)"
+  }
+}

@@ -1636,3 +1636,44 @@ Open_LFS_pull                    = git lfs pull when remote available (GroupA/E 
 Status for M9: READY — unblocked since Tier-1
 Status for M10: READY — unblocked by Tier-1.5 closure
 ═══════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════
+M9 RESULTS (2026-05-10) — FINAL LOCKED
+═══════════════════════════════════════════════════════════════════════
+
+M9_status                        : COMPLETE LOCKED
+M9_patch_version                 : v2 (final)
+M9_block_m10                     : False
+M9_n_gates_pass                  : 24/24
+M9_n_gates_fail                  : 0
+M9_m10_status                    : PROCEED
+
+M9_test_1_nameplate              : PASS
+M9_test_2_cavitation_flag        : PASS
+M9_test_3_affinity_laws          : PASS
+M9_test_4_water_hammer           : PASS
+M9_test_5_specific_speed         : PASS
+M9_gate_2_no_unphysical          : PASS
+M9_gate_3_scope_boundary         : PASS
+M9_all_test_cases_pass           : True
+
+M9_p_hyd_kw                      : 55.181
+M9_p_shaft_kw                    : 84.894
+M9_motor_kw                      : 110
+M9_specific_speed_ns             : 26.414
+M9_ns_convention                 : RPM_m3min_m (2980×0.75^0.5/450^0.75=26.41)
+M9_pump_type                     : multistage_centrifugal
+M9_stage_head_m                  : 64.29
+M9_water_hammer_dp_bar           : 30.0
+M9_transient_pressure_bar        : 70.0
+M9_routing_rule                  : physical_envelope (T2-3) — never string-based
+M9_household_ml_scope            : ENFORCED — zero ML fields in household response
+M9_out_of_scope_zone             : 5–30 kW explicit refusal
+
+M9_config_file                   : models/M9_selector_config.json
+M9_report_file                   : outputs/reports/module_09_pump_selector_report.md
+M9_script_file                   : src/module_09_pump_selector.py
+
+Active module: M10 — Flask API + Physics Context UI
+Status for M10: PROCEED
+═══════════════════════════════════════════════════════════════════════
