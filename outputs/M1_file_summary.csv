@@ -1,10 +1,3 @@
-file,pump_id,day_id,raw_rows,clean_rows,dropped_rows,drop_pct,n_segments,usable_segments,worst_null_col,worst_null_pct,median_interval,gap_threshold_s
-Pump_A_Day1.csv,A,Day1,4981,4859,122,2.45,11,3,X_Temp.SV,1.53,1.0,8.0
-Pump_A_Day2.csv,A,Day2,21429,19164,2265,10.57,7,4,Temperature,10.32,1.0,2.0
-Pump_A_Day3.csv,A,Day3,21600,21592,8,0.04,3,2,X_ACR_Pmp.PV,0.03,1.0,2.0
-Pump_B_Day1.csv,B,Day1,4981,4636,345,6.93,19,4,X_Temp.SV,3.45,1.0,8.0
-Pump_B_Day2.csv,B,Day2,35829,33956,1873,5.23,13,5,X_ACR_Pmp.TV,5.02,1.0,2.0
-Pump_B_Day3.csv,B,Day3,29700,10187,19513,65.7,3,2,Barometer,65.46,1.0,2.0
-Pump_C_Day1.csv,C,Day1,4981,4871,110,2.21,5,3,X_Temp.SV,1.55,1.0,8.0
-Pump_C_Day2.csv,C,Day2,21429,19218,2211,10.32,2,2,Temperature,10.32,1.0,2.0
-Pump_C_Day3.csv,C,Day3,28800,28734,66,0.23,3,2,X_ACR_Pmp.PV,0.19,1.0,2.0
+version https://git-lfs.github.com/spec/v1
+oid sha256:5323a09998f2f54c0cf80a4023b1276a80741a119d533757205fe4c73b89b13a
+size 817

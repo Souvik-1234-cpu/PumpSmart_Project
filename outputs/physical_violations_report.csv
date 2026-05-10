@@ -1,16 +1,3 @@
-file,col,type,n_rows,pct,val_min,val_max,warn_min,warn_max,basis,hard_min,hard_max
-Pump_A_Day1,X_ACR_Mot.SV,WARN,3,0.062,0.388,456.6258,0.1,100.0,Motor vibration peak — severe fault ~100m/s²,,
-Pump_A_Day1,X_ACR_Pmp.SV,WARN,10,0.206,0.4453,291.6229,0.1,100.0,Pump vibration peak,,
-Pump_A_Day2,X_Pres.SV,WARN,1135,5.923,0.4957,43.1292,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_A_Day3,X_Pres.SV,WARN,121,0.56,0.4247,42.4871,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_B_Day1,X_Pres.SV,WARN,300,6.471,0.4644,43.2113,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_B_Day2,X_Pres.SV,WARN,14412,42.443,0.5119,46.7089,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_B_Day3,X_Pres.SV,WARN,2576,25.287,0.4598,43.1011,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_C_Day1,X_Pres.SV,WARN,719,14.761,0.4423,43.3013,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_C_Day2,X_Pres.SV,WARN,304,1.582,0.5003,42.824,0.1,42.0,Outlet pressure — nameplate max 40 bar,,
-Pump_C_Day3,X_ACR_Mot.TV,WARN,15421,53.668,2.0469,300.625,1.0,200.0,Motor contact temp — IEC motor class F limit 155°C,,
-Pump_C_Day3,X_ACR_Pmp.TV,WARN,13816,48.082,2.2406,266.7969,1.0,200.0,Pump contact temp — fluid boiling + bearing limit,,
-Pump_C_Day3,X_Temp.SV,WARN,1923,6.692,1.9449,323.2678,1.0,250.0,Motor casing temp — severe overload ~200°C,,
-Pump_C_Day3,Barometer,HARD,28734,100.0,1.0199,102.2266,,,Atmospheric pressure — physical range 870–1084 mbar globally,800.0,1100.0
-Pump_C_Day3,Temperature,HARD,837,2.913,1.9284,248.3691,,,Ambient temperature — CIRA facility in Italy,-10.0,60.0
-Pump_C_Day3,Temperature,WARN,8739,30.413,1.9284,248.3691,5.0,45.0,Ambient temperature — CIRA facility in Italy,,
+version https://git-lfs.github.com/spec/v1
+oid sha256:9d538882cbf8f96cb90f3104589de29f34bf9c5b8b0ed60f6973c358526007a5
+size 1756
