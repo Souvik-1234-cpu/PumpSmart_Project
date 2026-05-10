@@ -1,0 +1,115 @@
+{
+  "date": "2026-05-09",
+  "script": "module_08p7b_slope_continuity_gate",
+  "method": "primary_channel_slope_continuity",
+  "slope_window": 10,
+  "ratio_bounds": [
+    0.3,
+    3.0
+  ],
+  "pass_threshold": 0.95,
+  "overall_pass_rate": 0.0967,
+  "gate_status": "FAIL",
+  "per_label": {
+    "7": {
+      "pass_rate": 0.0073,
+      "n_pass": 11,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Mot.SV": 361.06,
+        "Pmp.SV": 133.55,
+        "Mot.TV": 8.584
+      }
+    },
+    "8": {
+      "pass_rate": 0.0713,
+      "n_pass": 107,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Pres.SV": 1.312,
+        "Pmp.SV": 2152.35,
+        "Pmp.TV": -0.617
+      }
+    },
+    "9": {
+      "pass_rate": 0.024,
+      "n_pass": 36,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Pmp.PV": 35.119,
+        "Pmp.SV": 28.69,
+        "Pres.SV": 7131.338
+      }
+    },
+    "10": {
+      "pass_rate": 0.038,
+      "n_pass": 57,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Pres.SV": -1.375,
+        "Pmp.TV": 1571.641,
+        "Pmp.PV": 23.293
+      }
+    },
+    "11": {
+      "pass_rate": 0.018,
+      "n_pass": 27,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Temp.SV": 0.119,
+        "Mot.TV": -0.547,
+        "Mot.PV": 0.966
+      }
+    },
+    "12": {
+      "pass_rate": 0.4213,
+      "n_pass": 632,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_ratios": {
+        "Pmp.PV": 0.286,
+        "Pmp.SV": -1.515,
+        "Pres.SV": 1032.43
+      }
+    }
+  },
+  "primary_ch_mask": {
+    "7": [
+      "Mot.SV",
+      "Pmp.SV",
+      "Mot.TV"
+    ],
+    "8": [
+      "Pres.SV",
+      "Pmp.SV",
+      "Pmp.TV"
+    ],
+    "9": [
+      "Pmp.PV",
+      "Pmp.SV",
+      "Pres.SV"
+    ],
+    "10": [
+      "Pres.SV",
+      "Pmp.TV",
+      "Pmp.PV"
+    ],
+    "11": [
+      "Temp.SV",
+      "Mot.TV",
+      "Mot.PV"
+    ],
+    "12": [
+      "Pmp.PV",
+      "Pmp.SV",
+      "Pres.SV"
+    ]
+  },
+  "audit_reference": "PumpSmart Industrial Audit v3.0 \u00a710.3 Concern B / T1.5.2",
+  "replaces": "T1.6/T1.6b continuity gate (retired \u2014 tested wrong quantity)"
+}

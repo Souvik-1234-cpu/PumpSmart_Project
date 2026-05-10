@@ -8,3 +8,4 @@ data/synthetic/M6B_feature_matrix_pre_patch_backup.csv filter=lfs diff=lfs merge
 *.csv filter=lfs diff=lfs merge=lfs -text
 *.npy filter=lfs diff=lfs merge=lfs -text
 data/synthetic/*.csv filter=lfs diff=lfs merge=lfs -text
+data/synthetic/*.pkl filter=lfs diff=lfs merge=lfs -text
