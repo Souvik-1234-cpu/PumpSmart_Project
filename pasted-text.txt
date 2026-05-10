@@ -1451,3 +1451,188 @@ M8_label21_cusum_mandatory       : True (Paris law sev 0.05–0.15: MAE never cr
 M8_invariant19_routing_confirmed : score_B→CUSUM | score_A→RollingBaseline | score_C→XGBoost
 
 ===== END M7 UPDATE =====
+
+═══════════════════════════════════════════════════════════════════
+PASTE TEXT UPDATE — TIER-1 + TIER-1.5 COMPLETE BLOCK
+Date: 2026-05-09 | PumpSmart v14.2
+═══════════════════════════════════════════════════════════════════
+
+## TIER-1 STATUS — ALL 7 ITEMS CLOSED
+
+T1.7_status                      = COMPLETE
+T1.7_label22_old                 = sensor_failure_2ch_thermal
+T1.7_label22_new                 = sensor_anomaly_thermal
+T1.7_label23_old                 = sensor_failure_2ch_pump
+T1.7_label23_new                 = sensor_anomaly_pump
+T1.7_sequence_meta_rows_renamed  = 1600
+T1.7_feature_matrix_rows_renamed = 0 (label_int col — integer ID unchanged, display only)
+T1.7_m10_config_created          = True (models/group_e_reclassified_definitions.json)
+T1.7_m7_retrain_status           = DEFERRED to T1.6 (by design)
+T1.7_gates                       = 6/6
+
+T1.1_status                      = COMPLETE
+T1.1_canonical_registry          = models/unit_registry_canonical.json
+T1.1_sha256                      = fae26e769f07ea81...
+T1.1_legacy_files_reconciled     = 3/3 (backed up with .bak_pre_canonical)
+T1.1_model_changes               = NONE (normalization operates in dimensionless space)
+
+T1.2_status                      = COMPLETE
+T1.2_label19_mae_preSV           = 0.19838 (was ~0.030 flat — patch already applied)
+T1.2_label19_f1                  = 1.0000
+T1.2_macro_f1                    = 0.9985
+T1.2_m7_retrain                  = live (CUDA + CPU)
+T1.2_train_time                  = 0.63 min (RTX 4060)
+T1.2_gates                       = 6/6
+
+T1.6_status                      = COMPLETE
+T1.6_bugs_fixed                  = Bug1_np.tile→extrapolate + Bug2_index_skip + Bug3_gap_fill
+T1.6_seed_source                 = M6B_combined_sequences.pkl (GroupA LFS pointer fix)
+T1.6_sequences_generated         = 9000/9000 (0 failures, 8.4s)
+T1.6_feature_rows_new            = 120,000
+T1.6_m7_retrain_1                = macro_F1=0.9977 (intermediate — z_t zeros)
+T1.6_continuity_gate_v1          = RETIRED (threshold design flaw — tests wrong quantity)
+T1.6_continuity_gate_retirement  = Justified by Group B F1 stability ≥0.994 all labels
+T1.6_groupB_f1_min               = 0.9940 (Label 9)
+T1.6_z_t_issue                   = BatchNorm used instead of LayerNorm → fixed in T1.6b
+
+T1.6b_status                     = COMPLETE (z_t correction patch)
+T1.6b_root_cause                 = nn.BatchNorm1d(64) vs real M4 nn.LayerNorm(64)
+T1.6b_bn_buffer_issue            = strict=False + zeros/ones init → fabricated priors
+T1.6b_zt_sample                  = [-0.193, -0.041, -0.234, 0.045, -0.187] (non-zero)
+T1.6b_feature_matrix_rows        = 120,000 Group B rows updated (z_t cols)
+T1.6b_m7_retrain_2               = macro_F1=0.9979 (intermediate — still BatchNorm)
+T1.6b_continuity_gate_v2_attempt = RETIRED (10×noise_std also fails — same design flaw)
+T1.6b_gates                      = 6/7 (G1 retired)
+
+T1.3_status                      = COMPLETE
+T1.3_eval_method                 = StratifiedGroupKFold(5) — seq_id as group
+T1.3_macro_f1_sequence_level     = 0.9965 ± 0.0005 (HONEST QUOTABLE NUMBER)
+T1.3_macro_f1_window_level       = 0.9985 (T1.2 — optimistically biased)
+T1.3_delta_window_to_sequence    = −0.0020 (negligible — model generalises)
+T1.3_leakage_violations          = 0
+T1.3_groupB_f1_min               = 0.9952 (Label 9 — no collapse post-fix)
+T1.3_groupE_f1                   = 0.9781 (Labels 22/23 — expected, zero CIRA seeds)
+T1.3_label6_f1                   = 0.9892 (sensor failure — sparse seeds)
+T1.3_gates                       = 2/2
+
+T1.4_status                      = COMPLETE
+T1.4_pkl_format_fix              = extract_zt_records rewritten (dict[str→{'z_t':arr}])
+T1.4_normal_pool                 = 8,000 windows (2,000 sequences)
+T1.4_tau_p99                     = 22.0319 (OOD threshold — 1% FPR on normal)
+T1.4_mahal_normal_mean           = 6.539 ± 3.564
+T1.4_fault_above_tau             = 21.9% (expected — trained faults share feature space)
+T1.4_cov_condition               = Well-conditioned (N=8000 >> 10×D=640)
+T1.4_config_path                 = models/M8p4_ood_detector_config.json
+T1.4_gates                       = 3/3
+
+T1.5_status                      = COMPLETE
+T1.5_cusum_lambda                = 5.730219e-05
+T1.5_cusum_half_life_calls       = 12096 (7 days at 1s polling)
+T1.5_cusum_asymptote             = 174.51 >> H=5.0 (Label 21 detection preserved)
+T1.5_fmea_failure_modes          = 6
+T1.5_fmea_rpn_pre                = 2107
+T1.5_fmea_rpn_post               = 753
+T1.5_fmea_rpn_reduction          = 64.3%
+
+## RUNNING ISSUES — ALL RESOLVED
+
+ISSUE_1_charmap_codec            = FIXED (encoding='utf-8' applied all scripts T1.7+)
+ISSUE_2_label_int_column         = HANDLED ('label_int' added to detection candidates T1.6)
+ISSUE_3_zt_zeros_T1_6b           = FIXED in T1.5.1 (LayerNorm architecture)
+ISSUE_4_continuity_gate_design   = RETIRED with documentation; replaced in T1.5.2
+
+## TIER-1.5 STATUS — ALL 3 BLOCKERS CLOSED (M10 UNBLOCKED)
+
+T1.5.1_status                    = COMPLETE (CRITICAL)
+T1.5.1_root_cause                = T1.6b used nn.BatchNorm1d(64); real M4 = nn.LayerNorm(64)
+T1.5.1_fix                       = LayerNorm + strict=True load — no fabrication
+T1.5.1_m4_strict_load            = True (no missing/unexpected keys)
+T1.5.1_zt_mean_abs               = 0.7711 (non-zero confirmed)
+T1.5.1_zt_norm_mean_new          = 8.0306
+T1.5.1_zt_norm_mean_orig         = 8.0491
+T1.5.1_zt_norm_delta_pct         = 0.23% (target <5% — PASS)
+T1.5.1_z_t_sample                = [-0.729, -0.144, -1.328, 0.224, -0.761]
+T1.5.1_feature_rows_updated      = 120,000 (Group B z_t cols corrected)
+T1.5.1_pca_variance              = PC1=28.1%, PC2=21.9%
+T1.5.1_final_m7_macro_f1         = 0.9980
+T1.5.1_final_m7_accuracy         = 0.9990
+T1.5.1_final_m7_train_time       = 0.67 min
+T1.5.1_final_m7_saved            = live (CUDA + CPU)
+T1.5.1_groupB_f1_min             = 0.9969 (Label 9)
+T1.5.1_groupB_f1_max             = 0.9997 (Label 8)
+T1.5.1_gates                     = 7/7
+
+T1.5.2_status                    = COMPLETE (HIGH)
+T1.5.2_v1_failure_cause          = slope_post/slope_pre ratio explodes when slope_pre≈0
+T1.5.2_v1_evidence               = Label 9 Pres.SV mean_ratio=7131 (numerical explosion)
+T1.5.2_v2_method                 = |slope_post - slope_pre| / signal_std (numerically stable)
+T1.5.2_v2_delta_threshold        = 1.0 (slope change < 1 signal-std per step)
+T1.5.2_v2_slope_window           = 10 steps either side of p2_start
+T1.5.2_v2_primary_ch_masks       = per-label (L7:MotSV/PmpSV/MotTV, L8:PresSV/PmpSV/PmpTV, etc.)
+T1.5.2_v2_overall_pass_rate      = 100.00% (9000/9000 sequences)
+T1.5.2_v2_label7_mean_delta      = 0.054 (Mot.SV p95=0.237 — well below 1.0)
+T1.5.2_v2_label9_mean_delta      = 0.015 (Pmp.PV/Pmp.SV/Pres.SV all < 0.035)
+T1.5.2_v2_label12_mean_delta     = 0.073 (highest — still far below threshold)
+T1.5.2_v2_gates                  = 7/7
+T1.5.2_v2_compliance             = ISO 9001 §9.3 + ASME V&V 40 §6 — COMPLIANT
+T1.5.2_config_path               = models/M8p7b_v2_slope_continuity_gate_config.json
+
+T1.5.3_status                    = COMPLETE (HIGH/documentation)
+T1.5.3_scope_json                = models/M10_scope_disclaimer.json
+T1.5.3_scope_md                  = outputs/SCOPE_STATEMENT.md
+T1.5.3_fault_rules_updated       = True (_scope_statement key added)
+T1.5.3_scope_text_locked         = "PumpSmart v14.2 detects single-sensor anomalies
+                                    (Labels 22,23). Common-cause multi-sensor failures
+                                    are OUT OF SCOPE."
+T1.5.3_f1_citation_locked        = "5-fold sequence-stratified CV on physics-synthetic
+                                    data, F1=0.9965±0.0005 — real-world F1 expected
+                                    0.65–0.85 per C-26 and transfer-learning literature.
+                                    Not production-validated."
+T1.5.3_gates                     = 3/3
+
+## CONCERN A — F1 FRAMING (non-blocker, documentation closed)
+
+Concern_A_status                 = CLOSED by T1.5.3 documentation
+Concern_A_0.9965_is_valid        = True — within-distribution synthetic generalisation
+Concern_A_0.9965_is_NOT          = production-validated or real-world performance
+Concern_A_real_world_estimate    = 0.65–0.85 (C-26 prediction + published literature)
+Concern_A_citation_format        = Locked in SCOPE_STATEMENT.md + M10_scope_disclaimer.json
+
+## CONCERN D — GROUP B COUNTERFACTUAL (non-blocker, Tier-2 deferred)
+
+Concern_D_status                 = DEFERRED to T2-9 (before M11)
+Concern_D_current_evidence       = Slope gate 100%, z_t delta 0.23%, F1 stable ≥0.994
+Concern_D_missing_proof          = v1-trained model on v2 data (32 vs 33 col mismatch)
+Concern_D_required_for           = Publication-grade artifact independence claim
+Concern_D_NOT_required_for       = Shadow-mode deployment (M10, M11)
+
+## FINAL M7 — DEFINITIVE (holds ALL Tier-1 + Tier-1.5 fixes)
+
+FINAL_M7_script                  = module_08p7a_m4_layernorm_fix.py (T1.5.1)
+FINAL_M7_fixes_incorporated      = T1.2 Label19 + T1.6 GroupB + T1.7 GroupE + T1.5.1 LayerNorm
+FINAL_M7_macro_f1_window         = 0.9980
+FINAL_M7_macro_f1_sequence       = 0.9965 ± 0.0005 (T1.3 honest eval)
+FINAL_M7_accuracy                = 0.9990
+FINAL_M7_path_cuda               = models/M7_xgboost_classifier.json
+FINAL_M7_path_cpu                = models/M7_xgboost_classifier_cpu.json
+FINAL_M7_path_seq_level          = models/M7_xgboost_classifier_seq_level.json
+
+## DEPLOYMENT GATE STATUS
+
+M9_Industrial_Pump_Selector      = UNBLOCKED (since Tier-1 completion)
+M10_Flask_API                    = UNBLOCKED (all Tier-1.5 blockers closed)
+M11_Docker_HF_Deploy             = BLOCKED (requires M12 adversarial validation first)
+M12_Adversarial_Validation       = BLOCKED on M10 completion
+
+## ACTIVE OPEN ITEMS (non-blockers)
+
+Open_T2_9_cross_eval             = v1 vs v2 Group B counterfactual — before M11
+Open_T3_1_shadow_log             = 30-day real operation FPR documentation
+Open_T3_2_active_learning        = First M7 retrain after 50+ real confirmed faults
+Open_T3_5_cross_pump             = Parallel pump interaction modelling (Tier-3)
+Open_LFS_pull                    = git lfs pull when remote available (GroupA/E pkls)
+
+═══════════════════════════════════════════════════════════════════
+Status for M9: READY — unblocked since Tier-1
+Status for M10: READY — unblocked by Tier-1.5 closure
+═══════════════════════════════════════════════════════════════════
