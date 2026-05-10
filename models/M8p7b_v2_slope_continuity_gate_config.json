@@ -1,0 +1,143 @@
+{
+  "date": "2026-05-09",
+  "script": "module_08p7b_v2_slope_continuity_gate",
+  "version": "v2",
+  "method": "absolute_slope_change_normalised_by_signal_std",
+  "slope_window": 10,
+  "delta_threshold": 1.0,
+  "pass_threshold": 0.95,
+  "overall_pass_rate": 1.0,
+  "gate_status": "PASS",
+  "per_label": {
+    "7": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Mot.SV": 0.0735,
+        "Pmp.SV": 0.0604,
+        "Mot.TV": 0.0273
+      },
+      "p95_delta_norm": {
+        "Mot.SV": 0.237,
+        "Pmp.SV": 0.21,
+        "Mot.TV": 0.0462
+      }
+    },
+    "8": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Pres.SV": 0.1142,
+        "Pmp.SV": 0.1256,
+        "Pmp.TV": 0.031
+      },
+      "p95_delta_norm": {
+        "Pres.SV": 0.3301,
+        "Pmp.SV": 0.3379,
+        "Pmp.TV": 0.0751
+      }
+    },
+    "9": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Pmp.PV": 0.0106,
+        "Pmp.SV": 0.0207,
+        "Pres.SV": 0.0139
+      },
+      "p95_delta_norm": {
+        "Pmp.PV": 0.0188,
+        "Pmp.SV": 0.0382,
+        "Pres.SV": 0.0323
+      }
+    },
+    "10": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Pres.SV": 0.0567,
+        "Pmp.TV": 0.0366,
+        "Pmp.PV": 0.0294
+      },
+      "p95_delta_norm": {
+        "Pres.SV": 0.2159,
+        "Pmp.TV": 0.1255,
+        "Pmp.PV": 0.1183
+      }
+    },
+    "11": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Temp.SV": 0.0344,
+        "Mot.TV": 0.0344,
+        "Mot.PV": 0.0238
+      },
+      "p95_delta_norm": {
+        "Temp.SV": 0.126,
+        "Mot.TV": 0.1134,
+        "Mot.PV": 0.0894
+      }
+    },
+    "12": {
+      "pass_rate": 1.0,
+      "n_pass": 1500,
+      "n_total": 1500,
+      "skipped": 0,
+      "mean_delta_norm": {
+        "Pmp.PV": 0.0836,
+        "Pmp.SV": 0.082,
+        "Pres.SV": 0.0577
+      },
+      "p95_delta_norm": {
+        "Pmp.PV": 0.4741,
+        "Pmp.SV": 0.3743,
+        "Pres.SV": 0.2769
+      }
+    }
+  },
+  "primary_ch_mask": {
+    "7": [
+      "Mot.SV",
+      "Pmp.SV",
+      "Mot.TV"
+    ],
+    "8": [
+      "Pres.SV",
+      "Pmp.SV",
+      "Pmp.TV"
+    ],
+    "9": [
+      "Pmp.PV",
+      "Pmp.SV",
+      "Pres.SV"
+    ],
+    "10": [
+      "Pres.SV",
+      "Pmp.TV",
+      "Pmp.PV"
+    ],
+    "11": [
+      "Temp.SV",
+      "Mot.TV",
+      "Mot.PV"
+    ],
+    "12": [
+      "Pmp.PV",
+      "Pmp.SV",
+      "Pres.SV"
+    ]
+  },
+  "why_v1_failed": "v1 used slope_post/slope_pre ratio. When slope_pre\u22480 (stable primary channel before secondary onset), division explodes to 100-7000. This is numerical instability, not physics failure. v2 uses |slope_post - slope_pre| / signal_std \u2014 stable for all cases.",
+  "audit_reference": "PumpSmart Industrial Audit v3.0 \u00a710.3 Concern B / T1.5.2"
+}

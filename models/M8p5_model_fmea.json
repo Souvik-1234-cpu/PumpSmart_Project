@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "created_by": "module_08p5_cusum_decay_and_fmea",
+    "created": "2026-05-09",
+    "scope": "PumpSmart v14.2 detection stack as a system",
+    "iec_reference": "IEC 60812 (FMEA methodology)",
+    "scoring": {
+      "severity": "1 (negligible) to 10 (catastrophic, no warning)",
+      "occurrence": "1 (improbable) to 10 (very high)",
+      "detection": "1 (almost certain to detect) to 10 (cannot detect)",
+      "rpn": "S * O * D - mitigation required if > 200"
+    },
+    "asset_under_protection": "110 kW 7-stage centrifugal pump | INR 30-40 lakh",
+    "total_rpn_pre_mitigation": 2107,
+    "total_rpn_post_mitigation": 753,
+    "rpn_reduction_pct": 64.3
+  },
+  "failure_modes": [
+    {
+      "id": "FM-01",
+      "name": "SCADA -> PumpSmart input pipeline halted",
+      "description": "Network partition / SCADA outage / OPC server crash. Inference pipeline starves silently.",
+      "effect_on_asset": "No alerts issued. Silent monitoring loss while pump continues operating.",
+      "severity": 9,
+      "occurrence": 4,
+      "detection_pre": 9,
+      "rpn_pre": 324,
+      "mitigation": "(1) M10 must implement a heartbeat: if no /api/predict call received for > 5 minutes, an INDEPENDENT watchdog process raises an alert via separate channel (email, Slack, SMS). (2) /api/health must include 'last_predict_call_age_seconds' field. (3) M11 deployment must register an external monitor pinging /api/health every 60s and alerting on staleness.",
+      "recovery": "Restore SCADA link, M10 auto-resumes when calls arrive. CUSUM state preserved (was paused, not reset).",
+      "detection_post": 2,
+      "rpn_post": 72
+    },
+    {
+      "id": "FM-02",
+      "name": "High-confidence wrong fault label",
+      "description": "M7 produces a high-probability prediction for the wrong class. Operator performs wrong maintenance action; underlying fault progresses.",
+      "effect_on_asset": "Wrong maintenance applied. Underlying real fault continues to progression. If real fault is bearing seizure, asset destroyed within 2-4 hours.",
+      "severity": 10,
+      "occurrence": 5,
+      "detection_pre": 7,
+      "rpn_pre": 350,
+      "mitigation": "(1) M8p4 OOD detector active in M10 - rejects classifications for inputs that don't look like training distribution. (2) 7-field output Field 4 (Expected Sensor Behavior) lets operator cross-check prediction against physical observation BEFORE acting. (3) M10 confidence threshold below 0.85 prompts manual verification. (4) M12 adversarial validation (planned) explicitly tests for this failure mode.",
+      "recovery": "Operator-initiated /api/operator_ack with rejection flag. Active learning queue records the mistake for next M7 retrain.",
+      "detection_post": 3,
+      "rpn_post": 150
+    },
+    {
+      "id": "FM-03",
+      "name": "Missed gradual bearing wear (Label 21 false negative)",
+      "description": "Real Paris-law bearing degradation in progress but CUSUM never crosses H. Bearing seizes within 2-4 hours of crossing the unobserved fault threshold.",
+      "effect_on_asset": "Catastrophic bearing failure. Replacement INR 35-50 lakh + downtime.",
+      "severity": 10,
+      "occurrence": 3,
+      "detection_pre": 8,
+      "rpn_pre": 240,
+      "mitigation": "(1) CUSUM auto-decay (this patch) preserves long accumulation while preventing alarm fatigue from suppressing real WATCH. (2) Independent inspection schedule: every 30 days physical check of bearing condition regardless of PumpSmart status. PumpSmart never replaces inspection. (3) M9 Industrial Pump Selector flags pumps operating outside BEP envelope - those have higher Paris-law L10 hours and need tighter inspection intervals.",
+      "recovery": "Physical inspection reveals fault. Bearing replaced. Sequence added to active learning queue with operator-confirmed Label 21 ground truth.",
+      "detection_post": 5,
+      "rpn_post": 150
+    },
+    {
+      "id": "FM-04",
+      "name": "CUSUM stuck WATCH (alarm fatigue induction)",
+      "description": "Operator investigates WATCH alerts repeatedly with no fault found. Without a non-maintenance reset path, S_n stays elevated. Eventually WATCH fires every call. Operator stops responding.",
+      "effect_on_asset": "Real Label 21 alert ignored when it eventually fires. Same downstream consequence as FM-03.",
+      "severity": 10,
+      "occurrence": 7,
+      "detection_pre": 9,
+      "rpn_pre": 630,
+      "mitigation": "(1) CUSUM geometric decay (this patch): lambda = 5.73e-05 applied per quiet call. Half-life = 7 days. (2) /api/cusum_quiet_review endpoint: explicit 'investigated, no fault' reset to 0.3 * S_n. (3) Alarm fatigue protection: if WATCH fires > 24h with no operator interaction, downgrade to daily summary email.",
+      "recovery": "Decay returns S_n to baseline naturally over 7 days quiet operation. Operator review reset returns immediately to safe baseline.",
+      "detection_post": 2,
+      "rpn_post": 140
+    },
+    {
+      "id": "FM-05",
+      "name": "Silent TCN-AE (or any model) numerical degradation",
+      "description": "GPU->CPU casting bug, library version mismatch in deployment, NaN poisoning from a bad sensor sample, etc. Model produces low-quality scores with no observable change to operator.",
+      "effect_on_asset": "Detection performance silently drops. False negatives rise. Same downstream consequence as FM-03 if a real fault occurs in the degraded window.",
+      "severity": 9,
+      "occurrence": 3,
+      "detection_pre": 9,
+      "rpn_pre": 243,
+      "mitigation": "(1) Daily self-test routine (M11): inject 10 known synthetic test sequences from a frozen golden-set, compare outputs to expected score_A/B/C ranges. Halt if any deviation exceeds 5%. (2) NaN guard at every model boundary - reject any input/output with NaN values. (3) Version-pin all torch/sklearn/xgboost/numpy versions in Docker image with hash check.",
+      "recovery": "Halt inference, alert operations team, roll back to prior known-good Docker image.",
+      "detection_post": 3,
+      "rpn_post": 81
+    },
+    {
+      "id": "FM-06",
+      "name": "L4 adaptive threshold chasing real slow degradation",
+      "description": "A real slow drift is in progress that should fire L3. L4's 6-hour rolling baseline tracks the drift up before L3 accumulates - threshold rises with the fault, suppressing the score_A alert.",
+      "effect_on_asset": "Fault concealment. Same downstream consequence as FM-03.",
+      "severity": 10,
+      "occurrence": 4,
+      "detection_pre": 8,
+      "rpn_pre": 320,
+      "mitigation": "(1) Crosspoint guard: theta_t locked if it exceeds 1.5 * theta_initial. Existing M8 design - verify implementation in M10 runtime. (2) L3 CUSUM operates on score_B (drift slope), independent of L4's score_A baseline. Invariant 19 (no cross-routing) ensures L4 cannot suppress L3. (3) Add a metric to /api/threshold_status: theta_t / theta_initial ratio. If > 1.3 for > 24h, raise an engineering review notice.",
+      "recovery": "Engineering review identifies whether drift is real fault (commission Label 21 inspection) or operating-point shift (re-cluster via commissioning mode).",
+      "detection_post": 4,
+      "rpn_post": 160
+    }
+  ]
+}

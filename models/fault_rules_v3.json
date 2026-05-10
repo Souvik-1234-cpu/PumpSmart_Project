@@ -3,7 +3,7 @@
   "arch_version": "v14.2",
   "created": "2026-04-28",
   "created_by": "module_06B_steps1to3_combined",
-  "description": "22-class (+ 2 Group E sub-variants) fault universe for PumpSmart v14.2. Supersedes fault_rules.json (v1, M5/M6A). DO NOT overwrite fault_rules.json — that is M5 reference, archived.",
+  "description": "22-class (+ 2 Group E sub-variants) fault universe for PumpSmart v14.2. Supersedes fault_rules.json (v1, M5/M6A). DO NOT overwrite fault_rules.json \u00e2\u20ac\u201d that is M5 reference, archived.",
   "total_classes": 24,
   "locked_threshold": 0.110058,
   "channel_order": [
@@ -165,17 +165,113 @@
   "validation_gates": {
     "G1": "Pres.SV* >= -0.01 at all timesteps",
     "G2": "Temp channels >= -0.12 (flash evap allowed, C-09)",
-    "G8": "Compound: primary onset before secondary, ≥95% seqs",
-    "G9": "Compound: weighted MAE > 0.110058 in ≥90% seqs",
-    "G10": "Masked: non-masked channels carry ≥50% of base fault MAE",
-    "G11": "Multi-sensor: exactly 2 channels anomalous; remaining 6 within ±0.20",
-    "G11ext": "Label 21: err_slope_MotSV > 0 in ≥95% sequences"
+    "G8": "Compound: primary onset before secondary, \u00e2\u2030\u00a595% seqs",
+    "G9": "Compound: weighted MAE > 0.110058 in \u00e2\u2030\u00a590% seqs",
+    "G10": "Masked: non-masked channels carry \u00e2\u2030\u00a550% of base fault MAE",
+    "G11": "Multi-sensor: exactly 2 channels anomalous; remaining 6 within \u00c2\u00b10.20",
+    "G11ext": "Label 21: err_slope_MotSV > 0 in \u00e2\u2030\u00a595% sequences"
   },
   "physics_notes": {
-    "SV_channels": "Broadband peak acceleration envelopes — NOT ISO 10816-3 velocity RMS. All fault detection relative (SV*). ISO 10816-3 retained for severity language only.",
-    "temperature_normalization": "ΔT* cluster-relative (C-09/C-10). NOT ambient-relative. Flash evap at 40 bar allows T_actual < T_cluster_min.",
+    "SV_channels": "Broadband peak acceleration envelopes \u00e2\u20ac\u201d NOT ISO 10816-3 velocity RMS. All fault detection relative (SV*). ISO 10816-3 retained for severity language only.",
+    "temperature_normalization": "\u00ce\u201dT* cluster-relative (C-09/C-10). NOT ambient-relative. Flash evap at 40 bar allows T_actual < T_cluster_min.",
     "overloading_detection": "Rate-of-change pattern (dT*/dt > 0) NOT absolute threshold (C-04).",
-    "label_21_detection": "Sub-threshold for L1 (≥60% seqs). CUSUM L3 is primary detection path. DO NOT raise threshold.",
-    "compound_chains": "Single-label classification (NOT multi-label). M10 maps label → display string Primary→Secondary."
+    "label_21_detection": "Sub-threshold for L1 (\u00e2\u2030\u00a560% seqs). CUSUM L3 is primary detection path. DO NOT raise threshold.",
+    "compound_chains": "Single-label classification (NOT multi-label). M10 maps label \u00e2\u2020\u2019 display string Primary\u00e2\u2020\u2019Secondary."
+  },
+  "fault_classes": {
+    "22": {
+      "label_id": 22,
+      "name": "sensor_anomaly_thermal",
+      "old_name": "sensor_failure_2ch_thermal",
+      "group": "E",
+      "group_description": "Sensor anomaly \u2014 single-channel failure with secondary indicator disturbance. Reclassified from 'multi-sensor simultaneous failure' per Audit T1.7 Path B.",
+      "description": "Single-channel thermal sensor anomaly with secondary-indicator disturbance. Mot.TV* exhibits abnormal behavior (erratic, spiking, drifting, or dropout). Root cause: cable damage, terminal oxidation, sensor element drift, or shared signal-conditioning hardware fault on the motor thermal monitoring rail. The underlying pump process is likely normal \u2014 do not act without redundant thermal measurement confirming actual temperature change. [RECLASSIFIED from sensor_failure_2ch_thermal \u2014 Audit T1.7 Path B: visualization confirmed generator produces single-channel anomaly only. Multi-sensor simultaneous failure is not currently modelled.]",
+      "seq_steps": 300,
+      "severity_range": [
+        0.3,
+        0.8
+      ],
+      "primary_channels": [
+        "Mot.TV"
+      ],
+      "secondary_channels": [
+        "Temp.SV"
+      ],
+      "m10_7field": {
+        "field_1_fault_label": "sensor_anomaly_thermal",
+        "field_3_probable_physical_condition": "Sensor anomaly in the motor thermal monitoring subsystem. Mot.TV* is showing abnormal readings. Most probable hardware cause: sensor element drift, terminal block oxidation, cable insulation fault, or signal-conditioning PCB fault on the thermal monitoring rail. The pump process is likely unaffected \u2014 verify with a handheld IR thermometer or redundant sensor before concluding the motor is running hot.",
+        "field_4_expected_sensor_behavior": "If prediction is correct: Mot.TV* will remain abnormal (flat, spiking, or drifting) while Mot.PV* (motor power) and Mot.SV* (vibration) stay near normal baseline. This asymmetry \u2014 single thermal channel abnormal, power and vibration normal \u2014 is the confirming signature of sensor origin vs process fault.",
+        "field_5_operational_risk_if_ignored": "Low operational risk if thermal process is verified normal via redundant measurement. Risk escalates to HIGH if the anomaly masks genuine thermal runaway \u2014 a 110 kW IEC 315 motor running above rated temperature with no thermal alarm can fail winding insulation within 2-4 hours of sustained overtemperature. Cross-validate immediately.",
+        "field_6_recommended_action": "1. Do NOT declare thermal overloading without redundant confirmation. 2. Take handheld IR temperature reading of motor frame at IEC 315 measurement    points \u2014 compare against rated temperature rise. 3. If motor is thermally normal: isolate and inspect Mot.TV sensor wiring,    terminal block, and signal-conditioning card. 4. If motor IS thermally elevated: treat as Label 5 (overloading) and    reduce load or investigate root cause per overloading procedure. 5. Replace or recalibrate Mot.TV sensor before trusting any thermal alert.",
+        "field_7_model_limitation_disclaimer": "Trained on CIRA-anchored physics-synthetic data for 110 kW 7-stage pump at 2980 RPM, 40 bar. Predictions advisory only. Verify physically. Single-pump monitoring \u2014 cross-pump effects not modelled. Confidence scores may be lower on real-world faults than on simulated training data. RECLASSIFICATION NOTE (Audit T1.7 Path B): Originally defined as 'two-channel simultaneous thermal failure'. Visualization audit confirmed generator output shows single-channel thermal anomaly only. Class definition updated to match generator output. True multi-sensor simultaneous failure (e.g. shared excitation rail loss) is not currently modelled in PumpSmart v14.2."
+      },
+      "reclassified": true,
+      "reclassification_audit": {
+        "date": "2026-05-09",
+        "script": "module_08p7_groupE_reclassify",
+        "tier": "T1.7",
+        "path": "B",
+        "reason": "Visualization audit confirmed generator output shows single-channel anomaly only. 'Multi-sensor' label was aspirational with no spike-seed anchoring (0 CIRA seeds). Path B selected: rename to match generator output. Path A (implement true multi-channel failure generator) rejected due to absence of empirical anchor and estimated 1-2 day effort.",
+        "audit_reference": "PumpSmart Industrial Audit v2.0, Section 5.7"
+      },
+      "m7_retrain_required": true,
+      "m7_retrain_status": "DEFERRED \u2014 runs in T1.6 (module_08p6_groupB_regenerate.py) with all Tier-1 fixes"
+    },
+    "23": {
+      "label_id": 23,
+      "name": "sensor_anomaly_pump",
+      "old_name": "sensor_failure_2ch_pump",
+      "group": "E",
+      "group_description": "Sensor anomaly \u2014 single-channel failure with secondary indicator disturbance. Reclassified from 'multi-sensor simultaneous failure' per Audit T1.7 Path B.",
+      "description": "Single-channel pump-side sensor anomaly with secondary-indicator disturbance. Pmp.SV* or Pmp.PV* exhibits abnormal behavior (flatline, dropout, or erratic signal). Root cause: moisture ingress at pump junction box, cable degradation, connector fault, or sensor element failure on the pump-side instrumentation rail. Cross-validate with motor-side vibration (Mot.SV) and pressure (Pres.SV) to assess actual pump health independently of the failed sensor. [RECLASSIFIED from sensor_failure_2ch_pump \u2014 Audit T1.7 Path B: visualization confirmed generator produces single-channel anomaly only. Multi-sensor simultaneous failure is not currently modelled.]",
+      "seq_steps": 300,
+      "severity_range": [
+        0.3,
+        0.8
+      ],
+      "primary_channels": [
+        "Pmp.SV"
+      ],
+      "secondary_channels": [
+        "Pmp.PV"
+      ],
+      "m10_7field": {
+        "field_1_fault_label": "sensor_anomaly_pump",
+        "field_3_probable_physical_condition": "Sensor anomaly in the pump-side instrumentation subsystem. Pmp.SV* is showing flatline, dropout, or erratic behavior. Most probable cause: moisture ingress at the pump junction box (common on process pumps handling hot or humid media), cable degradation, or sensor element failure. The pump may be mechanically healthy \u2014 use motor-side channels (Mot.SV, Mot.PV, Pres.SV) to assess pump condition independently.",
+        "field_4_expected_sensor_behavior": "If prediction is correct: Pmp.SV* will remain abnormal (flat or erratic) while Mot.SV* (motor vibration) and Pres.SV* (differential pressure) continue normally. If Mot.SV* also rises concurrently, re-evaluate for an underlying mechanical fault (Label 13: bearing with masked sensor).",
+        "field_5_operational_risk_if_ignored": "Moderate risk. Loss of Pmp.SV* creates a vibration blind spot for cavitation (Label 3), impeller imbalance (Label 2), and compound faults that depend on pump-side vibration as the primary detection channel. Running with Pmp.SV* offline degrades the system to approximately Label 13 / 17 detection capability only. Restore sensor before resuming normal monitoring.",
+        "field_6_recommended_action": "1. Inspect pump junction box for moisture ingress \u2014 drain and dry if found. 2. Check Pmp.SV cable for physical damage from heat, abrasion, or vibration. 3. Test sensor element resistance per manufacturer spec. 4. While Pmp.SV is suspect, monitor Mot.SV and Pres.SV as proxy indicators    for pump mechanical condition. 5. Do not clear sensor fault flag until Pmp.SV readings are physically    verified against a reference (portable vibration probe).",
+        "field_7_model_limitation_disclaimer": "Trained on CIRA-anchored physics-synthetic data for 110 kW 7-stage pump at 2980 RPM, 40 bar. Predictions advisory only. Verify physically. Single-pump monitoring \u2014 cross-pump effects not modelled. Confidence scores may be lower on real-world faults than on simulated training data. RECLASSIFICATION NOTE (Audit T1.7 Path B): Originally defined as 'two-channel simultaneous pump-side failure'. Visualization audit confirmed generator output shows single-channel pump-side anomaly only. Class definition updated to match generator output. True multi-sensor simultaneous failure (e.g. moisture ingress affecting two sensors in the same junction box) is not currently modelled in PumpSmart v14.2."
+      },
+      "reclassified": true,
+      "reclassification_audit": {
+        "date": "2026-05-09",
+        "script": "module_08p7_groupE_reclassify",
+        "tier": "T1.7",
+        "path": "B",
+        "reason": "Visualization audit confirmed generator output shows single-channel anomaly only. 'Multi-sensor' label was aspirational with no spike-seed anchoring (0 CIRA seeds). Path B selected: rename to match generator output. Path A (implement true multi-channel failure generator) rejected due to absence of empirical anchor and estimated 1-2 day effort.",
+        "audit_reference": "PumpSmart Industrial Audit v2.0, Section 5.7"
+      },
+      "m7_retrain_required": true,
+      "m7_retrain_status": "DEFERRED \u2014 runs in T1.6 (module_08p6_groupB_regenerate.py) with all Tier-1 fixes"
+    }
+  },
+  "_group_e_reclassification": {
+    "date": "2026-05-09",
+    "script": "module_08p7_groupE_reclassify",
+    "labels_affected": [
+      22,
+      23
+    ],
+    "path_chosen": "B",
+    "m7_retrain_status": "DEFERRED to T1.6",
+    "class_count": "UNCHANGED \u2014 still 24 classes (Labels 0\u201323)"
+  },
+  "_scope_statement": {
+    "date": "2026-05-09",
+    "scope": "PumpSmart v14.2 detects single-sensor anomalies (Labels 22, 23). Common-cause multi-sensor failures (shared excitation rail, EMI burst, moisture ingress affecting multiple sensors) are OUT OF SCOPE and require separate detection mechanisms.",
+    "reclassification": "Labels 22 and 23 were originally defined as 'two-sensor simultaneous common-cause failure'. Visualization audit (T1.7, 2026-05-09) confirmed the generator produces single-channel anomalies only. Path B selected: class names updated to match generator output. No sequences regenerated.",
+    "audit_reference": "PumpSmart Industrial Audit v3.0 T1.5.3",
+    "out_of_scope_note": "Labels 22 and 23 are single-sensor anomaly classes. Multi-sensor common-cause failures are NOT detected by this system."
   }
 }

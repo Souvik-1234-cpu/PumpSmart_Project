@@ -1,0 +1,90 @@
+{
+  "_meta": {
+    "date": "2026-05-09",
+    "script": "module_08p7c_scope_statement",
+    "audit_ref": "PumpSmart Industrial Audit v3.0 \u00a710.3 Concern E / T1.5.3",
+    "required_by": "Audit v3.0 \u2014 must appear in M10 Flask API /disclaimer endpoint"
+  },
+  "scope_statement": "PumpSmart v14.2 detects single-sensor anomalies (Labels 22, 23). Common-cause multi-sensor failures (shared excitation rail, EMI burst, moisture ingress affecting multiple sensors) are OUT OF SCOPE and require separate detection mechanisms.",
+  "reclassification_note": "Labels 22 and 23 were originally defined as 'two-sensor simultaneous common-cause failure'. Visualization audit (T1.7, 2026-05-09) confirmed the generator produces single-channel anomalies only. Path B selected: class names updated to match generator output. No sequences regenerated.",
+  "in_scope": {
+    "description": "PumpSmart v14.2 detects the following fault classes on a 110 kW 7-stage centrifugal pump matching CIRA SACIP envelope (2980 RPM, 40 bar, 450 m, 45 m\u00b3/h).",
+    "groups": {
+      "A_single_faults": {
+        "labels": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          19
+        ],
+        "description": "Single-mechanism faults: normal, bearing wear, impeller imbalance, cavitation, seal failure, overloading, sensor failure, seal_failure_fast"
+      },
+      "B_compound_chains": {
+        "labels": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "description": "Physically causal compound faults where Fault A triggers Fault B across 400\u2013900 steps"
+      },
+      "C_masked_faults": {
+        "labels": [
+          13,
+          14,
+          15,
+          16,
+          17
+        ],
+        "description": "Sensor failure masking underlying process fault \u2014 most dangerous for operators"
+      },
+      "D_cyclic_gradual": {
+        "labels": [
+          18,
+          20,
+          21
+        ],
+        "description": "Intermittent, cyclic, and gradual wear patterns"
+      },
+      "E_sensor_anomaly": {
+        "labels": [
+          22,
+          23
+        ],
+        "description": "Single-channel sensor anomaly with secondary indicator disturbance. NOT multi-sensor common-cause failure."
+      }
+    }
+  },
+  "out_of_scope": {
+    "multi_sensor_common_cause": {
+      "description": "PumpSmart v14.2 detects single-sensor anomalies (Labels 22, 23). Common-cause multi-sensor failures (shared excitation rail, EMI burst, moisture ingress affecting multiple sensors) are OUT OF SCOPE and require separate detection mechanisms.",
+      "examples": [
+        "Shared excitation rail loss affecting two sensors simultaneously",
+        "EMI burst corrupting multiple SCADA channels at once",
+        "Moisture ingress into junction box affecting both Pmp.SV and Pmp.PV",
+        "Power supply fault affecting entire instrument loop"
+      ],
+      "reason_not_detected": "Labels 22 and 23 generators use 100% pure physics synthesis with zero CIRA spike-seed anchoring. Without empirical data for multi-sensor common-cause events, a valid two-channel failure generator cannot be constructed without fabricating physics. Path B (reclassification) chosen per T1.7 audit recommendation."
+    },
+    "other_pump_types": {
+      "description": "Household monoblock pumps, axial flow pumps, positive displacement pumps",
+      "reason": "Cross-domain ML inference on out-of-distribution equipment is a safety risk. Household advisory uses physics-only calculation."
+    },
+    "cross_pump_effects": {
+      "description": "Parallel pump interaction, recirculation effects",
+      "reason": "Single-pump monitoring \u2014 cross-pump effects not modelled. Tier-3 item T3-5."
+    },
+    "novel_fault_classes": {
+      "description": "Shaft misalignment, foundation looseness, coupling wear, impeller erosion",
+      "reason": "Not in 22-class training taxonomy. OOD detector (T1.4) flags these as SUSPECTED_OOD with manual inspection required. Will be added via active learning (T3-2) as real faults accumulate."
+    }
+  },
+  "f1_citation_format": "5-fold sequence-stratified cross-validation on physics-synthetic data, macro F1 = 0.9965 \u00b1 0.0005. Real-world F1 expected to be 0.65\u20130.85 per C-26 and published transfer-learning literature on rotating equipment. This number is not production-validated.",
+  "deployment_posture": "Shadow-mode only with mandatory human-in-the-loop for minimum 6 months. Not cleared for autonomous alerting or closed-loop trip authority. Closed-loop trip requires 1oo2/2oo3 voting per IEC 61511 \u2014 PumpSmart can be one voter, not the only voter."
+}

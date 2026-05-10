@@ -1,0 +1,185 @@
+{
+  "_meta": {
+    "schema_version": "2.0",
+    "supersedes": [
+      "outputs_unit_registry",
+      "outputs_m2_bounds_units",
+      "models_unit_registry_m5"
+    ],
+    "created_by": "module_08p1_unit_registry_reconciliation",
+    "created": "2026-05-09",
+    "authoritative": true,
+    "source_of_truth": "CIRA SACIP Zenodo dataset description",
+    "asset_nameplate": {
+      "power_kW": 110,
+      "flow_m3h": 45,
+      "head_m": 450,
+      "pressure_bar": 40,
+      "impellers": 7,
+      "speed_rpm": 2980
+    },
+    "downstream_consumers": [
+      "M3_normalization_config.json (raw unit reference only \u2014 normalised values are unit-invariant)",
+      "M5_physics_engine.py (nameplate equation unit checking)",
+      "M10 Flask API physics_context (per-class display units)",
+      "M11 SCADA ingestion adapter (input unit validation)"
+    ],
+    "downstream_invariant_C05": "Mot.SV and Pmp.SV are SCADA broadband peak ACCELERATION envelopes (per CIRA documentation), NOT ISO 10816-3 velocity RMS values. Apply ISO 10816-3 Zone A/B/C/D thresholds ONLY to derived velocity RMS computed from PV displacement channels at known frequency. All .SV fault detection in PumpSmart uses RELATIVE deviation from cluster mean (SV*) \u2014 never absolute ISO comparison.",
+    "channels_sha256": "fae26e769f07ea815f2d2db1f4041c454327a567dce8f38dcb17b7a07af685ab"
+  },
+  "channels": {
+    "X_ACR_Mot.PV": {
+      "description": "Motor bearing \u2014 vibrational velocity (peak)",
+      "raw_unit_per_CIRA": "m/s",
+      "raw_unit_symbol": "m/s",
+      "sensor_type": "velocity",
+      "sensor_location": "motor_bearing",
+      "scada_encoding": "broadband_peak",
+      "iso_reference": "ISO 10816-3 (reference only \u2014 not directly comparable)",
+      "iso_interpretation_note": "Peak velocity, not RMS. ISO 10816 thresholds are RMS-based \u2014 do not compare directly.",
+      "expected_normal_range": [
+        0.0005,
+        0.004
+      ],
+      "expected_normal_unit": "m/s"
+    },
+    "X_ACR_Mot.SV": {
+      "description": "Motor bearing \u2014 peak acceleration (broadband envelope)",
+      "raw_unit_per_CIRA": "m/s^2",
+      "raw_unit_symbol": "m/s\u00b2",
+      "sensor_type": "accelerometer",
+      "sensor_location": "motor_bearing",
+      "scada_encoding": "broadband_peak_envelope",
+      "iso_reference": "ISO 10816-3 (NOT applicable \u2014 see iso_interpretation_note)",
+      "iso_interpretation_note": "BROADBAND ENVELOPE, NOT SINGLE-TONE ACCELERATION. Do NOT apply ISO 10816-3 Zone A/B/C/D directly. Use cluster-relative SV* via M3 normalisation. C-05 invariant.",
+      "expected_normal_range": [
+        0.39,
+        21.5
+      ],
+      "expected_normal_unit": "m/s^2",
+      "channel_weight_M4": 2.0,
+      "channel_weight_rationale": "Primary mechanical fault indicator (bearing impact / cavitation shock signature)"
+    },
+    "X_ACR_Mot.TV": {
+      "description": "Motor bearing \u2014 contact temperature",
+      "raw_unit_per_CIRA": "degC",
+      "raw_unit_symbol": "\u00b0C",
+      "sensor_type": "thermocouple",
+      "sensor_location": "motor_bearing",
+      "scada_encoding": "instantaneous",
+      "iso_reference": "IEC 60034-1",
+      "iso_interpretation_note": "Corroborating sensor only. Subject to thermal time-constant lag (400\u2013600s) per C-04.",
+      "expected_normal_range": [
+        18.0,
+        55.0
+      ],
+      "expected_normal_unit": "\u00b0C"
+    },
+    "X_ACR_Pmp.PV": {
+      "description": "Pump bearing \u2014 vibrational velocity (peak)",
+      "raw_unit_per_CIRA": "m/s",
+      "raw_unit_symbol": "m/s",
+      "sensor_type": "velocity",
+      "sensor_location": "pump_bearing",
+      "scada_encoding": "broadband_peak",
+      "iso_reference": "ISO 10816-3 (reference only)",
+      "iso_interpretation_note": "Peak velocity, not RMS.",
+      "expected_normal_range": [
+        0.0003,
+        0.004
+      ],
+      "expected_normal_unit": "m/s"
+    },
+    "X_ACR_Pmp.SV": {
+      "description": "Pump bearing \u2014 peak acceleration (broadband envelope)",
+      "raw_unit_per_CIRA": "m/s^2",
+      "raw_unit_symbol": "m/s\u00b2",
+      "sensor_type": "accelerometer",
+      "sensor_location": "pump_bearing",
+      "scada_encoding": "broadband_peak_envelope",
+      "iso_reference": "ISO 10816-3 (NOT applicable)",
+      "iso_interpretation_note": "BROADBAND ENVELOPE, NOT SINGLE-TONE. C-05 invariant. Coupled to BPF=347.67 Hz aliased at 1 Hz sampling.",
+      "expected_normal_range": [
+        0.38,
+        55.3
+      ],
+      "expected_normal_unit": "m/s^2",
+      "channel_weight_M4": 2.0
+    },
+    "X_ACR_Pmp.TV": {
+      "description": "Pump bearing \u2014 contact temperature",
+      "raw_unit_per_CIRA": "degC",
+      "raw_unit_symbol": "\u00b0C",
+      "sensor_type": "thermocouple",
+      "sensor_location": "pump_bearing",
+      "scada_encoding": "instantaneous",
+      "iso_reference": "IEC 60034-1",
+      "expected_normal_range": [
+        18.0,
+        45.0
+      ],
+      "expected_normal_unit": "\u00b0C"
+    },
+    "X_Temp.SV": {
+      "description": "Motor casing / process fluid temperature",
+      "raw_unit_per_CIRA": "degC",
+      "raw_unit_symbol": "\u00b0C",
+      "sensor_type": "PT100",
+      "sensor_location": "motor_casing",
+      "scada_encoding": "instantaneous",
+      "iso_reference": "ISO 13373-2",
+      "iso_interpretation_note": "Overloading detection uses dT*/dt rate, NOT absolute T threshold (per C-04). Cluster-relative \u0394T* per C-09.",
+      "expected_normal_range": [
+        18.0,
+        55.0
+      ],
+      "expected_normal_unit": "\u00b0C"
+    },
+    "X_Pres.SV": {
+      "description": "Pump outlet fluid pressure (discharge)",
+      "raw_unit_per_CIRA": "bar",
+      "raw_unit_symbol": "bar",
+      "sensor_type": "pressure_transducer",
+      "sensor_location": "pump_discharge",
+      "scada_encoding": "instantaneous",
+      "iso_reference": "ISO 5167",
+      "iso_interpretation_note": "Cluster-conditional winsorisation per C-18. Joukowsky transient ceiling 19.1 bar above operating point.",
+      "expected_normal_range": [
+        0.4,
+        46.0
+      ],
+      "expected_normal_unit": "bar"
+    },
+    "Barometer": {
+      "description": "Ambient atmospheric pressure (environmental \u2014 NOT used in ML)",
+      "raw_unit_per_CIRA": "mbar",
+      "raw_unit_symbol": "mbar",
+      "sensor_type": "environmental",
+      "scada_encoding": "instantaneous",
+      "ml_usage": "EXCLUDED \u2014 only used for cleaning audit per C-01",
+      "expected_normal_range": [
+        980.0,
+        1025.0
+      ],
+      "expected_normal_unit": "mbar"
+    },
+    "Temperature": {
+      "description": "Ambient air temperature (environmental \u2014 NOT used in ML)",
+      "raw_unit_per_CIRA": "degC",
+      "raw_unit_symbol": "\u00b0C",
+      "sensor_type": "environmental",
+      "scada_encoding": "instantaneous",
+      "ml_usage": "EXCLUDED \u2014 climate-agnostic per C-10",
+      "expected_normal_range": [
+        10.0,
+        40.0
+      ],
+      "expected_normal_unit": "\u00b0C"
+    }
+  },
+  "scada_ingestion_validation": {
+    "description": "M11 SCADA adapter MUST validate incoming sensor units against this registry. If incoming unit string does not match raw_unit_per_CIRA for the channel \u2192 REJECT the sample with explicit error. Do NOT silently auto-convert.",
+    "validation_routine": "M11_unit_validator.py (must be implemented)",
+    "fail_action": "RAISE_AND_HALT \u2014 never silently rescale"
+  }
+}

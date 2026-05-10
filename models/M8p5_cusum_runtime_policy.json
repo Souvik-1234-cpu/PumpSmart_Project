@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "created_by": "module_08p5_cusum_decay_and_fmea",
+    "created": "2026-05-09",
+    "purpose": "Defines CUSUM runtime decay + reset policy. Solves the stuck-WATCH failure mode where S_n grows without bound if operator investigates and finds no fault."
+  },
+  "cusum_parameters": {
+    "mu0_B": -0.00954,
+    "k": 0.02186,
+    "H": 5.0,
+    "source": "models/M8_threshold_config.json (read at startup)"
+  },
+  "decay_policy": {
+    "mode": "geometric_quiet_decay",
+    "alternatives": [
+      "geometric_always",
+      "linear_quiet",
+      "explicit_only"
+    ],
+    "geometric_quiet_decay": {
+      "lambda": 5.7302192538299934e-05,
+      "half_life_calls": 12096,
+      "half_life_days_at_50s_polling": 7.0,
+      "decay_condition": "score_B <= mu0_B + k    (i.e. NO fault evidence in this call)",
+      "decay_formula": "S_n_new = S_n_current * (1 - lambda)",
+      "rationale": "Per-call multiplicative decay applied ONLY when there is no positive fault evidence on this call. A persistent fault (where (score_B - mu0 - k) > 0 on most calls) accumulates faster than decay erodes - detection latency for genuine slow drift is preserved. A quiet pump (no positive evidence) sees S_n geometrically forget old WATCH alerts."
+    },
+    "investigated_no_fault_reset": {
+      "endpoint": "/api/cusum_quiet_review",
+      "operator_action": "Operator confirms WATCH alert investigated and no fault found",
+      "reset_factor": 0.3,
+      "reset_formula": "S_n_new = S_n_current * 0.30",
+      "rationale": "Discrete reset to 30% on operator-confirmed false alarm. NOT zero - if a real slow drift is in progress, it will re-accumulate; but the false-alarm spike is cut down. Logs operator_id, timestamp, and reason for audit.",
+      "audit_log_required": true
+    },
+    "maintenance_reset": {
+      "endpoint": "/api/acknowledge",
+      "operator_action": "Confirmed maintenance event (existing M10 spec)",
+      "reset_value": 0.0,
+      "rationale": "Hard reset to zero per existing M10 spec - unchanged"
+    }
+  },
+  "watch_alert_runtime_logic": "# Per-call CUSUM update (M10 runtime, 50-second polling)\nevidence = score_B - mu0_B - k   # positive means fault evidence\nif evidence > 0:\n    S_n = S_n + evidence                          # standard CUSUM accumulation\nelse:\n    S_n = S_n * (1 - lambda)                      # geometric decay on quiet call\nS_n = max(0, S_n)\nif S_n > H:\n    fire_watch_alert()\n",
+  "alarm_fatigue_protection": {
+    "rule": "If WATCH has been continuously firing for > 24h with no operator interaction, automatically downgrade to a daily summary email instead of per-call alert.",
+    "implementation_note": "M10 alert dispatcher concern, not CUSUM concern proper"
+  },
+  "validation_plan": {
+    "deployment_sanity_check": "Within first 30 days of M11 deployment, log: (a) number of WATCH fires, (b) number of /api/cusum_quiet_review invocations, (c) number of /api/acknowledge invocations, (d) WATCH-to-acknowledge median latency. If WATCH count > 1/day and acknowledge count = 0, alarm fatigue is in progress.",
+    "tune_lambda_after": "60 days of operating data. If genuine WATCH-to-fault confirmations < 80%, increase lambda by factor 1.5 to decay faster. If real Label 21 is missed, decrease lambda by factor 0.5 to preserve evidence longer."
+  }
+}
