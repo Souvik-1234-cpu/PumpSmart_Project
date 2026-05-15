@@ -1074,6 +1074,8 @@ Partnership with plant for deliberately staged fault induction on a pump schedul
 | **Category** | Physics — Fault Sequence Engineering |
 | **Severity** | HIGH |
 
+| C-28 | M8 Patch 6 | Instrumentation — ISA-37 Sensor Saturation | Sensor Sensitivity Ceiling-Approach Detection Missing | MEDIUM |
+
 ### The Problem
 
 The initial M6 synthetic generation plan specified all fault sequences at a uniform length of **200 steps**. This was a placeholder derived from the M4 window size (50 steps) multiplied by 4 — a purely computational heuristic with no physical justification.
@@ -1185,15 +1187,82 @@ The 27 challenges above collectively established the following principles that n
 
 13. **Synthetic-to-real gap is an acknowledged bounded limitation:** It cannot be resolved pre-deployment but has a clear active learning mitigation path. It must be surfaced explicitly in every production API response (from C-26).
 
+## C-28 — Sensor Sensitivity Ceiling-Approach Detection Missing
+ 
+| Field | Value |
+|-------|-------|
+| **Module** | M8 — Patch 6 (Stakeholder-Driven Sidecar Diagnostic) |
+| **Category** | Instrumentation — Sensor Health / ISA-37 Transducer Saturation |
+| **Severity** | MEDIUM |
+ 
+### The Problem
+ 
+A stakeholder review on 2026-05-14 identified a coverage gap in the existing sensor-health logic. The system already detected three sensor failure modes:
+ 
+- **Spikes** — M4 winsorization with cluster-conditional ceilings (C-17, C-18)
+- **Flatlines** — Group C masked faults (Labels 13–17) and Label 6 sensor_failure
+- **Drift** — Adaptive Threshold L4 + Mech C in the M8 main path
+ 
+However, the system did NOT detect a fourth documented industrial failure mode: **a sensor approaching its sensitivity ceiling before flatline.** This is the classic failure mode of industrial pressure transducers operating near their max-pressure rating and RTDs near their max-temperature rating — the sensor produces precise-looking values right up to the point it saturates against its physical range. At the ceiling, a 1–3% change in true physical quantity produces a 50–100% change in normalised output, or the channel goes flatline.
+ 
+The stakeholder phrased the failure mode as: *"if a 1%, 2%, or 3% change leads to a 100% change in output, that indicates the sensor is having a problem — not exactly a 'problem,' but the sensor is giving precise values, yet it might fail because it is reaching that specific threshold."*
+ 
+Without this check, M10 would surface fault predictions based on sensor values that were arithmetically valid but physically suspect, with no operator-facing warning that the underlying transducer was approaching saturation. For a 110 kW, 40 bar pump operating in production, silently trusting a saturating sensor is a Category 2 liability exposure — the prediction is wrong but the system reports it confidently.
+ 
+### Why This Matters Physically
+ 
+For a 110 kW, 40 bar, 7-stage centrifugal pump:
+ 
+- The Pres.SV transducer is rated for a nominal 0–60 bar range. CIRA observed values peak near 45 bar in high-load operation. The transducer operates at ~75% of full scale — well inside spec but with limited headroom before non-linear regime onset.
+- The Mot.TV and Pmp.TV RTDs are rated for a nominal 0–100 °C range. Real observed peaks during high-load reach 55 °C — comfortable margin.
+- The vibration accelerometers (.SV channels) have a documented broadband peak range; saturation manifests as clipped peaks (flat-topped sinusoid envelope) rather than smooth non-linear gain rise.
+ 
+The danger is not in finite headroom itself — every sensor has finite range. The danger is in the system silently trusting a measurement from a sensor that has entered its non-linear regime, then propagating that measurement through the M4 → M7 prediction pipeline as if it were a clean input.
+ 
+### Resolution
+ 
+A sidecar diagnostic script `module_08p6_sensor_sensitivity_analysis.py` was implemented on 2026-05-15. **No locked artifact was modified** — purely additive.
+ 
+**Two-metric check** on M3 normalised data (117,970 rows) across all 4 clusters × 8 channels = 32 channel-cluster pairs:
+ 
+1. **Local gain ratio** — std of 50-step rolling window divided by cluster-wide stdev. Flagged if p95 > **3.0×** per ISA-37 transducer guidelines. This is the engineering equivalent of the stakeholder's "1–3% in, 100% out" intuition, expressed as a variance ratio. Variance-ratio rather than strict dY/dX gain because raw input columns are not persisted in M3 output — acceptable because both formulations detect the same failure mode (saturation produces compressed-then-explosive variance).
+ 
+2. **Headroom to ceiling** = `(cluster_ceiling - p99_value) / (cluster_ceiling - cluster_mean)`. Flagged if < **10%**. Ceiling values pulled from `M4_spike_config.json` cluster-conditional winsor bounds (locked from C-17, C-18, C-19 fixes).
+ 
+**Results on CIRA training data (2026-05-15):**
+ 
+| Metric | Value |
+|--------|-------|
+| Channel-cluster pairs evaluated | 32 |
+| Pairs flagged | 0 |
+| Worst gain p95 | 0.98 (Mot.PV startup — BPF harmonic content, physically expected) |
+| Worst headroom — X_Pres.SV | 0.115 (1.5% above flag threshold) |
+| Worst headroom — X_ACR_Pmp.PV | 0.120 (2.0% above flag threshold) |
+| Best headroom — X_ACR_Mot.PV | 0.235 (comfortable margin) |
+ 
+The clean pass on CIRA validates that the M4 v8 cluster-conditional winsor ceilings were calibrated with sufficient headroom. Two channels (Pres.SV and Pmp.PV) sit close to the flag line, reflecting deliberate tight calibration in fault-sensitive operating regimes — Pres.SV high_load ceiling 2.0× (tightest in system per C-18 fault-sensitivity rationale) and Pmp.PV startup ceiling 3.2× (ISO 13373-3 BPF harmonic headroom per C-17). These two channels are expected to trigger the runtime addendum in deployment on pumps operating outside CIRA's envelope — by design.
+ 
+**M10 integration:** Config file `models/M8p6_sensor_sensitivity_config.json` is loaded at FastAPI lifespan startup. At every inference, live `gain_p95` and `headroom` are computed for the active cluster. If either crosses the flag threshold, Field 6 of the 7-field output appends a sensor-health sub-line:
+
+Sensor health: {channel_friendly_name} in {cluster_name} at {ratio:.2f}× ceiling 
+— verify transducer calibration before trusting {fault_label} prediction.
+
+
+The addendum annotates Field 6 only. It does NOT modify the prediction. This preserves the principle that sensor health is a sidecar diagnostic, not a prediction override (consistent with Invariant 6: sensor failure ≠ process failure).
+ 
+**Limitation acknowledged:** The variance-ratio formulation is a second-best for true dY/dX gain. The check is a screen, not a calibration certificate. Periodic transducer recalibration per manufacturer schedule remains the operator's responsibility — M8p6 surfaces *when* recalibration may be overdue based on operating signature, not whether the sensor is electrically healthy.
+ 
+**Stakeholder note:** The same 2026-05-14 review also asked whether the M2 K-Means clustering should exclude Pres.SV and Pmp.TV as inputs and predict them as outputs (virtual-sensor / analytical-redundancy pattern). That recommendation was evaluated and declined — see the Stakeholder Defense Memo (`outputs/reports/Stakeholder_Defense_Memo_M2_clusters_and_spike_seeds.md`, 2026-05-14) for the architectural rationale. Excluding pressure and casing temperature from clustering would collapse the four operating modes the stakeholder is reviewing in the PCA plot. The clustering operates on all 8 channels and is locked.
+
 ---
 
 | Field | Value |
 |-------|-------|
-| **Document version** | 2.0 |
-| **Covers** | M1 through M8 (architecture v14.2) |
-| **Previous version** | 1.0 (M1 through M4 only) |
-| **Version 2.0 additions** | C-23 through C-27 (5 new challenges, M5–M8 scope) |
+| **Document version** | 2.1 |
+| **Covers** | M1 through M8 + M8 Patch 6 (architecture v14.2) |
+| **Previous version** | 2.0 (M1 through M8, C-01 through C-27) |
+| **Version 2.1 additions** | C-28 (stakeholder-driven sensor sensitivity sidecar, 1 new challenge) + Principle 14 (sensor health as sidecar diagnostic) |
 | **Next update** | After M12 validation — append M9–M12 challenges if any arise |
 | **Asset** | 110 kW, 7-stage, 40 bar centrifugal pump \| CIRA SACIP dataset |
 | **Author** | Souvik \| PumpSmart Physics-Informed ML Digital Twin |
-| **Architecture** | v14.2 \| 4-layer detection stack \| 22-class fault classification |
+| **Architecture** | v14.2 \| 4-layer detection stack + M8p6 sensitivity guardrail \| 22-class fault classification |
