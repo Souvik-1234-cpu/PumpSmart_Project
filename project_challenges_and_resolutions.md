@@ -6,7 +6,7 @@
 | Field | Value |
 |-------|-------|
 | **Asset** | 110 kW \| 7-stage \| 40 bar \| 450 m head \| 2980 RPM \| 45 m³/h |
-| **Document version** | 2.0 |
+| **Document version** | 2.1 |
 | **Date** | 2026-04-23 |
 | **Author** | Souvik |
 | **Architecture** | v14.2 \| TCN-AE Level 2 \| CUSUM score_B \| Adaptive Threshold score_A |
