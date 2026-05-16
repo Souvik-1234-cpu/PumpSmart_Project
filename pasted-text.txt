@@ -1674,6 +1674,40 @@ M9_config_file                   : models/M9_selector_config.json
 M9_report_file                   : outputs/reports/module_09_pump_selector_report.md
 M9_script_file                   : src/module_09_pump_selector.py
 
+
+
+══ PASTE TEXT UPDATE ══
+
+Active module: M10 — FastAPI Application Layer
+M10_framework:                   FastAPI + uvicorn v5.0
+M10_phase1_gates_pass:           10/10
+M10_phase2_gates_pass:           12/12
+M10_phase3_gates_pass:           11/11
+M10_phase3_status:               READY_FOR_PHASE4
+
+M10_routes_registered:           8 routes + operator_verdict (9 total)
+M10_7field_schema:               CONFIRMED — all fields present
+M10_invariant19_enforced:        PASS (score_A→L4, score_B→L3, score_C→M7)
+M10_c25_enforced:                PASS (CUSUM never reset by rolling update)
+M10_c26_disclaimer_locked:       PASS (Field 7 wording locked)
+M10_c28_addendum_no_override:    PASS (M8p6 sidecar, override=False)
+M10_m4_layernorm_confirmed:      PASS (not BatchNorm — T1.5.1)
+M10_inference_pipeline:          WIRED (M4→z_t→TCN-AE→CUSUM/rolling→M7)
+M10_v5_0a_separation_confirmed:  PASS (acknowledge≠verdict write)
+M10_v5_0b_schema_locked:         27-column active-learning schema v1.0
+M10_v5_0c_persistence:           HF Datasets API (not local disk)
+M10_v5_0d_badge:                 single-pump v14.2 in sidebar
+M10_landing_page:                PASS (dark/Orbitron, both entry paths)
+M10_household_ml_guard:          ENFORCED (T2-3 physical routing)
+M10_jsx_version:                 pumpsmart_full_v2.jsx (all v5.0 fixes)
+
+M10_models_in_place:             lstm_ae_baseline_final.pth, tcn_ae_best.pth,
+                                  M7_xgboost.json, all configs confirmed
+M10_gate_scripts_location:       src/ (moved from root)
+
+Status for Phase 4:              READY — end-to-end server test
+Active module:                   M10 Phase 4
+
 Active module: M10 — Flask API + Physics Context UI
 Status for M10: PROCEED
 ═══════════════════════════════════════════════════════════════════════
