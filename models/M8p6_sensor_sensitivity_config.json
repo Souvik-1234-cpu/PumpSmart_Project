@@ -1,0 +1,56 @@
+{
+  "script": "module_08p6_sensor_sensitivity_analysis",
+  "date": "2026-05-15",
+  "rationale": "Stakeholder review 2026-05 \u2014 sensitivity ceiling-approach detection per ISA-37 transducer guidelines",
+  "isa37_gain_ratio_limit": 3.0,
+  "headroom_flag_fraction": 0.1,
+  "rolling_window_steps": 50,
+  "flagged_channel_cluster_pairs": [],
+  "gain_summary_per_channel": {
+    "X_ACR_Mot.PV": {
+      "gain_p95": 0.9792,
+      "frac_gain_exceeds_3x": 0.0001,
+      "headroom_to_ceiling": 0.2358
+    },
+    "X_ACR_Mot.SV": {
+      "gain_p95": 0.7584,
+      "frac_gain_exceeds_3x": 0.0055,
+      "headroom_to_ceiling": 0.1333
+    },
+    "X_ACR_Mot.TV": {
+      "gain_p95": 0.0281,
+      "frac_gain_exceeds_3x": 0.0,
+      "headroom_to_ceiling": 0.1468
+    },
+    "X_ACR_Pmp.PV": {
+      "gain_p95": 0.9388,
+      "frac_gain_exceeds_3x": 0.0024,
+      "headroom_to_ceiling": 0.1219
+    },
+    "X_ACR_Pmp.SV": {
+      "gain_p95": 0.6516,
+      "frac_gain_exceeds_3x": 0.007,
+      "headroom_to_ceiling": 0.1509
+    },
+    "X_ACR_Pmp.TV": {
+      "gain_p95": 0.0344,
+      "frac_gain_exceeds_3x": 0.0,
+      "headroom_to_ceiling": 0.1599
+    },
+    "X_Pres.SV": {
+      "gain_p95": 0.8831,
+      "frac_gain_exceeds_3x": 0.0038,
+      "headroom_to_ceiling": 0.1157
+    },
+    "X_Temp.SV": {
+      "gain_p95": 0.0674,
+      "frac_gain_exceeds_3x": 0.0002,
+      "headroom_to_ceiling": 0.1524
+    }
+  },
+  "m10_runtime_action": {
+    "when_to_fire": "live channel gain p95 > 3.0 OR live p99 within 10% of ceiling",
+    "field_6_addendum": "Sensor health: {channel} in {cluster} at {ratio}\u00d7 ceiling \u2014 verify transducer calibration before trusting {fault} prediction.",
+    "override_existing_prediction": false
+  }
+}
