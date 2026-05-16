@@ -13,6 +13,9 @@ from datetime import datetime
 SCRIPT_NAME = "module_10_phase1_gates"
 results     = {}
 
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 def log(msg): print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 PASS = "PASS"

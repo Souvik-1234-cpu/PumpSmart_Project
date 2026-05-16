@@ -13,6 +13,8 @@ import sys, re
 from pathlib import Path
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 def log(msg): print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 PASS="PASS"; FAIL="FAIL"
 gates = {}
