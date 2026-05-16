@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PumpSmart v14.2 — Industrial Monitor</title>
+
+  <!-- Chart.js — loaded before React so dashboard.js can access window.Chart -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+  <!-- React + Babel (CDN — same pattern as JSX mockup) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; }
+    body {
+      background: #04101e;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #c0d8f0;
+      overflow: hidden;
+    }
+    #root { display: flex; flex-direction: column; }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(4,12,24,.8); }
+    ::-webkit-scrollbar-thumb { background: rgba(0,180,220,.25); border-radius: 4px; }
+  </style>
+
+  <!--
+    Backend API base URL — injected by Jinja2 at render time.
+    dashboard.js reads window.PUMPSMART_API_BASE to build all fetch() calls.
+    On HF Spaces this will be "" (same origin).
+    For local dev with a different port, set via env var.
+  -->
+  <script>
+    window.PUMPSMART_API_BASE = "{{ api_base | default('') }}";
+    window.PUMPSMART_ARCH_VERSION = "{{ arch_version }}";
+    window.PUMPSMART_APP_VERSION  = "{{ app_version }}";
+    window.PUMPSMART_PUMP_ID      = "PUMP-0032";
+    // Polling intervals (ms)
+    window.HEALTH_POLL_MS    = 30000;   // /health every 30s
+    window.INFERENCE_POLL_MS = 50000;   // /api/anomaly_detect every ~50s (1 Hz window)
+  </script>
+</head>
+<body>
+  <div id="root">
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;
+                flex-direction:column;gap:16px;color:#2a5a70;font-size:14px;">
+      <div style="font-size:32px;animation:spin 1s linear infinite;">⚙️</div>
+      Loading PumpSmart v14.2…
+    </div>
+  </div>
+
+  <!-- dashboard.js — API polling layer (must load before the JSX app) -->
+  <script src="/static/dashboard.js"></script>
+
+  <!--
+    React app — pumpsmart_full_v2.jsx compiled by Babel in-browser.
+    In production (M11) this would be pre-compiled by a build step.
+    For HF Spaces demo, Babel in-browser is acceptable.
+  -->
+  <script type="text/babel" src="/static/pumpsmart_full_v2.jsx"></script>
+
+  <script>
+    // Mount React app once Babel has compiled the JSX
+    window.addEventListener('DOMContentLoaded', () => {
+      // Give Babel ~100ms to compile, then mount
+      setTimeout(() => {
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(window.PumpSmartApp));
+      }, 150);
+    });
+  </script>
+
+  <style>
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  </style>
+</body>
+</html>

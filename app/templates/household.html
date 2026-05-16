@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PumpSmart — Household Pump Advisor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #04101e; font-family: 'Inter', system-ui, sans-serif;
+           color: #c0d8f0; min-height: 100vh; padding: 32px 16px; }
+    .container { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #2a6a7a; margin-bottom: 24px; }
+    .advisory-banner {
+      background: rgba(56,182,255,.08); border: 1px solid rgba(56,182,255,.25);
+      border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;
+      font-size: 12px; color: #38b6ff; line-height: 1.6;
+    }
+    .card { background: rgba(6,18,36,.88); border: 1px solid rgba(20,60,100,.5);
+            border-radius: 12px; padding: 20px; margin-bottom: 16px;
+            backdrop-filter: blur(8px); }
+    label { display: block; font-size: 11px; color: #3a6a7a;
+            text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+    select, input[type=number] {
+      width: 100%; padding: 10px 12px; background: rgba(4,12,26,.8);
+      border: 1px solid rgba(20,60,100,.5); border-radius: 8px; color: #c0d8f0;
+      font-size: 13px; font-family: inherit; outline: none;
+    }
+    .field { margin-bottom: 14px; }
+    button {
+      width: 100%; padding: 12px; border-radius: 9px; cursor: pointer;
+      font-size: 14px; font-weight: 700; font-family: inherit;
+      background: linear-gradient(135deg, #1456a0, #0d3d7a);
+      border: 1px solid rgba(56,182,255,.3); color: #38b6ff;
+      transition: opacity .2s; margin-top: 4px;
+    }
+    button:hover { opacity: .85; }
+    #results { display: none; }
+    .result-row { display: flex; justify-content: space-between;
+                  padding: 10px 0; border-bottom: 1px solid rgba(20,55,95,.3); font-size: 13px; }
+    .result-label { color: #5a9ab0; }
+    .result-val { color: #38b6ff; font-weight: 600; font-family: monospace; }
+    .disclaimer { font-size: 11px; color: #2a5060; line-height: 1.7; margin-top: 12px; }
+    a { color: #38b6ff; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>💧 Household Pump Advisor</h1>
+    <p class="subtitle">Physics-only sizing calculator — advisory only | No ML inference</p>
+
+    <div class="advisory-banner">
+      ⚠️ <strong>Advisory only.</strong> This tool uses physics equations only — no machine learning.
+      Results are estimates. Consult a qualified engineer before purchasing or installing equipment.
+      <br><a href="/">← Back to Industrial Monitor</a>
+    </div>
+
+    <div class="card">
+      <div class="field">
+        <label>Usage type</label>
+        <select id="usage_type">
+          <option value="domestic">Domestic (house / apartment)</option>
+          <option value="irrigation">Irrigation / garden</option>
+          <option value="borehole">Borehole / submersible</option>
+          <option value="pressure_boost">Pressure booster</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Daily demand (litres/day)</label>
+        <input type="number" id="daily_demand" value="500" min="10" max="50000"/>
+      </div>
+      <div class="field">
+        <label>Pipe length (m)</label>
+        <input type="number" id="pipe_length" value="30" min="1" max="2000"/>
+      </div>
+      <div class="field">
+        <label>Elevation / static head (m)</label>
+        <input type="number" id="elevation" value="5" min="0" max="500"/>
+      </div>
+      <div class="field">
+        <label>Pipe internal diameter (mm)</label>
+        <input type="number" id="pipe_diameter" value="25" min="6" max="300"/>
+      </div>
+      <button onclick="calculate()">Calculate pump requirements →</button>
+    </div>
+
+    <div id="results" class="card">
+      <div style="font-size:11px;color:#3a6a7a;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;">📊 Sizing results</div>
+      <div class="result-row"><span class="result-label">Recommended pump type</span><span class="result-val" id="r_type">—</span></div>
+      <div class="result-row"><span class="result-label">Peak flow (m³/h)</span><span class="result-val" id="r_flow">—</span></div>
+      <div class="result-row"><span class="result-label">Total head required (m)</span><span class="result-val" id="r_head">—</span></div>
+      <div class="result-row"><span class="result-label">Friction loss (m)</span><span class="result-val" id="r_hf">—</span></div>
+      <div class="result-row"><span class="result-label">Hydraulic power (kW)</span><span class="result-val" id="r_phyd">—</span></div>
+      <div class="result-row" style="border:none"><span class="result-label">Recommended motor (kW)</span><span class="result-val" id="r_motor">—</span></div>
+      <p class="disclaimer" id="r_disclaimer"></p>
+    </div>
+  </div>
+
+  <script>
+    const BASE = "{{ api_base | default('') }}";
+
+    async function calculate() {
+      const params = {
+        usage_type:      document.getElementById('usage_type').value,
+        daily_demand_L:  document.getElementById('daily_demand').value,
+        pipe_length_m:   document.getElementById('pipe_length').value,
+        elevation_m:     document.getElementById('elevation').value,
+        pipe_diameter_mm:document.getElementById('pipe_diameter').value,
+      };
+      try {
+        const r = await fetch(BASE + '/api/household?' + new URLSearchParams(params));
+        const d = await r.json();
+        document.getElementById('r_type').textContent   = d.pump_type_suggestion;
+        document.getElementById('r_flow').textContent   = d.peak_flow_m3h + ' m³/h';
+        document.getElementById('r_head').textContent   = d.total_head_m + ' m';
+        document.getElementById('r_hf').textContent     = d.friction_loss_m + ' m';
+        document.getElementById('r_phyd').textContent   = d.P_hydraulic_kW;
+        document.getElementById('r_motor').textContent  = d.recommended_motor_kW + ' kW';
+        document.getElementById('r_disclaimer').textContent = d.advisory_disclaimer;
+        document.getElementById('results').style.display = 'block';
+      } catch(e) {
+        alert('Error: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>
