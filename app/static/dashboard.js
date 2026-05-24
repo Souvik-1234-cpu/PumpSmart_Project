@@ -1,6 +1,6 @@
 // =============================================================================
 // app/static/dashboard.js
-// PumpSmart v14.2 — API polling layer
+// PumpSmart v14.2 — API polling layer (v5.1 — Phase 2.5 history integration)
 // Bridges the React JSX frontend to the FastAPI backend.
 //
 // Exposes window.PumpSmartAPI — consumed by pumpsmart_full_v2.jsx
@@ -9,7 +9,13 @@
 // Polling schedule:
 //   /health              → every 30s (HEALTH_POLL_MS)
 //   /api/anomaly_detect  → every ~50s (INFERENCE_POLL_MS)
+//   /api/sensor_history  → tab-driven (1s dashboard / 5s analytics / on-demand history)
 //   /api/physics_context → on-demand (per prediction, cached)
+//
+// v5.1 changes:
+//   - Server-side sensor history (multi-client safe — all clients see same timeline)
+//   - DS-C adaptive downsampling (last 5 min full-res + LTTB for older data)
+//   - Tab-aware history poller (startHistoryPolling / stopHistoryPolling)
 // =============================================================================
 
 (function () {
@@ -22,14 +28,30 @@
   let _listeners = {};          // event → [callbacks]
   let _healthTimer = null;
   let _inferenceTimer = null;
+  let _historyPollHandle = null;
+  let _historyCurrentTab = null;
   let _latestPrediction = null;
   let _latestHealth = null;
+  let _latestHistory = { dashboard: null, analytics: null, history: null };
   let _physicsCache = {};       // label_int → physics context (cached)
   let _sensorConnected = {      // mirrors Day-1 config — updated by Sensor Plugin
     mot_sv: true, pmp_sv: true, mot_tv: true, pmp_pv: true,
     temp_sv: true, pres_sv: true, pmp_tv: true, mot_pv: true,
   };
   let _currentCluster = 'steady_state';
+
+  // ── History polling configuration (Phase 2.5) ─────────────────────────────
+  const HISTORY_POLL_MS = {
+    dashboard: 1000,    // live chart — 1 s (matches sensor rate)
+    analytics: 5000,    // analytics tab — 5 s (heavier render)
+    history:   null,    // on-demand only (button click)
+  };
+
+  const HISTORY_RANGES = {
+    dashboard: { last_n_seconds: 300,   max_points: 300,  downsample: 'adaptive' },
+    analytics: { last_n_seconds: 3600,  max_points: 500,  downsample: 'adaptive' },
+    history:   { last_n_seconds: 86400, max_points: 2000, downsample: 'adaptive' },
+  };
 
   // ── Event bus (minimal pub/sub for React ↔ polling) ───────────────────────
   function on(event, cb) {
@@ -124,6 +146,76 @@
     }, 5000);
   }
 
+  // ── /api/sensor_history (Phase 2.5 — server-side, multi-client safe) ──────
+  async function getSensorHistory(opts = {}) {
+    const params = new URLSearchParams({
+      last_n_seconds: opts.last_n_seconds || 3600,
+      downsample:     opts.downsample     || 'adaptive',
+      max_points:     opts.max_points     || 500,
+    });
+    try {
+      const r = await fetch(`${BASE}/api/sensor_history?${params}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      emit('history_error', { error: e.message });
+      throw e;
+    }
+  }
+
+  async function getSensorHistoryState() {
+    try {
+      return await _get('/api/sensor_history/state');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function resetSensorHistory() {
+    return _post('/api/sensor_history/reset', {});
+  }
+
+  // Tab-aware polling controller
+  function startHistoryPolling(tab) {
+    stopHistoryPolling();
+    _historyCurrentTab = tab;
+    const interval = HISTORY_POLL_MS[tab];
+    const range    = HISTORY_RANGES[tab];
+    if (!interval || !range) return;   // history tab is on-demand
+
+    const tick = async () => {
+      try {
+        const data = await getSensorHistory(range);
+        _latestHistory[tab] = data;
+        emit('history_update', { tab, data });
+      } catch (e) {
+        // history_error already emitted by getSensorHistory
+      }
+    };
+    tick();   // immediate fire
+    _historyPollHandle = setInterval(tick, interval);
+  }
+
+  function stopHistoryPolling() {
+    if (_historyPollHandle) {
+      clearInterval(_historyPollHandle);
+      _historyPollHandle = null;
+      _historyCurrentTab = null;
+    }
+  }
+
+  // On-demand load for History tab (manual range selection)
+  async function loadHistoryTab(rangeHours = 24) {
+    const data = await getSensorHistory({
+      last_n_seconds: rangeHours * 3600,
+      max_points: 2000,
+      downsample: 'adaptive',
+    });
+    _latestHistory.history = data;
+    emit('history_update', { tab: 'history', data });
+    return data;
+  }
+
   // ── /api/physics_context ──────────────────────────────────────────────────
   async function _fetchPhysicsContext(labelInt) {
     try {
@@ -139,6 +231,7 @@
 
   // ── /api/acknowledge ──────────────────────────────────────────────────────
   // v5.0-A: operational reset ONLY — does NOT write active-learning row
+  // v5.1: does NOT reset sensor history (forensic retention)
   async function acknowledge(actionTaken, operatorId = '') {
     try {
       const data = await _post('/api/acknowledge', {
@@ -211,11 +304,13 @@
   function stopPolling() {
     if (_healthTimer)    clearInterval(_healthTimer);
     if (_inferenceTimer) clearInterval(_inferenceTimer);
+    stopHistoryPolling();
   }
 
   // ── Accessors ─────────────────────────────────────────────────────────────
   function getLatestPrediction() { return _latestPrediction; }
   function getLatestHealth()     { return _latestHealth; }
+  function getLatestHistory(tab) { return _latestHistory[tab] || null; }
 
   // ── Demo window generator ─────────────────────────────────────────────────
   // Generates synthetic M3-normalised 50×8 windows for shadow/demo mode.
@@ -278,9 +373,17 @@
     selectPump,
     householdAdvisor,
     getPhysicsContext,
+    // History (Phase 2.5)
+    getSensorHistory,
+    getSensorHistoryState,
+    resetSensorHistory,
+    startHistoryPolling,
+    stopHistoryPolling,
+    loadHistoryTab,
     // State
     getLatestPrediction,
     getLatestHealth,
+    getLatestHistory,
     setSensorConnected,
     getSensorState,
     setCluster,

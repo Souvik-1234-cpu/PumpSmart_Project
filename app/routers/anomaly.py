@@ -4,7 +4,7 @@
 # =============================================================================
 # Pipeline:
 #   Raw 50×8 window (M3-normalised)
-#     → M4 LSTM-AE encoder → score_A (MAE) + z_t (ℝ⁶⁴)
+#     → M4 LSTM-AE encoder → score_A (MAE) + z_t (ℝ⁶⁴) + mae_per_ch (ℝ⁸)
 #     → ZTBuffer.append(z_t)
 #     → M8 TCN-AE (when buffer ready, 63 z_t) → score_B (drift) + score_C (chain)
 #     → score_B → CUSUMState.update()     [L3 — Invariant 19]
@@ -18,8 +18,14 @@
 # C-25: RollingState.update() NEVER calls CUSUMState.reset().
 # C-26: MODEL_DISCLAIMER_TEXT always present in Field 7.
 # C-28: M8p6 addendum annotates Field 6 only — never alters label/confidence.
+#
+# Stage 1.1 patch applied (22 May 2026):
+#   run_m4 now returns mae_per_ch_np as 3rd element (was discarded — D1a fix).
+#   _build_m7_features receives mae_per_ch_np directly from run_m4 output,
+#   replacing the broken MAD-of-raw-window that was 100× off scale (D1a).
 # =============================================================================
 
+from app.runtime.feature_builder import build_m7_features
 import uuid
 import asyncio
 from datetime import datetime
@@ -45,7 +51,7 @@ CH_WEIGHTS = torch.tensor([2.5, 2.5, 0.3, 2.0, 0.5, 2.5, 0.3, 2.0], dtype=torch.
 GROUP_B_LABELS = {7, 8, 9, 10, 11, 12}
 
 # Group C labels — masked faults (limitation flag added)
-GROUP_C_LABELS = {13, 14, 15, 16, 17}
+GROUP_C_LABELS = {13, 14, 15, 16, 17, 22, 23}
 
 # Cluster name map
 CLUSTER_NAMES = {
@@ -60,19 +66,20 @@ CLUSTER_NAMES = {
 # L1 — M4 LSTM-AE forward pass
 # =============================================================================
 @torch.no_grad()
-def run_m4(window_tensor: torch.Tensor, m4_model, q: float) -> tuple[float, np.ndarray, float]:
+def run_m4(window_tensor: torch.Tensor, m4_model, q: float) -> tuple[float, np.ndarray, np.ndarray, float]:
     """
     Forward pass through M4 LSTM-AE encoder.
-    Returns: (score_A, z_t_np, raw_mae)
-      score_A  = physics-weighted MAE scalar (routed to L4 RollingState)
-      z_t_np   = encoder bottleneck vector ℝ⁶⁴ (routed to ZTBuffer → L2 TCN-AE)
-      raw_mae  = unweighted mean MAE (for OOD Mahalanobis feature)
+    Returns: (score_A, z_t_np, mae_per_ch_np, raw_mae)
+      score_A       = physics-weighted MAE scalar (routed to L4 RollingState)
+      z_t_np        = encoder bottleneck vector ℝ⁶⁴ (routed to ZTBuffer → L2 TCN-AE)
+      mae_per_ch_np = per-channel reconstruction MAE ℝ⁸ (routed to feature_builder)
+                      Stage 1.1 patch: formerly discarded — now surfaced (D1a fix).
+      raw_mae       = unweighted mean MAE (for OOD Mahalanobis feature)
     """
     # window_tensor: [1, 50, 8]
     x = window_tensor.float()
 
-    # Encoder pass — returns z_t (bottleneck)
-    # M4 architecture: encoder.forward returns (z, h_n, c_n) or just z depending on version
+    # Encoder pass
     enc = m4_model.encoder
     out1, _ = enc.lstm1(x)                           # [1, 50, 128]
     out2, (h_n, c_n) = enc.lstm2(out1)               # h_n: [1, 1, 64]
@@ -81,17 +88,23 @@ def run_m4(window_tensor: torch.Tensor, m4_model, q: float) -> tuple[float, np.n
     # Decoder reconstruction
     recon = m4_model.decoder(z_t, x.size(1), h_n, c_n)   # [1, 50, 8]
 
-    # Per-channel MAE
+    # Per-channel reconstruction MAE — identical formula to M6.5r training-time computation.
+    # Mean over time dimension (dim=1), squeeze batch dim → [8]
     mae_per_ch = (x - recon).abs().mean(dim=1).squeeze(0)   # [8]
 
     # Physics-weighted score_A (→ L4)
-    weights    = CH_WEIGHTS.to(mae_per_ch.device)
-    score_A    = (mae_per_ch * weights).sum().item() / weights.sum().item()
+    weights = CH_WEIGHTS.to(mae_per_ch.device)
+    score_A = (mae_per_ch * weights).sum().item() / weights.sum().item()
 
     # Raw unweighted MAE (for OOD feature)
-    raw_mae    = mae_per_ch.mean().item()
+    raw_mae = mae_per_ch.mean().item()
 
-    return score_A, z_t.squeeze(0).cpu().numpy(), raw_mae
+    return (
+        score_A,
+        z_t.squeeze(0).cpu().numpy(),
+        mae_per_ch.cpu().numpy(),    # ← Stage 1.1 patch: was discarded, now returned (D1a fix)
+        raw_mae,
+    )
 
 
 # =============================================================================
@@ -108,9 +121,8 @@ def run_tcn_ae(zt_sequence: np.ndarray, m8_model) -> tuple[float, float]:
     # zt_sequence: [63, 64]
     x = torch.from_numpy(zt_sequence).float().unsqueeze(0)   # [1, 63, 64]
 
-    # TCN-AE forward — returns (score_B, score_C) from dual output heads
-    # Architecture confirmed from module_08_tcn_ae_detection_stack.py
-    score_B, score_C = m8_model(x)   # both scalars or [1] tensors
+    # TCN-AE forward — returns (score_A_tcn, score_B, score_C) from dual output heads
+    _sA, score_B, score_C = m8_model(x)
 
     return float(score_B), float(score_C)
 
@@ -124,7 +136,7 @@ def compute_mahalanobis(z_t_np: np.ndarray, ood_cfg: dict) -> float:
     Uses pre-computed centroid and precision matrix from M8p4 OOD config.
     """
     try:
-        centroid  = np.array(ood_cfg["centroid"], dtype=np.float32)      # [64]
+        centroid  = np.array(ood_cfg["centroid"], dtype=np.float32)          # [64]
         precision = np.array(ood_cfg["precision_matrix"], dtype=np.float32)  # [64, 64]
         diff      = z_t_np - centroid
         dist      = float(np.sqrt(diff @ precision @ diff))
@@ -147,11 +159,11 @@ def check_m8p6(window_np: np.ndarray, cluster: str, m8p6_cfg: dict) -> M8p6Adden
 
     channels_cfg = m8p6_cfg.get("channels", [])
     for ch_cfg in channels_cfg:
-        ch_name    = ch_cfg.get("name", "")
-        ch_idx     = ch_cfg.get("index", -1)
+        ch_name     = ch_cfg.get("name", "")
+        ch_idx      = ch_cfg.get("index", -1)
         cluster_cfg = ch_cfg.get("cluster_ceilings", {}).get(cluster, {})
-        ceiling    = cluster_cfg.get("ceiling_multiplier", 3.0)
-        mean_val   = cluster_cfg.get("cluster_mean", 1.0)
+        ceiling     = cluster_cfg.get("ceiling_multiplier", 3.0)
+        mean_val    = cluster_cfg.get("cluster_mean", 1.0)
 
         if ch_idx < 0 or ch_idx >= 8:
             continue
@@ -265,13 +277,16 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
     window_tensor = torch.from_numpy(window_np).unsqueeze(0)      # [1, 50, 8]
 
     # ── L1: M4 LSTM-AE ───────────────────────────────────────────────────────
-    m4_model  = models["m4_model"]
-    score_A, z_t_np, raw_mae = run_m4(window_tensor, m4_model, models["m4_threshold"])
+    m4_model = models["m4_model"]
+    # Stage 1.1 patch: unpack 4 values — mae_per_ch_np now in scope (D1a fix)
+    score_A, z_t_np, mae_per_ch_np, raw_mae = run_m4(
+        window_tensor, m4_model, models["m4_threshold"]
+    )
 
     # Feed z_t into buffer (async-safe)
     await request.app.state.zt_buf.append(z_t_np)
 
-    # ── L2: TCN-AE (when z_t buffer full) ───────────────────────────────────
+    # ── L2: TCN-AE (when z_t buffer full) ────────────────────────────────────
     score_B = 0.0
     score_C = 0.0
     m8_model = models["m8_model"]
@@ -283,28 +298,27 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
             None, run_tcn_ae, zt_sequence, m8_model
         )
 
-    # ── L3: CUSUM update — score_B ONLY (Invariant 19) ──────────────────────
-    cusum_result   = await request.app.state.cusum.update(score_B)
-    cusum_Sn       = cusum_result["cusum_Sn"]
+    # ── L3: CUSUM update — score_B ONLY (Invariant 19) ───────────────────────
+    cusum_result = await request.app.state.cusum.update(score_B)
+    cusum_Sn     = cusum_result["cusum_Sn"]
 
-    # ── L4: Rolling baseline update — score_A ONLY (Invariant 19) ───────────
+    # ── L4: Rolling baseline update — score_A ONLY (Invariant 19) ────────────
     rolling_result = await request.app.state.rolling.update(score_A)
     theta_t        = rolling_result["theta_t"]
     drift_locked   = rolling_result["drift_locked"]
 
-    # ── Alert state ──────────────────────────────────────────────────────────
+    # ── Alert state ───────────────────────────────────────────────────────────
     alert_state = compute_alert_state(score_A, theta_t, cusum_Sn, drift_locked)
 
-    # ── M7 XGBoost classification — score_C routed here (Invariant 19) ──────
-    xgb_model  = models["xgb_model"]
-    label_map  = models["label_map"]
+    # ── M7 XGBoost classification — score_C routed here (Invariant 19) ───────
+    xgb_model   = models["xgb_model"]
+    label_map   = models["label_map"]
     fault_rules = models["fault_rules"]
 
-    # Build feature vector for M7
-    # M7 expects the 35-feature schema from M6.5r
-    # score_C is included as a feature (onset_order proxy)
-    # Full feature engineering lives in Phase 2 helper (inline here for clarity)
-    feature_vec = _build_m7_features(window_np, score_A, score_B, score_C, raw_mae)
+    # Build feature vector for M7.
+    # mae_per_ch_np is the true M4 reconstruction error per channel (D1a fix).
+    # Class D sequence-aware features are stubbed at 0.0 — Stage 2 fills them.
+    feature_vec = build_m7_features(mae_per_ch_np, window_np, z_t_np, score_A, score_B, score_C)
     feature_vec_2d = feature_vec.reshape(1, -1)
 
     proba      = xgb_model.predict_proba(feature_vec_2d)[0]   # [22]
@@ -313,21 +327,21 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
     label_name = label_map.get(label_int, "unknown")
 
     # ── OOD detection (M8p4 Mahalanobis) ─────────────────────────────────────
-    mahal_dist   = compute_mahalanobis(z_t_np, models["m8p4_cfg"])
+    mahal_dist    = compute_mahalanobis(z_t_np, models["m8p4_cfg"])
     ood_suspected = mahal_dist > models["ood_tau_p99"]
 
     # ── M8p6 sensor sensitivity check (C-28) ─────────────────────────────────
     m8p6_addendum = check_m8p6(window_np, payload.cluster, models["m8p6_cfg"])
 
     # ── Physics context lookup ────────────────────────────────────────────────
-    phys = models["physics_ctx"].get(str(label_int), {})
+    phys = models["physics_ctx"].get("labels", {}).get(str(label_int), {})
     recommended_action = phys.get("recommended_action", "Inspect per maintenance schedule.")
 
     # Append M8p6 addendum to Field 6 if triggered (sidecar — C-28 / Principle 14)
     if m8p6_addendum.triggered:
         recommended_action += "\n\n⚠️ " + m8p6_addendum.addendum_text
 
-    # ── Causal chain (Group B only) ──────────────────────────────────────────
+    # ── Causal chain (Group B only) ───────────────────────────────────────────
     causal_chain = None
     if label_int in GROUP_B_LABELS:
         causal_chain = fault_rules.get("compound_chains", {}).get(
@@ -339,12 +353,9 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
     # ── SHAP top features (lightweight inline — full SHAP in Analytics tab) ──
     top_shap: Optional[dict] = None
     try:
-        import shap
-        explainer  = xgb_model.get_booster()
-        # Use XGBoost's built-in feature importance as lightweight proxy
-        scores     = xgb_model.get_booster().get_score(importance_type="gain")
-        sorted_ft  = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-        top_shap   = {k: round(v, 4) for k, v in sorted_ft}
+        scores    = xgb_model.get_booster().get_score(importance_type="gain")
+        sorted_ft = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_shap  = {k: round(v, 4) for k, v in sorted_ft}
     except Exception:
         top_shap = None
 
@@ -354,7 +365,7 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
     )
 
     # ── Build 7-field response ────────────────────────────────────────────────
-    return FaultPrediction(
+    prediction = FaultPrediction(
         # Field 1
         fault_label=label_name,
         # Field 2
@@ -399,82 +410,18 @@ async def anomaly_detect(payload: SensorWindow, request: Request):
         limitation_flags=limitation_flags,
         top_shap_features=top_shap,
         m8p6_addendum=m8p6_addendum,
+        fault_label_int=label_int,
+        physics_context=phys if phys else {},
     )
 
+    # ── M10 Phase 2.5 — append to server-side sensor history (multi-client) ──
+    try:
+        await request.app.state.history.append(
+            window=payload.window,
+            prediction=prediction.model_dump(),
+        )
+    except Exception as _hist_err:
+        import logging
+        logging.getLogger("pumpsmart").warning(f"history append failed: {_hist_err}")
 
-# =============================================================================
-# M7 Feature Vector Builder — 35-feature schema from M6.5r
-# =============================================================================
-def _build_m7_features(
-    window_np: np.ndarray,   # [50, 8]
-    score_A: float,
-    score_B: float,
-    score_C: float,
-    raw_mae: float,
-) -> np.ndarray:
-    """
-    Builds the 35-feature vector expected by M7 XGBoost.
-    Matches M6.5r feature schema exactly — column order is LOCKED.
-
-    Channel order: Mot.SV(0), Pmp.SV(1), Mot.TV(2), Pmp.PV(3),
-                   Temp.SV(4), Pres.SV(5), Pmp.TV(6), Mot.PV(7)
-    """
-    feats = []
-
-    # ── Per-channel MAE (8 features) ─────────────────────────────────────────
-    mae_per_ch = np.abs(window_np - window_np.mean(axis=0)).mean(axis=0)   # [8]
-    feats.extend(mae_per_ch.tolist())
-
-    # ── Per-channel slope — rate-of-change (8 features) ──────────────────────
-    t = np.arange(window_np.shape[0], dtype=np.float32)
-    slopes = np.array([
-        float(np.polyfit(t, window_np[:, ch], 1)[0])
-        for ch in range(8)
-    ])
-    feats.extend(slopes.tolist())
-
-    # ── Per-channel kurtosis (8 features) ────────────────────────────────────
-    from scipy.stats import kurtosis
-    kurt = np.array([float(kurtosis(window_np[:, ch])) for ch in range(8)])
-    feats.extend(kurt.tolist())
-
-    # ── Composite scores (3 features) — Invariant 19 routing ─────────────────
-    feats.extend([score_A, score_B, score_C])
-
-    # ── Global stats (4 features) ─────────────────────────────────────────────
-    feats.append(float(window_np.max()))             # max_err_all
-    feats.append(float(raw_mae))                     # mean_err_all (unweighted)
-    feats.append(float(window_np.std()))             # global_std
-    feats.append(float(np.abs(slopes).max()))        # max_slope_any_channel
-
-    # ── Multi-sensor anomaly count (1 feature) ───────────────────────────────
-    # Count channels with mae > 0.5 (cluster-normalised fault proxy)
-    multi_sensor_count = int((mae_per_ch > 0.5).sum())
-    feats.append(float(multi_sensor_count))
-
-    # ── Thermal coupling ratio (1 feature) ───────────────────────────────────
-    # Mot.TV (idx 2) slope / Temp.SV (idx 4) slope — bearing heat propagation
-    thermal_ratio = (
-        abs(slopes[2]) / (abs(slopes[4]) + 1e-8)
-    )
-    feats.append(float(np.clip(thermal_ratio, 0, 20)))
-
-    # ── Vibration-pressure coupling (1 feature) ───────────────────────────────
-    # Pmp.SV (idx 1) kurtosis × Pres.SV (idx 5) slope magnitude
-    vib_pres_coupling = float(abs(kurt[1]) * abs(slopes[5]))
-    feats.append(float(np.clip(vib_pres_coupling, 0, 100)))
-
-    # ── Onset order proxy (1 feature — score_C replaces full onset_order) ────
-    # onset_order is the ordinal phase indicator trained in M6.5r
-    # At runtime, score_C serves as the continuous proxy for this
-    feats.append(float(np.clip(score_C, 0, 5)))
-
-    features = np.array(feats, dtype=np.float32)
-
-    # Pad or trim to exactly 35 features
-    if len(features) < 35:
-        features = np.pad(features, (0, 35 - len(features)))
-    elif len(features) > 35:
-        features = features[:35]
-
-    return features
+    return prediction

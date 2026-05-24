@@ -30,7 +30,7 @@ async def health_check(request: Request):
             "m4_lstm_ae"  : models["m4_model"] is not None,
             "m8_tcn_ae"   : models["m8_model"] is not None,
             "m7_xgboost"  : models["xgb_model"] is not None,
-            "fault_rules" : len(models["label_map"]) == 22,
+            "fault_rules" : len(models["label_map"]) >= 22,
         },
         "cusum_state"       : cusum_st,
         "rolling_state"     : roll_st,

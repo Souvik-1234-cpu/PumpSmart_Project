@@ -1,5 +1,5 @@
 # PumpSmart — Module M8 Report
-**Date:** 2026-05-03  
+**Date:** 2026-05-22  
 **Architecture:** v14.2  
 **Pump:** 110 kW | 7-stage | 40 bar | 2980 RPM | 45 m³/h | 450 m head  
 
@@ -10,7 +10,7 @@
 | Metric | Value |
 |--------|-------|
 | Best val loss | 0.006933 |
-| Training time (min) | 0.77 |
+| Training time (min) | 0.87 |
 | Peak VRAM (GB) | 0.036 |
 | TCN-AE params | 255,840 |
 | Normal train seqs | 1700 |
@@ -84,7 +84,7 @@
 |-------|-----|
 | Group A single fault | 0.97 |
 | Group B compound | 1.0 |
-| Group D variant | 1.0 |
+| Group D variant | 0.798 |
 | Group E multi-sensor | 0.915 |
 | FPR normal pool | 0.05 |
 | Separation ratio | 3.35 |

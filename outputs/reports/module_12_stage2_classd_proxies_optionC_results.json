@@ -1,0 +1,171 @@
+{
+  "script": "module_12_stage2_classd_proxies_optionC",
+  "run_date": "2026-05-23",
+  "run_ts_utc": "2026-05-23T09:52:13.929788Z",
+  "stage": "M12-Stage-2 Option-C (M4-faithful proxy calibration)",
+  "device": "cpu (deterministic)",
+  "preflight": {
+    "found": {
+      "m4_weights": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\lstm_ae_baseline_final.pth",
+      "m6b_sequences": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_combined_sequences.pkl",
+      "matrix": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_feature_matrix.csv",
+      "cluster_bounds": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\M2_cluster_bounds.csv"
+    },
+    "missing": [],
+    "ok": true,
+    "m4_params": 505096,
+    "matrix_schema_ok": true
+  },
+  "sampling": {
+    "per_label_counts": {
+      "0": 8,
+      "1": 8,
+      "2": 8,
+      "3": 8,
+      "4": 8,
+      "5": 8,
+      "6": 8,
+      "7": 8,
+      "8": 8,
+      "9": 8,
+      "10": 8,
+      "11": 8,
+      "12": 8,
+      "13": 8,
+      "14": 8,
+      "15": 8,
+      "16": 8,
+      "17": 8,
+      "18": 8,
+      "19": 8,
+      "20": 8,
+      "21": 8,
+      "22": 8,
+      "23": 8
+    },
+    "total_sampled": 192,
+    "n_per_label_target": 8,
+    "total_windows": 1552
+  },
+  "proxies": {
+    "masked_channel_flag": {
+      "proxy": "masked_channel_flag",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": 1.142397,
+      "live_std": 2.029348,
+      "diag_ks": 0.2874,
+      "diag_close": false,
+      "masked_recall": 0.9167,
+      "masked_n_true_seq": 48,
+      "masked_fired_seq": 44,
+      "lbl15_deferred_to_stage3": "Pres.SV slow-drift mask is cross-sequence, not window-local; excluded from window-local recall, owned by Stage 3.",
+      "masked_recall_per_label": {
+        "13": 1.0,
+        "14": 1.0,
+        "15": 1.0,
+        "16": 1.0,
+        "17": 1.0,
+        "22": 0.625,
+        "23": 0.875
+      },
+      "runtime_stable": true,
+      "gate": "PASS"
+    },
+    "burst_count": {
+      "proxy": "burst_count",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": 0.721005,
+      "live_std": 0.877186,
+      "diag_ks": 0.4328,
+      "diag_close": false,
+      "runtime_stable": true,
+      "gate": "PASS"
+    },
+    "cyclic_baseline_drift": {
+      "proxy": "cyclic_baseline_drift",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": 0.007474,
+      "live_std": 0.015759,
+      "diag_ks": 0.5874,
+      "diag_close": false,
+      "runtime_stable": true,
+      "gate": "PASS"
+    },
+    "err_slope_MotSV": {
+      "proxy": "err_slope_MotSV",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": -0.000232,
+      "live_std": 0.012043,
+      "diag_ks": 0.7678,
+      "diag_close": false,
+      "runtime_stable": true,
+      "gate": "PASS"
+    },
+    "multi_sensor_anomaly_count": {
+      "proxy": "multi_sensor_anomaly_count",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": 2.386598,
+      "live_std": 1.435477,
+      "diag_ks": 0.251,
+      "diag_close": false,
+      "runtime_stable": true,
+      "gate": "PASS"
+    },
+    "variant_slope_ratio": {
+      "proxy": "variant_slope_ratio",
+      "n_live": 1552,
+      "finite_frac": 1.0,
+      "live_mean": 17.654056,
+      "live_std": 85.386085,
+      "diag_ks": 0.7392,
+      "diag_close": false,
+      "runtime_stable": true,
+      "gate": "PASS"
+    }
+  },
+  "gate_matrix": {
+    "masked_channel_flag": "PASS",
+    "burst_count": "PASS",
+    "cyclic_baseline_drift": "PASS",
+    "err_slope_MotSV": "PASS",
+    "multi_sensor_anomaly_count": "PASS",
+    "variant_slope_ratio": "PASS"
+  },
+  "stubs": {
+    "secondary_onset_lag": {
+      "index": 18,
+      "reason": "C-29 deferred: cross-window onset timing."
+    },
+    "fault_group_id": {
+      "index": 22,
+      "reason": "Label-circular: maps label->group. Stage 3 derives."
+    },
+    "score_A": {
+      "index": 29,
+      "reason": "Seq-aggregate (mean of z_t recon-err series). Stage 3."
+    },
+    "score_B": {
+      "index": 30,
+      "reason": "Seq-aggregate (OLS slope of recon-err series). Stage 3."
+    },
+    "score_C": {
+      "index": 31,
+      "reason": "Seq-aggregate (max-abs-diff of recon-err series). Stage 3."
+    },
+    "onset_order": {
+      "index": 32,
+      "reason": "CORRECTED: sequence-position ordinal {0,1,2,3} for Group B only (module_06p5r_patch_features_v5). Not window-local. Stage 3 owns."
+    }
+  },
+  "blocking": [],
+  "status_next": "PENDING",
+  "patch_files": [
+    "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\stage2_patch\\feature_builder_stage2_patch.py",
+    "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\stage2_patch\\anomaly_stage2_patch.py"
+  ]
+}

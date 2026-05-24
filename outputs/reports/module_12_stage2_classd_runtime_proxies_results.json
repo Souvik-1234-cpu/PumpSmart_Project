@@ -1,0 +1,170 @@
+{
+  "script": "module_12_stage2_classd_runtime_proxies",
+  "run_date": "2026-05-23",
+  "run_ts_utc": "2026-05-23T03:39:47.434875Z",
+  "stage": "M12-Stage-2 Class D runtime proxies",
+  "device": "cuda",
+  "preflight": {
+    "found": {
+      "m6p5r_matrix": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_feature_matrix.csv",
+      "cluster_bounds": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\M2_cluster_bounds.csv",
+      "norm_config": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M3_normalization_config.json"
+    },
+    "missing": [],
+    "ok": true,
+    "actual_n_cols": 34,
+    "actual_columns": [
+      "label_int",
+      "mae_MotSV",
+      "mae_PmpSV",
+      "mae_MotTV",
+      "mae_PmpPV",
+      "mae_TempSV",
+      "mae_PresSV",
+      "mae_PmpTV",
+      "mae_MotPV",
+      "mean_err_MotSV",
+      "std_err_MotSV",
+      "kurtosis_PmpSV",
+      "err_slope_MotSV",
+      "err_slope_TempSV",
+      "err_slope_PresSV",
+      "thermal_coupling_ratio",
+      "cross_channel_MotSV_PmpSV",
+      "max_err_all",
+      "masked_channel_flag",
+      "secondary_onset_lag",
+      "burst_count",
+      "cyclic_baseline_drift",
+      "multi_sensor_anomaly_count",
+      "fault_group_id",
+      "variant_slope_ratio",
+      "thermal_decoupling_flag",
+      "z_t_pca_1",
+      "z_t_pca_2",
+      "z_t_norm",
+      "z_t_recon_err",
+      "score_A",
+      "score_B",
+      "score_C",
+      "onset_order"
+    ],
+    "missing_cols": [],
+    "extra_cols": [],
+    "schema_ok": true
+  },
+  "proxies": {
+    "masked_channel_flag": {
+      "proxy": "masked_channel_flag",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "burst_count": {
+      "proxy": "burst_count",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "cyclic_baseline_drift": {
+      "proxy": "cyclic_baseline_drift",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "err_slope_MotSV": {
+      "proxy": "err_slope_MotSV",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "multi_sensor_anomaly_count": {
+      "proxy": "multi_sensor_anomaly_count",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "variant_slope_ratio": {
+      "proxy": "variant_slope_ratio",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    },
+    "onset_order": {
+      "proxy": "onset_order",
+      "n_live": 526162,
+      "finite_frac": 1.0,
+      "live_mean": 0.0,
+      "live_std": 0.0,
+      "runtime_stable": true,
+      "gate": "DIAGNOSTIC_ONLY",
+      "reason": "window cache unavailable; proxy not recomputed"
+    }
+  },
+  "gate_matrix": {
+    "masked_channel_flag": "DIAGNOSTIC_ONLY",
+    "burst_count": "DIAGNOSTIC_ONLY",
+    "cyclic_baseline_drift": "DIAGNOSTIC_ONLY",
+    "err_slope_MotSV": "DIAGNOSTIC_ONLY",
+    "multi_sensor_anomaly_count": "DIAGNOSTIC_ONLY",
+    "variant_slope_ratio": "DIAGNOSTIC_ONLY",
+    "onset_order": "DIAGNOSTIC_ONLY"
+  },
+  "stubs": {
+    "secondary_onset_lag": {
+      "index": 18,
+      "reason": "C-29 permanently deferred: cross-window onset timing, not window-local."
+    },
+    "fault_group_id": {
+      "index": 22,
+      "reason": "Label-circular: maps label->group, needs the label being predicted. Stage 3 should derive pre-classifier or drop."
+    },
+    "score_A": {
+      "index": 29,
+      "reason": "Trained col is a sequence-aggregate (mean of z_t PCA recon-err series); not reproducible from one window at 1 Hz. Stage 3 owns."
+    },
+    "score_B": {
+      "index": 30,
+      "reason": "Trained col is sequence-aggregate (OLS slope of recon-err series). Stage 3 owns."
+    },
+    "score_C": {
+      "index": 31,
+      "reason": "Trained col is sequence-aggregate (max-abs-diff of recon-err series). Stage 3 owns."
+    }
+  },
+  "blocking": [
+    "Raw 50-step window cache not found/aligned (looked for M6B_windows.npy). Proxy PASS/FAIL gating needs it. Ran in DIAGNOSTIC-ONLY mode: offline column stats characterized, but window-local proxy recomputation skipped. Provide the row-aligned window cache to complete Stage 2 gating."
+  ],
+  "status_next": "PENDING",
+  "compute_meta": {
+    "mode": "diagnostic_only"
+  },
+  "patch_files": [
+    "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\stage2_patch\\feature_builder_stage2_patch.py",
+    "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\stage2_patch\\anomaly_stage2_patch.py"
+  ]
+}

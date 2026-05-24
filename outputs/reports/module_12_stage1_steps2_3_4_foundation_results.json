@@ -1,0 +1,31 @@
+{
+  "script": "module_12_stage1_steps2_3_4_foundation",
+  "timestamp": "2026-05-22T14:52:49.236162",
+  "overall_status": "PASS",
+  "stage_1_2": {
+    "z_t_pool_shape": [
+      32500,
+      64
+    ],
+    "explained_variance_ratio": [
+      0.7150804400444031,
+      0.14863857626914978
+    ],
+    "pca_path": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M6p5r_zt_pca.pkl",
+    "mean_path": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M6p5r_zt_mean.npy",
+    "gate_max_diff": 3.1888484954833984e-06,
+    "gate_pass": true
+  },
+  "stage_1_3": {
+    "pre_write_sample_count": 33,
+    "feature_builder_path": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\feature_builder.py",
+    "gate_max_diff_A": 0.0,
+    "gate_max_diff_B": 0.0,
+    "gate_pass": true
+  },
+  "stage_1_4": {
+    "selftest_path": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\feature_builder_selftest.py",
+    "gate_1_4a_pass": true,
+    "gate_1_4b_pass": true
+  }
+}

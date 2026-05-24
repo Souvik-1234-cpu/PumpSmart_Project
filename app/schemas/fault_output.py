@@ -73,6 +73,16 @@ class FaultPrediction(BaseModel):
     top_shap_features: Optional[Dict[str, float]] = None
     m8p6_addendum    : Optional[M8p6Addendum]     = None
 
+    # ── M10 Phase 2.5 / M12 additions ─────────────────────────────────────────
+    # fault_label_int: raw int label from M7 — required for M12 gate scoring
+    fault_label_int: Optional[int] = None
+    # physics_context: label-specific physics lookup dict — required for G14
+    physics_context: Optional[dict] = None
+    # drift_locked: L4 crosspoint guard state — required for G8
+    drift_locked: Optional[bool] = None
+    # invariant19_violation: set True if score routing violated — required for G12
+    invariant19_violation: Optional[bool] = False
+
     class Config:
         json_schema_extra = {
             "example": {

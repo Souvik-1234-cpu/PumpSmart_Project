@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>PumpSmart v14.2 — Industrial Monitor</title>
 
-  <!-- Chart.js — loaded before React so dashboard.js can access window.Chart -->
+  <!-- Chart.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 
-  <!-- React + Babel (CDN — same pattern as JSX mockup) -->
+  <!-- React + ReactDOM (must load before Babel compiles JSX) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone for in-browser JSX compilation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 
   <!-- Google Fonts -->
@@ -20,67 +22,76 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; width: 100%; }
-    body {
-      background: #04101e;
-      font-family: 'Inter', system-ui, sans-serif;
-      color: #c0d8f0;
-      overflow: hidden;
-    }
+    body { background: #04101e; font-family: 'Inter', system-ui, sans-serif; color: #c0d8f0; overflow: hidden; }
     #root { display: flex; flex-direction: column; }
-    /* Scrollbar */
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: rgba(4,12,24,.8); }
     ::-webkit-scrollbar-thumb { background: rgba(0,180,220,.25); border-radius: 4px; }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   </style>
 
+  <!-- App config — hardcoded for local dev -->
+  <script>
+    window.PUMPSMART_API_BASE     = "";
+    window.PUMPSMART_ARCH_VERSION = "v14.2";
+    window.PUMPSMART_APP_VERSION  = "5.0";
+    window.PUMPSMART_PUMP_ID      = "PUMP-0032";
+    window.HEALTH_POLL_MS         = 30000;
+    window.INFERENCE_POLL_MS      = 50000;
+  </script>
+
   <!--
-    Backend API base URL — injected by Jinja2 at render time.
-    dashboard.js reads window.PUMPSMART_API_BASE to build all fetch() calls.
-    On HF Spaces this will be "" (same origin).
-    For local dev with a different port, set via env var.
+    React hooks shim — makes useState/useEffect/useRef/useCallback
+    available as globals so the JSX doesn't need ES module imports.
+    MUST come after React CDN script, before Babel compiles the JSX.
   -->
   <script>
-    window.PUMPSMART_API_BASE = "{{ api_base | default('') }}";
-    window.PUMPSMART_ARCH_VERSION = "{{ arch_version }}";
-    window.PUMPSMART_APP_VERSION  = "{{ app_version }}";
-    window.PUMPSMART_PUMP_ID      = "PUMP-0032";
-    // Polling intervals (ms)
-    window.HEALTH_POLL_MS    = 30000;   // /health every 30s
-    window.INFERENCE_POLL_MS = 50000;   // /api/anomaly_detect every ~50s (1 Hz window)
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
   </script>
 </head>
 <body>
   <div id="root">
-    <div style="display:flex;align-items:center;justify-content:center;height:100vh;
-                flex-direction:column;gap:16px;color:#2a5a70;font-size:14px;">
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;color:#2a5a70;font-size:14px;">
       <div style="font-size:32px;animation:spin 1s linear infinite;">⚙️</div>
-      Loading PumpSmart v14.2…
+      <div>Loading PumpSmart v14.2…</div>
+      <div style="font-size:11px;color:#1a4050;">Compiling React components — please wait</div>
     </div>
   </div>
 
-  <!-- dashboard.js — API polling layer (must load before the JSX app) -->
+  <!-- API polling layer — must load before JSX -->
   <script src="/static/dashboard.js"></script>
 
   <!--
-    React app — pumpsmart_full_v2.jsx compiled by Babel in-browser.
-    In production (M11) this would be pre-compiled by a build step.
-    For HF Spaces demo, Babel in-browser is acceptable.
+    React dashboard JSX — compiled in-browser by Babel.
+    pumpsmart_full_v2_local.jsx has no ES import statements
+    and exposes window.PumpSmartApp = App at the bottom.
+    NOTE: For HF Spaces production, replace with pumpsmart_full_v2.jsx
+    and use a proper build step (Vite/webpack).
   -->
-  <script type="text/babel" src="/static/pumpsmart_full_v2.jsx"></script>
+  <script type="text/babel" data-type="module" src="/static/pumpsmart_full_v2_local.jsx"
+    data-presets="react"></script>
 
   <script>
-    // Mount React app once Babel has compiled the JSX
-    window.addEventListener('DOMContentLoaded', () => {
-      // Give Babel ~100ms to compile, then mount
-      setTimeout(() => {
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(window.PumpSmartApp));
-      }, 150);
-    });
+    // Mount React app after Babel finishes compiling the JSX.
+    // 4000ms gives Babel enough time for a 900-line JSX file.
+    // After mount, polling starts automatically via dashboard.js init().
+    function tryMount(attempts) {
+      if (window.PumpSmartApp) {
+        const rootEl = document.getElementById('root');
+        const reactRoot = ReactDOM.createRoot(rootEl);
+        reactRoot.render(React.createElement(window.PumpSmartApp));
+        if (window.PumpSmartAPI) window.PumpSmartAPI.init();
+      } else if (attempts > 0) {
+        setTimeout(() => tryMount(attempts - 1), 500);
+      } else {
+        document.getElementById('root').innerHTML =
+          '<div style="color:#ff4466;padding:40px;font-family:monospace;">' +
+          'ERROR: PumpSmartApp not found after Babel compile.<br>' +
+          'Check browser console for JSX errors.</div>';
+      }
+    }
+    // Start trying after 3s, retry every 500ms up to 20 times (13s total)
+    setTimeout(() => tryMount(20), 3000);
   </script>
-
-  <style>
-    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-  </style>
 </body>
 </html>

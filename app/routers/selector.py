@@ -57,12 +57,8 @@ async def select_pump(spec: PumpSpec, request: Request):
     Delegates to pump_selector_dispatch from src.module_09_pump_selector.
     Phase 1: returns key sizing equations directly (M9 already locked).
     """
-    try:
-        from src.module_09_pump_selector import pump_selector_dispatch
-        result = pump_selector_dispatch(spec.dict())
-        return result
-    except ImportError:
-        pass   # Phase 1 fallback — inline sizing
+    # M9 script runs full training on import — use inline sizing directly
+    pass
 
     # ── Inline M9 sizing (Phase 1 fallback) ────────────────────────────────
     Q   = spec.flow_rate_m3h

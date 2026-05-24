@@ -6,10 +6,10 @@ router = APIRouter(tags=["reference"])
 @router.get("/physics_context",
             summary="Static physics context lookup for fault labels 0–21")
 async def physics_context(
-    label  : int     = Query(..., ge=0, le=21),
-    request: Request = None,
+    request: Request,
+    label  : int = Query(..., ge=0, le=23),
 ):
-    ctx       = request.app.state.models["physics_ctx"]
+    ctx   = request.app.state.models["physics_ctx"].get("labels", {})
     label_map = request.app.state.models["label_map"]
     entry     = ctx.get(str(label))
     if entry is None:

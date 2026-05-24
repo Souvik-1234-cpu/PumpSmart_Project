@@ -1,0 +1,14 @@
+# module_12_stage1p5_repoint report
+
+Generated: 2026-05-23T04:22:16.605082
+
+- **pca_evr**: [0.43912315368652344, 0.2532031834125519]
+- **pca_evr_sum**: 0.6923263072967529
+- **pca_pool_shape**: [8000, 64]
+- **unmatched**: 89
+- **sampled**: 401
+- **rows_checked**: 312
+- **rows_pass**: 312
+- **gate_max_abs_diff**: 8.138394853862696e-10
+- **gate_1p5_pass**: True
+- **worst**: (114550, 'err_slope_TempSV', 0.019635969772934914, 0.0196359705867744)

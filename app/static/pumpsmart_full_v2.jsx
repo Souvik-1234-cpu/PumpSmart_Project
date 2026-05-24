@@ -497,7 +497,7 @@ function GuideTab({onNavigate, onboardingDone, onAcceptFromGuide}){
 // ═════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═════════════════════════════════════════════════════════════════════════
-export default function App(){
+window.PumpSmartApp = function App(){
   const [state,setState]=useState("WARN");
   const [tab,setTab]=useState("dashboard");
   const [popupDismissed,setPopupDismissed]=useState(false);

@@ -1,0 +1,115 @@
+{
+  "version": "v3.0",
+  "mode": "smoke",
+  "base_url": "http://localhost:8000",
+  "warmup_windows": 432,
+  "warmup_noise_sigma": 0.045,
+  "n_sequences": 186,
+  "timestamp_utc": "2026-05-21T09:56:24.892684+00:00",
+  "gates": {
+    "G0_hash_integrity": "PASS",
+    "G6_cpu_latency_p95": "PASS",
+    "G6_cpu_latency_p99": "PASS",
+    "G6_cpu_latency_max": "PASS",
+    "G1_normal_fpr": "FAIL",
+    "G2_in_env_detect": "PASS",
+    "G2_in_env_classify": "PASS",
+    "G2_mild_cascade": "PASS",
+    "G3_in_env_detect": "PASS",
+    "G3_in_env_classify": "PASS",
+    "G3_mild_cascade": "PASS",
+    "G4a_label21_cusum": "PASS",
+    "G4b_label21_cusum_spec": "FAIL",
+    "G5_cross_cluster": "PASS",
+    "G7_7field_completeness": "PASS",
+    "G8_crosspoint_lock": "FAIL",
+    "G9_masked_detect": "PASS",
+    "G9_masked_classify": "PASS",
+    "G9_mild_cascade": "PASS",
+    "G10_sensor_interruption": "PASS",
+    "G11_groupE_tpr": "PASS",
+    "G12_score_routing": "PASS",
+    "G13_ood_responsive": "FAIL",
+    "G14_physics_context": "PASS"
+  },
+  "gate_details": {
+    "_latency": {
+      "p95": 0.0331,
+      "p99": 0.0383,
+      "max": 0.0529
+    },
+    "_g1_fpr": 1.0,
+    "_g2_detect_per_lbl": {
+      "1": 1.0,
+      "2": 1.0,
+      "3": 1.0,
+      "4": 1.0,
+      "5": 1.0,
+      "6": 1.0,
+      "19": 1.0
+    },
+    "_g2_classify_per_lbl": {
+      "1": 1.0,
+      "2": 1.0,
+      "3": 1.0,
+      "4": 1.0,
+      "5": 1.0,
+      "6": 1.0,
+      "19": 1.0
+    },
+    "_g2_mild_cascade": 1.0,
+    "_g3_detect_macro": 1.0,
+    "_g3_classify_macro": 1.0,
+    "_g3_mild_cascade": 1.0,
+    "_g4a": {
+      "smoke_note": "S_n>0.01 proxy (insufficient windows for S_n\u22652.0 in smoke)",
+      "accumulation_rate": 1.0,
+      "cusum_max_mean": 75.88802
+    },
+    "_g4b_spec": 0.0,
+    "_g5": 1.0,
+    "_g7": 1.0,
+    "_g8": {
+      "lock_rate": 0.0,
+      "sA_max_mean": 0.1677
+    },
+    "_g9_detect_per_lbl": {
+      "13": 1.0,
+      "14": 1.0,
+      "15": 1.0,
+      "16": 1.0,
+      "17": 1.0
+    },
+    "_g9_classify_per_lbl": {
+      "13": 1.0,
+      "14": 1.0,
+      "15": 1.0,
+      "16": 1.0,
+      "17": 1.0
+    },
+    "_g9_mild_cascade": 1.0,
+    "_g10": {
+      "partial": {
+        "responding_rate": 1.0,
+        "sA_max_mean": 0.1631
+      },
+      "full": {
+        "responding_rate": 1.0,
+        "sA_max_mean": 0.4505
+      },
+      "off": {
+        "responding_rate": 1.0,
+        "sA_max_mean": 0.4084
+      }
+    },
+    "_g11": 1.0,
+    "_g12_violations": 0,
+    "_g13": 0.0,
+    "_g14": 1.0
+  },
+  "critical_fails": [
+    "G1_normal_fpr",
+    "G4b_label21_cusum_spec"
+  ],
+  "BLOCK_M11": true
+}

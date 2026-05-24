@@ -1,0 +1,35 @@
+{
+  "total_sequences": 186,
+  "physics_pass_rate": 1.0,
+  "per_group_counts": {
+    "G1_normal_boundary": 30,
+    "G5_cross_cluster": 25,
+    "G2_acute_in_envelope": 21,
+    "G2_acute_mild_extreme": 21,
+    "G3_compound_in_envelope": 18,
+    "G6_masked_in_envelope": 15,
+    "G3_compound_mild_extreme": 12,
+    "G6_masked_mild_extreme": 10,
+    "G9_groupE": 10,
+    "G1b_normal_extended": 5,
+    "G4_label21_mild": 5,
+    "G8_crosspoint_drift": 5,
+    "G7_partial_dropout": 3,
+    "G7_full_dropout": 3,
+    "G7_pump_off": 3
+  },
+  "per_severity_tier": {
+    "in_envelope": 89,
+    "mild_extreme": 43,
+    "normal": 35,
+    "special": 9,
+    "sub_threshold_by_design": 5,
+    "drift": 5
+  },
+  "cross_cluster_count": 25,
+  "seed": 12042026,
+  "mode": "smoke",
+  "timestamp_utc": "2026-05-19T00:03:29.244193Z",
+  "version": "v2.0",
+  "claim": "Each fault group split into in-envelope (sev in M6 training range, tests M7 in-distribution) and mild-extreme (sev below M6 floor, tests L3 CUSUM + L4 sub-threshold pathway per M6B invariant design)."
+}
