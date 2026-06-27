@@ -1,0 +1,243 @@
+{
+  "script": "module_12_stage4_item13_install_diagnostic",
+  "run_utc": "2026-05-30T13:56:23.068169Z",
+  "base_url": "http://localhost:8000",
+  "config_imported": false,
+  "cwd": "C:\\Users\\user\\Desktop\\PumpSmart_Project",
+  "layers": {
+    "L1_files": {
+      "fault_state_tracker.py": {
+        "found": true,
+        "path": "app\\runtime\\fault_state_tracker.py",
+        "markers": {
+          "async def acknowledge_popup": true,
+          "async def clear_latch": true,
+          "class FaultStateTracker": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:16:51.642008Z"
+      },
+      "anomaly.py": {
+        "found": true,
+        "path": "app\\routers\\anomaly.py",
+        "markers": {
+          "fault_tracker.update": true,
+          "display_alert_state": true,
+          "alert_state=display_alert_state": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:29:48.058986Z"
+      },
+      "main.py": {
+        "found": true,
+        "path": "app\\main.py",
+        "markers": {
+          "FaultStateTracker": true,
+          "fault_tracker": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:29:58.359716Z"
+      },
+      "acknowledge.py": {
+        "found": true,
+        "path": "app\\routers\\acknowledge.py",
+        "markers": {
+          "acknowledge_popup": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:30:22.703378Z"
+      },
+      "operator_verdict.py": {
+        "found": true,
+        "path": "app\\routers\\operator_verdict.py",
+        "markers": {
+          "clear_latch": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:30:34.941134Z"
+      },
+      "fault_output.py": {
+        "found": true,
+        "path": "app\\schemas\\fault_output.py",
+        "markers": {
+          "raw_alert_state": true,
+          "is_latched": true,
+          "popup_should_show": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T12:30:54.512953Z"
+      },
+      "pumpsmart_full_v2_local.jsx": {
+        "found": true,
+        "path": "app\\static\\pumpsmart_full_v2_local.jsx",
+        "markers": {
+          "k:\"State\",  v:alertState": true,
+          "LATCHED": true,
+          "reNagTimerRef": true,
+          "Go to the": true
+        },
+        "is_new": true,
+        "mtime": "2026-05-30T13:22:43.497214Z"
+      }
+    },
+    "L2_served_jsx": {
+      "reachable": true,
+      "http_status": 200,
+      "markers": {
+        "k:\"State\",  v:alertState": true,
+        "LATCHED": true,
+        "reNagTimerRef": true,
+        "Go to the": true,
+        "OLD: setAlertState(\"NORMAL\")": false
+      },
+      "served_new": true
+    },
+    "L3_live_api": {
+      "reachable": true,
+      "health_status": 200,
+      "anomaly_keys_sample": [
+        "adaptive_threshold",
+        "alert_state",
+        "causal_chain",
+        "cluster",
+        "confidence_pct",
+        "cusum_Sn",
+        "drift_locked",
+        "expected_sensor_behavior",
+        "fault_label",
+        "fault_label_int",
+        "invariant19_violation",
+        "is_latched",
+        "limitation_flags",
+        "m8p6_addendum",
+        "mahal_dist",
+        "model_limitation_disclaimer",
+        "ood_suspected",
+        "operational_risk_if_ignored",
+        "physics_context",
+        "popup_should_show",
+        "prediction_id",
+        "probable_physical_condition",
+        "pump_id",
+        "raw_alert_state",
+        "recommended_action",
+        "score_A",
+        "score_B",
+        "score_C",
+        "timestamp_utc",
+        "top_shap_features",
+        "unknown_fault_flag",
+        "watch_candidates"
+      ],
+      "latch_fields_present": {
+        "is_latched": true,
+        "popup_should_show": true,
+        "raw_alert_state": true,
+        "watch_candidates": true
+      },
+      "first_alert_state": "WARN",
+      "first_raw_alert_state": "WARN",
+      "first_is_latched": true,
+      "after_danger_alert_state": "DANGER",
+      "after_danger_is_latched": true,
+      "after_danger_label": "bearing_wear+overloading",
+      "after_normal_alert_state": "DANGER",
+      "after_normal_is_latched": true,
+      "after_normal_label": "bearing_wear+overloading",
+      "ack_response_has_latch_key": true,
+      "ack_latch_held": true,
+      "verdict_response_has_latch_key": true,
+      "verdict_latch_released": true
+    }
+  },
+  "checks": [
+    {
+      "layer": "L1",
+      "name": "fault_state_tracker.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\runtime\\fault_state_tracker.py  | markers: \u2713async def acknowledge_po, \u2713async def clear_latch, \u2713class FaultStateTracker"
+    },
+    {
+      "layer": "L1",
+      "name": "anomaly.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\routers\\anomaly.py  | markers: \u2713fault_tracker.update, \u2713display_alert_state, \u2713alert_state=display_aler"
+    },
+    {
+      "layer": "L1",
+      "name": "main.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\main.py  | markers: \u2713FaultStateTracker, \u2713fault_tracker"
+    },
+    {
+      "layer": "L1",
+      "name": "acknowledge.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\routers\\acknowledge.py  | markers: \u2713acknowledge_popup"
+    },
+    {
+      "layer": "L1",
+      "name": "operator_verdict.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\routers\\operator_verdict.py  | markers: \u2713clear_latch"
+    },
+    {
+      "layer": "L1",
+      "name": "fault_output.py is NEW version",
+      "status": "PASS",
+      "detail": "app\\schemas\\fault_output.py  | markers: \u2713raw_alert_state, \u2713is_latched, \u2713popup_should_show"
+    },
+    {
+      "layer": "L1",
+      "name": "pumpsmart_full_v2_local.jsx is NEW version",
+      "status": "PASS",
+      "detail": "app\\static\\pumpsmart_full_v2_local.jsx  | markers: \u2713k:\"State\",  v:alertState, \u2713LATCHED, \u2713reNagTimerRef, \u2713Go to the"
+    },
+    {
+      "layer": "L2",
+      "name": "Server serves NEW JSX",
+      "status": "PASS",
+      "detail": "served file markers: \u2713k:\"State\",  v:alertState, \u2713LATCHED, \u2713reNagTimerRef, \u2713Go to the, \u2717OLD: setAlertState(\"NORMAL\")"
+    },
+    {
+      "layer": "L3",
+      "name": "Server /health reachable",
+      "status": "PASS",
+      "detail": "arch=v14.2"
+    },
+    {
+      "layer": "L3",
+      "name": "anomaly_detect RETURNS latch fields",
+      "status": "PASS",
+      "detail": "fields: \u2713is_latched, \u2713popup_should_show, \u2713raw_alert_state, \u2713watch_candidates"
+    },
+    {
+      "layer": "L3",
+      "name": "DANGER sequence LATCHES (is_latched=True)",
+      "status": "PASS",
+      "detail": "alert_state=DANGER is_latched=True label=bearing_wear+overloading"
+    },
+    {
+      "layer": "L3",
+      "name": "Latch HOLDS through a normal window (no self-reset)",
+      "status": "PASS",
+      "detail": "alert_state=DANGER is_latched=True (if False here, the backend latch is NOT engaging)"
+    },
+    {
+      "layer": "L3",
+      "name": "acknowledge HOLDS latch (fault_latch_after_ack.latch_held)",
+      "status": "PASS",
+      "detail": "fault_latch_after_ack present=True latch_held=True"
+    },
+    {
+      "layer": "L3",
+      "name": "verdict RELEASES latch (fault_latch_release.latch_released)",
+      "status": "PASS",
+      "detail": "fault_latch_release present=True latch_released=True"
+    }
+  ],
+  "root_cause": [
+    "SERVER SERVES THE NEW JSX \u2014 if the dashboard still looks old, it is BROWSER CACHE. Hard-reload (Ctrl+Shift+R) or DevTools \u2192 Network \u2192 Disable cache \u2192 reload."
+  ],
+  "headline": "LIKELY BROWSER CACHE ONLY \u2014 everything server-side is correct. Hard-reload."
+}

@@ -1,0 +1,166 @@
+{
+  "_purpose": "Stage-4 alert state machine thresholds. SEPARATE from the locked M8_threshold_config.json. Derived by measuring the PRODUCTION TCN-AE live score_C on disk with a fill-matched protocol. ISA-18.2 record.",
+  "_generated_by": "module_12_stage4_step1_score_c_calibration",
+  "_generated_utc": "2026-05-24T15:40:40.469478Z",
+  "_asset": "110 kW 7-stage centrifugal, 2980 RPM, 40 bar (CIRA synthetic)",
+  "rolling_mean_100_floor": 0.174015,
+  "rolling_mean_200_floor": 0.173303,
+  "_floor_location_note": "Active floors live in state_machine.rolling_mean_100_floor / rolling_mean_200_floor (where step23/step1c wrote them and where load_alert_thresholds reads them). These TOP-LEVEL keys are an identical mirror per Step-5 handoff P2 in case a future loader reads top-level. Keep both in sync.",
+  "_provenance_step5": {
+    "derived_in": "module_12_stage4_step5_response_assembly_d2_closure",
+    "date": "2026-05-29",
+    "baseline_centre_score_A": 0.157,
+    "baseline_sigma_score_A": 0.012,
+    "rm100_p99_normal": 0.158567,
+    "rm200_p99_normal": 0.157931,
+    "rm100_floor": 0.174015,
+    "rm200_floor": 0.173303,
+    "cross_check_runner_off": {
+      "score_A": 0.157676,
+      "theta_t": 0.160105,
+      "alert_with_new_floor": "NORMAL"
+    },
+    "cross_check_runner_on": {
+      "score_A": 0.158138,
+      "theta_t": 0.177504,
+      "alert_with_new_floor": "NORMAL"
+    },
+    "acute_fasttrack_untouched": "score_A >= 1.5*theta_t still DANGER",
+    "comment": "Floors > p99 of sigma=0.045 simulator baseline. Steady-state noise cannot trip WARN; in-envelope compound faults still escalate."
+  },
+  "score_C": {
+    "score_C_normal_p95": 0.105989,
+    "score_C_warn": 0.077469,
+    "score_C_danger": 0.083763,
+    "score_C_reliability": "STRONG",
+    "basis": "fill_matched_adaptive_stride",
+    "target_windows": 30,
+    "min_ready_windows": 5,
+    "buffer_len_full": 63,
+    "auc_normal_vs_groupB_fillmatched": 0.9509,
+    "auc_normal_vs_groupB_serve_s50": null,
+    "fillmatched_ordered": true,
+    "fault_polarity_correct": true,
+    "severity_ordered": true,
+    "median_normal_fillmatched": 0.073402,
+    "median_groupB_fillmatched": 0.134233,
+    "median_confirmed_fillmatched": 0.139987,
+    "ordering_basis": "median_separation (v3: replaces knife-edge tail percentiles)",
+    "polarity_note": "AUC is direction-agnostic. Alarm logic assumes fault score_C > normal. Ordering is decided on MEDIAN separation (normal < groupB <= confirmed), the same robust statistic as the polarity check, so ordering and polarity are consistent by construction and reproducible (v2 used tail percentiles that flipped run-to-run under CUDA float nondeterminism). Tail percentiles below are provenance only and do NOT drive the tier.",
+    "reliability_policy": {
+      "STRONG": "score_C may drive up to DANGER",
+      "WEAK": "score_C may contribute to WARN only; never sole DANGER",
+      "UNUSABLE": "score_C advisory-only; drives no state transition",
+      "auc_strong_floor": 0.85,
+      "auc_weak_floor": 0.7
+    },
+    "serve_reality": {
+      "note": "At live stride=50, normal (200-step) sequences cannot fill MIN_READY windows, so score_C does NOT establish a normal baseline on the 1 Hz route. score_C is a slow chain signal (full 63-window buffer ~= 52 min at 1 Hz). Step 4.3 must NOT expect score_C to fire on short/acute windows; score_A (MAE) is the acute path.",
+      "serve_normal_pool_fires": false,
+      "serve_normal_n": 0,
+      "serve_warn_p5_groupB": 0.09373,
+      "serve_danger_p1_confirmed": 0.098107,
+      "serve_normal_p95": null
+    },
+    "provenance": {
+      "live_score_C_formula": "F.relu(residual.mean(dim=2).std(dim=1)) over [1,T,64] zt buffer (model_registry _TCNAutoencoder)",
+      "trained_score_C_note": "idx 31 trained col = seq-aggregate of z_t recon-err; DIFFERENT object; stubbed 0.0; M7 v3 does not consume it",
+      "z2_finding": "M6.5r Gate Z2: score_C>GroupA P50 in 72.5% GroupB windows (WARN-accepted, <80% target)",
+      "v1_artifact_note": "v1 used fixed stride 50 -> normal(200 steps) starved to 0 samples -> spurious UNUSABLE. v2 fill-matched fixes this.",
+      "pools": {
+        "normal_labels": [
+          0
+        ],
+        "groupB_labels": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "confirmed_labels": [
+          9,
+          10,
+          11
+        ]
+      },
+      "fillmatched": {
+        "normal": {
+          "n": 60,
+          "fill_med": 31,
+          "fill_max": 31
+        },
+        "groupB": {
+          "n": 360,
+          "fill_med": 30,
+          "fill_max": 31
+        },
+        "confirmed": {
+          "n": 180,
+          "fill_med": 30,
+          "fill_max": 31
+        }
+      },
+      "serve_s50": {
+        "normal": {
+          "n": 0,
+          "fill_med": 0,
+          "fill_max": 0
+        },
+        "groupB": {
+          "n": 360,
+          "fill_med": 13,
+          "fill_max": 18
+        },
+        "confirmed": {
+          "n": 180,
+          "fill_med": 16,
+          "fill_max": 18
+        }
+      }
+    }
+  },
+  "state_machine": {
+    "rolling_mean_100_floor": 0.174015,
+    "rolling_mean_200_floor": 0.173303,
+    "slope_warn": 0.0003,
+    "drift_ratio_warn": 1.1,
+    "drift_ratio_danger": 1.5,
+    "cusum_watch": 2.0,
+    "clear_dwell": 300,
+    "escalate_calls": 1,
+    "_standards": "ISA-18.2/IEC 62682 asymmetric hysteresis; ISO 13374/13379-1; IEC 61511 advisory-only",
+    "_score_C_policy": "advisory-only (Step 4.1: STRONG offline but serve-normal n=0; no validated live baseline)",
+    "_generated_by": "module_12_stage4_step23_alert_state_machine",
+    "_generated_utc": "2026-05-24T15:50:31.094137Z",
+    "_calibrated_by": "module_12_stage4_step1c_normal_baseline_calibration",
+    "_calibrated_utc": "2026-05-25T00:39:13.094531Z",
+    "_calibration_note": "floors = P99.5(normal rm) x1.10 measured post-432-win warmup; replaces M8-spec guess that caused G1 FPR=1.0",
+    "_step5_floor_update": "Step 5 (29-May-2026): floors lowered from step1c values (rm100=0.615686, rm200=0.507785) to (rm100=0.174015, rm200=0.173303). The 0.6157/0.5078 pair was over-corrected: it suppressed G1 FPR but only because it sat far above any realistic steady-state rolling mean. New floors sit just above p99 of the sigma=0.045 simulator baseline, so steady-state noise cannot trip WARN while in-envelope compound faults (rm100 >> 0.174) still escalate.",
+    "_step5_prev_floors": {
+      "rolling_mean_100_floor": 0.615686,
+      "rolling_mean_200_floor": 0.507785,
+      "source": "module_12_stage4_step1c_normal_baseline_calibration"
+    },
+    "_step5_updated_by": "module_12_stage4_step5_response_assembly_d2_closure",
+    "_step5_updated_utc": "2026-05-29T00:26:43Z",
+    "_step6_slope_update": "Step 6 (29-May-2026): slope_warn raised 0.0003 -> 0.002. ROOT CAUSE of G1_normal_fpr=100%: mech_B_slope fired every window because the live sigma=0.045 baseline yields an OLS score_A slope ~0.00032 >= 0.0003. The path is also non-separating for its intended target: Label-21 gradual wear slope ~0.00015 < baseline noise 0.00032, so slow-drift detection belongs to CUSUM (L3, G4a PASS), NOT the direct-slope WARN. INTERIM value 0.0020 clears the noise with ~6x margin and stays below acute/in-env ramp slopes. Authoritative value to be written by module_12_stage4_step6_slope_warn_calibration.",
+    "_step6_prev_slope_warn": 0.0003,
+    "_step6_status": "INTERIM (run step6 calibration to confirm/refine)",
+    "_step6_updated_utc": "2026-05-29T00:30:00Z"
+  },
+  "_provenance_step6": {
+    "derived_in": "module_12_stage4_step6_slope_warn_calibration (interim hand-set here)",
+    "date": "2026-05-29",
+    "root_cause": "mech_B_slope (slope_warn=0.0003) fired on live sigma=0.045 baseline slope ~0.00032 -> per-window FPR=1.0",
+    "observed_normal_slope": 0.00032,
+    "label21_slope": 0.00015,
+    "separability": "NON-SEPARABLE on direct slope (label21 slope < normal noise) -> CUSUM owns slow drift",
+    "slope_warn_old": 0.0003,
+    "slope_warn_interim": 0.002,
+    "margin_vs_noise": "~6.25x",
+    "blocking_gates_unaffected": "acute->1.5*theta_t DANGER; in-env->level/floor WARN; label21->CUSUM WATCH; all independent of mech_B",
+    "comment": "Run step6 against the live server to replace 0.0020 with the measured p99.5 x margin value."
+  }
+}

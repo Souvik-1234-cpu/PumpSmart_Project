@@ -1,0 +1,48 @@
+{
+  "script": "module_12_stage4_step1b_cusum_g4b_fix_verify",
+  "stage": "M12 Stage 4 \u2014 Step 1b (G4b CUSUM spec-conformance fix)",
+  "timestamp": "2026-05-24T21:34:13.504352",
+  "gates": {
+    "G1b_6_params": "PASS",
+    "G1b_1_spec_match": "PASS",
+    "G1b_2_no_runaway": "PASS",
+    "G1b_3_quiet_decay": "PASS",
+    "G1b_4_label21_detect": "PASS",
+    "G1b_5_c25": "PASS"
+  },
+  "evidence": {
+    "policy": {
+      "mu0_B": -0.00954,
+      "k": 0.02186,
+      "H": 5.0,
+      "lambda": 5.7302192538299934e-05,
+      "source": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M8p5_cusum_runtime_policy.json"
+    },
+    "candidate_path": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\cusum_state.py",
+    "loaded_params": {
+      "mu0_B": -0.00954,
+      "k": 0.02186,
+      "lam": 5.7302192538299934e-05,
+      "H": 5.0
+    },
+    "spec_match_max_diff": 0.0,
+    "pure_fault_Sn_5000": 50.0,
+    "pure_fault_expected_linear": 50.0,
+    "mixed_stream_Sn": 119.032,
+    "quiet_decay": {
+      "S_n_high": 10.0,
+      "S_n_after_quiet": 8.9172,
+      "monotone_decreasing": true
+    },
+    "label21_fire_step": 250,
+    "c25": {
+      "sn_before": 15.0,
+      "sn_mid": 17.5,
+      "sn_after_reset": 0.0
+    },
+    "prod_backup": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\cusum_state.py.bak_20260524_213413",
+    "prod_copy_error": "PermissionError: [WinError 32] The process cannot access the file because it is being used by another process"
+  },
+  "overall_status": "PASS",
+  "block_m11": true
+}

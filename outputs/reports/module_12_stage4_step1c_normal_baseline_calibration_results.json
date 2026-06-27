@@ -1,0 +1,26 @@
+{
+  "script": "module_12_stage4_step1c_normal_baseline_calibration",
+  "timestamp": "2026-05-25T05:57:01.343232",
+  "gates": {
+    "G1c_floors": "PASS",
+    "G1c_k": "PASS",
+    "G1c_joint": "ADVISORY_FAIL"
+  },
+  "evidence": {
+    "warmup_sA_mean": 0.452349,
+    "theta_t_adapted_est": 0.459937,
+    "normal_scoreB_mean": 0.077209,
+    "normal_scoreB_p99": 0.220866,
+    "normal_Sn_max_derived_k": 4.1873,
+    "g4b_criterion": "normal_Sn_max < H=5.0 (Option A: no false ALARM)",
+    "label21_fire_rate_derived_k": 0.0,
+    "m8cfg_backup": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M8_threshold_config.json.bak_20260525_060913"
+  },
+  "derived": {
+    "rolling_mean_100_floor": 0.615686,
+    "rolling_mean_200_floor": 0.507785,
+    "cusum_k": 0.230406
+  },
+  "overall_status": "PASS",
+  "block_m11": true
+}

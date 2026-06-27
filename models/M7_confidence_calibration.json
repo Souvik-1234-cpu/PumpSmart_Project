@@ -1,0 +1,21 @@
+{
+  "_purpose": "Physics-honest confidence calibration for M7 served probability. Temperature softens saturated softprob; ceiling caps the display.",
+  "_generated_by": "module_12_stage4_confidence_fit",
+  "_generated_utc": "2026-05-30T03:18:48.726356Z",
+  "_method": "temperature scaling (Guo 2017) on XGBoost softprob pseudo-logits; ceiling is a separate C-26 honesty policy, not fitted",
+  "temperature": 1.26,
+  "ceiling": 0.94,
+  "floor": 0.0,
+  "fitted": true,
+  "diagnostics": {
+    "n_heldout_windows": 55880,
+    "raw_mean_top_confidence": 0.9408,
+    "calibrated_mean_top_confidence": 0.9319,
+    "calibrated_capped_mean_top_confidence": 0.8841,
+    "raw_ece": 0.016,
+    "calibrated_ece": 0.0098,
+    "raw_nll": 0.1689,
+    "calibrated_nll": 0.165,
+    "label_unchanged_by_calibration": true
+  }
+}

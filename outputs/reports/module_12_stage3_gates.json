@@ -1,0 +1,84 @@
+{
+  "G_V3_1_row_count": {
+    "pass": true,
+    "n_rows": 279400,
+    "expected_stride50_approx": 263150,
+    "original_stride25_rows": 526300,
+    "ratio_vs_stride50": 1.0618,
+    "note": "stride-50 (non-overlapping) \u2192 ~half of original stride-25 row count is correct"
+  },
+  "G_V3_2_col_count": {
+    "pass": true,
+    "n_features": 33,
+    "expected": 33
+  },
+  "G_V3_3_no_leakage": {
+    "pass": true,
+    "overlap_count": 0,
+    "train_seqs": 26000,
+    "test_seqs": 6500
+  },
+  "G_V3_4_d1_collapse_resolved": {
+    "pass": true,
+    "n_label22_test": 640,
+    "p_predict_correct": 0.8609,
+    "threshold": 0.5
+  },
+  "G_V3_6_seq_macro_f1": {
+    "pass": true,
+    "value": 0.9529,
+    "threshold": 0.85,
+    "note": "Synthetic-domain target per Solutions v3.0 \u00a74.3"
+  },
+  "G_V3_7_per_group_f1": {
+    "pass": true,
+    "detail": {
+      "A": {
+        "pass": true,
+        "value": 0.9949,
+        "threshold": 0.75
+      },
+      "B": {
+        "pass": true,
+        "value": 0.8241,
+        "threshold": 0.65
+      },
+      "C": {
+        "pass": true,
+        "value": 0.9979,
+        "threshold": 0.7
+      },
+      "D": {
+        "pass": true,
+        "value": 0.9974,
+        "threshold": 0.6
+      },
+      "E": {
+        "pass": true,
+        "value": 0.9905,
+        "threshold": 0.65
+      }
+    }
+  },
+  "G_V3_8_label21_seq_f1": {
+    "pass": true,
+    "value": 1.0,
+    "threshold": 0.6,
+    "note": "Partial credit only \u2014 L3 CUSUM is the primary label-21 detector (Invariant 16)"
+  },
+  "G_V3_5_shap_no_leakage": {
+    "pass": true,
+    "top_5_global_feats": [
+      "masked_channel_flag",
+      "mae_PresSV",
+      "std_err_MotSV",
+      "mean_err_MotSV",
+      "z_t_pca_2"
+    ],
+    "fault_group_top1": false,
+    "note": "fault_group_id (idx 22) is 0.0 stub in v3 matrix \u2014 should have zero gain. If non-zero, investigate."
+  },
+  "G_V3_9_c30_selftest": {
+    "pass": true
+  }
+}

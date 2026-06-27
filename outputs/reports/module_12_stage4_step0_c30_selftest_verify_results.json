@@ -1,0 +1,60 @@
+{
+  "script": "module_12_stage4_step0_c30_selftest_verify",
+  "stage": "M12 Stage 4 \u2014 Step 4.0 (C-30 selftest verification, v2)",
+  "timestamp": "2026-05-24T14:18:53.402690",
+  "device": "cuda",
+  "is_gpu": true,
+  "paths": {
+    "m4": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\lstm_ae_baseline_final.pth",
+    "m6b": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_combined_sequences.pkl",
+    "v3_matrix": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_feature_matrix_v3.csv",
+    "selftest": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\feature_builder_selftest.py"
+  },
+  "m6b_present": true,
+  "v3_present": true,
+  "gates": {
+    "G4_0_1": "PASS",
+    "G4_0_2a": "PASS",
+    "G4_0_2b": "PASS",
+    "G4_0_2c": "PASS",
+    "G4_0_3": "PASS"
+  },
+  "evidence": {
+    "m4_params": 505096,
+    "m4_out_type": "Tensor",
+    "m4_out_shape": [
+      1,
+      50,
+      8
+    ],
+    "m6b_n_sequences": 32500,
+    "per_column_max_diff": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 0.0,
+      "9": 0.0,
+      "10": 0.0,
+      "12": 0.0,
+      "13": 0.0,
+      "14": 0.0,
+      "15": 0.0,
+      "16": 0.0,
+      "24": 0.0
+    },
+    "n_reference_windows": 20,
+    "disk_truth_checked_rows": 40,
+    "disk_truth_unmatched": 0,
+    "disk_truth_max_abs_diff": 2.23145e-07,
+    "selftest_backup": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\app\\runtime\\feature_builder_selftest.py.bak_20260524_141856",
+    "references_regenerated": 20,
+    "poison": "raised as required \u2014 RuntimeError"
+  },
+  "overall_status": "PASS",
+  "block_m11": true
+}

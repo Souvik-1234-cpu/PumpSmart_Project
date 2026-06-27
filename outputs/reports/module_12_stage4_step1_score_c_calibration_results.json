@@ -1,0 +1,139 @@
+{
+  "script": "module_12_stage4_step1_score_c_calibration",
+  "stage": "M12 Stage 4 \u2014 Step 4.1 (live score_C calibration, v2 fill-matched)",
+  "timestamp": "2026-05-24T21:10:18.674014",
+  "device": "cuda",
+  "is_gpu": true,
+  "paths": {
+    "m4": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\lstm_ae_baseline_final.pth",
+    "m8": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\tcn_ae_level2_best.pth",
+    "m6b": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\data\\synthetic\\M6B_combined_sequences.pkl",
+    "out_cfg": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\models\\M8_alert_thresholds.json"
+  },
+  "gates": {
+    "G4_1_1": "PASS",
+    "G4_1_2": "PASS",
+    "G4_1_3": "PASS",
+    "G4_1_4": "PASS",
+    "G4_1_5": "PASS"
+  },
+  "evidence": {
+    "tcn_params": 255840,
+    "fillmatched_pool_n": {
+      "normal": 60,
+      "groupB": 360,
+      "confirmed": 180
+    },
+    "serve_pool_n": {
+      "normal": 0,
+      "groupB": 360,
+      "confirmed": 180
+    },
+    "fault_polarity_correct": true,
+    "severity_ordered": true,
+    "median_normal_fm": 0.073402,
+    "median_groupB_fm": 0.134233,
+    "median_confirmed_fm": 0.139987,
+    "auc_fillmatched": 0.9509,
+    "auc_serve": null,
+    "fillmatched_ordered": true,
+    "reliability": "STRONG",
+    "serve_normal_fires": false,
+    "plot": "C:\\Users\\user\\Desktop\\PumpSmart_Project\\outputs\\plots\\stage4_step1_score_c_distributions.png"
+  },
+  "thresholds": {
+    "score_C_normal_p95": 0.105989,
+    "score_C_warn": 0.077469,
+    "score_C_danger": 0.083763,
+    "score_C_reliability": "STRONG",
+    "basis": "fill_matched_adaptive_stride",
+    "target_windows": 30,
+    "min_ready_windows": 5,
+    "buffer_len_full": 63,
+    "auc_normal_vs_groupB_fillmatched": 0.9509,
+    "auc_normal_vs_groupB_serve_s50": null,
+    "fillmatched_ordered": true,
+    "fault_polarity_correct": true,
+    "severity_ordered": true,
+    "median_normal_fillmatched": 0.073402,
+    "median_groupB_fillmatched": 0.134233,
+    "median_confirmed_fillmatched": 0.139987,
+    "ordering_basis": "median_separation (v3: replaces knife-edge tail percentiles)",
+    "polarity_note": "AUC is direction-agnostic. Alarm logic assumes fault score_C > normal. Ordering is decided on MEDIAN separation (normal < groupB <= confirmed), the same robust statistic as the polarity check, so ordering and polarity are consistent by construction and reproducible (v2 used tail percentiles that flipped run-to-run under CUDA float nondeterminism). Tail percentiles below are provenance only and do NOT drive the tier.",
+    "reliability_policy": {
+      "STRONG": "score_C may drive up to DANGER",
+      "WEAK": "score_C may contribute to WARN only; never sole DANGER",
+      "UNUSABLE": "score_C advisory-only; drives no state transition",
+      "auc_strong_floor": 0.85,
+      "auc_weak_floor": 0.7
+    },
+    "serve_reality": {
+      "note": "At live stride=50, normal (200-step) sequences cannot fill MIN_READY windows, so score_C does NOT establish a normal baseline on the 1 Hz route. score_C is a slow chain signal (full 63-window buffer ~= 52 min at 1 Hz). Step 4.3 must NOT expect score_C to fire on short/acute windows; score_A (MAE) is the acute path.",
+      "serve_normal_pool_fires": false,
+      "serve_normal_n": 0,
+      "serve_warn_p5_groupB": 0.09373,
+      "serve_danger_p1_confirmed": 0.098107,
+      "serve_normal_p95": null
+    },
+    "provenance": {
+      "live_score_C_formula": "F.relu(residual.mean(dim=2).std(dim=1)) over [1,T,64] zt buffer (model_registry _TCNAutoencoder)",
+      "trained_score_C_note": "idx 31 trained col = seq-aggregate of z_t recon-err; DIFFERENT object; stubbed 0.0; M7 v3 does not consume it",
+      "z2_finding": "M6.5r Gate Z2: score_C>GroupA P50 in 72.5% GroupB windows (WARN-accepted, <80% target)",
+      "v1_artifact_note": "v1 used fixed stride 50 -> normal(200 steps) starved to 0 samples -> spurious UNUSABLE. v2 fill-matched fixes this.",
+      "pools": {
+        "normal_labels": [
+          0
+        ],
+        "groupB_labels": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "confirmed_labels": [
+          9,
+          10,
+          11
+        ]
+      },
+      "fillmatched": {
+        "normal": {
+          "n": 60,
+          "fill_med": 31,
+          "fill_max": 31
+        },
+        "groupB": {
+          "n": 360,
+          "fill_med": 30,
+          "fill_max": 31
+        },
+        "confirmed": {
+          "n": 180,
+          "fill_med": 30,
+          "fill_max": 31
+        }
+      },
+      "serve_s50": {
+        "normal": {
+          "n": 0,
+          "fill_med": 0,
+          "fill_max": 0
+        },
+        "groupB": {
+          "n": 360,
+          "fill_med": 13,
+          "fill_max": 18
+        },
+        "confirmed": {
+          "n": 180,
+          "fill_med": 16,
+          "fill_max": 18
+        }
+      }
+    }
+  },
+  "overall_status": "PASS",
+  "block_m11": true
+}

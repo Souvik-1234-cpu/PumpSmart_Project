@@ -1,0 +1,28 @@
+{
+  "script": "module_12_stage4_step4_apply_and_revalidate",
+  "stage": "M12 Stage 4 \u2014 Step 4.4 (apply patch + revalidate handoff)",
+  "timestamp": "2026-05-25T05:10:25.457642",
+  "patches": {
+    "anomaly": {
+      "status": "PASS",
+      "detail": "patched (move-after-classify + alert_sm.update); backup anomaly.py.bak_20260525_051025"
+    },
+    "acknowledge": {
+      "status": "PASS",
+      "detail": "patched (alert_sm.reset on acknowledge); backup acknowledge.py.bak_20260525_051025"
+    },
+    "registry_wiring": {
+      "status": "PASS",
+      "detail": "patched main.py (construct alert_sm); backup main.py.bak_20260525_051025"
+    }
+  },
+  "gates": {
+    "anomaly_imports_asm": "PASS",
+    "anomaly_calls_update": "PASS",
+    "anomaly_old_call_gone": "PASS",
+    "ack_resets_asm": "PASS"
+  },
+  "evidence": {},
+  "overall_status": "PASS",
+  "block_m11": true
+}

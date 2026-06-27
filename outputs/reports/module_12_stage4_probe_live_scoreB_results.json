@@ -1,0 +1,22 @@
+{
+  "script": "module_12_stage4_probe_live_scoreB",
+  "ts": "2026-05-25T11:41:53.581397+00:00",
+  "normal_scoreB": {
+    "n": 120,
+    "mean": 0.000895,
+    "p50": 0.0,
+    "p95": 0.0,
+    "p99": 0.028505,
+    "max": 0.031937
+  },
+  "label21_scoreB": {
+    "n": 100,
+    "mean": -0.002572,
+    "p50": 0.0,
+    "p95": 0.007154,
+    "p99": 0.025982,
+    "max": 0.030695
+  },
+  "provisional_frac_normal": 0.0,
+  "recenter": {}
+}

@@ -1,0 +1,12 @@
+{
+  "script": "module_12_stage4_step1d_warn_path_fix",
+  "timestamp": "2026-05-25T11:09:12.527084",
+  "gates": {
+    "patch_applied": "SKIP",
+    "verify_normal_stays_normal": "PASS",
+    "verify_acute_still_danger": "PASS",
+    "verify_floor_still_warn": "PASS"
+  },
+  "evidence": {},
+  "overall_status": "PASS"
+}
